@@ -1,62 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { jobQuestions, jobs } from '@/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const jobId = params.id;
+    const { id } = await params;
+    const jobId = parseInt(id);
 
-    // Validate job ID
-    if (!jobId || isNaN(parseInt(jobId))) {
+    if (isNaN(jobId)) {
       return NextResponse.json(
-        { 
-          error: 'Valid job ID is required',
-          code: 'INVALID_JOB_ID' 
-        },
+        { error: 'Invalid job ID', code: 'INVALID_JOB_ID' },
         { status: 400 }
       );
     }
 
-    // Check if job exists
+    // Verify job exists
     const job = await db.select()
       .from(jobs)
-      .where(eq(jobs.id, parseInt(jobId)))
+      .where(eq(jobs.id, jobId))
       .limit(1);
 
     if (job.length === 0) {
       return NextResponse.json(
-        { 
-          error: 'Job not found',
-          code: 'JOB_NOT_FOUND' 
-        },
+        { error: 'Job not found', code: 'JOB_NOT_FOUND' },
         { status: 404 }
       );
     }
 
-    // Get query parameters
-    const { searchParams } = new URL(request.url);
-    const orderBy = searchParams.get('orderBy');
-
-    // Build query
-    let query = db.select()
+    // Get all questions for this job
+    const questions = await db.select()
       .from(jobQuestions)
-      .where(eq(jobQuestions.jobId, parseInt(jobId)));
-
-    // Apply ordering if specified
-    if (orderBy === 'orderIndex') {
-      query = query.orderBy(asc(jobQuestions.orderIndex));
-    }
-
-    const questions = await query;
+      .where(eq(jobQuestions.jobId, jobId))
+      .orderBy(jobQuestions.orderIndex);
 
     return NextResponse.json(questions, { status: 200 });
-
   } catch (error) {
-    console.error('GET error:', error);
+    console.error('GET /api/jobs/[id]/questions error:', error);
     return NextResponse.json(
       { error: 'Internal server error: ' + (error as Error).message },
       { status: 500 }
@@ -66,77 +49,57 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const jobId = params.id;
+    const { id } = await params;
+    const jobId = parseInt(id);
+    const body = await request.json();
 
-    // Validate job ID
-    if (!jobId || isNaN(parseInt(jobId))) {
+    if (isNaN(jobId)) {
       return NextResponse.json(
-        { 
-          error: 'Valid job ID is required',
-          code: 'INVALID_JOB_ID' 
-        },
+        { error: 'Invalid job ID', code: 'INVALID_JOB_ID' },
         { status: 400 }
       );
     }
 
-    // Check if job exists
+    const { prompt, maxSec, required, orderIndex } = body;
+
+    if (!prompt || prompt.trim() === '') {
+      return NextResponse.json(
+        { error: 'Question prompt is required', code: 'MISSING_PROMPT' },
+        { status: 400 }
+      );
+    }
+
+    // Verify job exists
     const job = await db.select()
       .from(jobs)
-      .where(eq(jobs.id, parseInt(jobId)))
+      .where(eq(jobs.id, jobId))
       .limit(1);
 
     if (job.length === 0) {
       return NextResponse.json(
-        { 
-          error: 'Job not found',
-          code: 'JOB_NOT_FOUND' 
-        },
-        { status: 400 }
+        { error: 'Job not found', code: 'JOB_NOT_FOUND' },
+        { status: 404 }
       );
     }
 
-    const body = await request.json();
-    const isBatch = Array.isArray(body);
-    const questionsData = isBatch ? body : [body];
-
-    // Validate all questions
-    for (const questionData of questionsData) {
-      if (!questionData.prompt || typeof questionData.prompt !== 'string' || questionData.prompt.trim() === '') {
-        return NextResponse.json(
-          { 
-            error: 'Prompt is required and must be a non-empty string',
-            code: 'MISSING_REQUIRED_FIELD' 
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Prepare questions for insertion
-    const questionsToInsert = questionsData.map((questionData) => ({
-      jobId: parseInt(jobId),
-      prompt: questionData.prompt.trim(),
-      maxSec: questionData.maxSec !== undefined ? questionData.maxSec : 120,
-      required: questionData.required !== undefined ? questionData.required : true,
-      orderIndex: questionData.orderIndex !== undefined ? questionData.orderIndex : null,
-      createdAt: new Date().toISOString(),
-    }));
-
-    // Insert questions
-    const createdQuestions = await db.insert(jobQuestions)
-      .values(questionsToInsert)
+    const now = new Date().toISOString();
+    const newQuestion = await db.insert(jobQuestions)
+      .values({
+        jobId,
+        prompt: prompt.trim(),
+        maxSec: maxSec || 120,
+        required: required !== undefined ? required : true,
+        orderIndex: orderIndex !== undefined ? orderIndex : 0,
+        createdAt: now,
+      })
       .returning();
 
-    // Return single object or array based on input
-    const response = isBatch ? createdQuestions : createdQuestions[0];
-
-    return NextResponse.json(response, { status: 201 });
-
+    return NextResponse.json(newQuestion[0], { status: 201 });
   } catch (error) {
-    console.error('POST error:', error);
+    console.error('POST /api/jobs/[id]/questions error:', error);
     return NextResponse.json(
       { error: 'Internal server error: ' + (error as Error).message },
       { status: 500 }

@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { actions, applications, users } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
-
-const ALLOWED_ACTION_TYPES = ['reject', 'move_to_phone', 'email_sent', 'exported'] as const;
-type ActionType = typeof ALLOWED_ACTION_TYPES[number];
-
-const STAGE_MAPPING: Record<ActionType, string | null> = {
-  'reject': 'rejected',
-  'move_to_phone': 'phone_interview',
-  'email_sent': null,
-  'exported': null
-};
+import { actions, applications } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(
   request: NextRequest,
@@ -20,18 +10,17 @@ export async function POST(
   try {
     const { id } = await params;
     const applicationId = parseInt(id);
+    const body = await request.json();
 
-    if (!applicationId || isNaN(applicationId)) {
+    if (isNaN(applicationId)) {
       return NextResponse.json(
-        { error: 'Valid application ID is required', code: 'INVALID_ID' },
+        { error: 'Invalid application ID', code: 'INVALID_ID' },
         { status: 400 }
       );
     }
 
-    const body = await request.json();
-    const { type, createdBy, payload } = body;
+    const { type, payload, createdBy } = body;
 
-    // Validate required fields
     if (!type) {
       return NextResponse.json(
         { error: 'Action type is required', code: 'MISSING_TYPE' },
@@ -39,88 +28,33 @@ export async function POST(
       );
     }
 
-    if (!createdBy) {
-      return NextResponse.json(
-        { error: 'CreatedBy is required', code: 'MISSING_CREATED_BY' },
-        { status: 400 }
-      );
-    }
-
-    // Validate action type
-    if (!ALLOWED_ACTION_TYPES.includes(type)) {
-      return NextResponse.json(
-        { 
-          error: `Invalid action type. Must be one of: ${ALLOWED_ACTION_TYPES.join(', ')}`, 
-          code: 'INVALID_ACTION_TYPE' 
-        },
-        { status: 400 }
-      );
-    }
-
-    // Check if application exists
-    const existingApplication = await db
+    // Verify application exists
+    const application = await db
       .select()
       .from(applications)
       .where(eq(applications.id, applicationId))
       .limit(1);
 
-    if (existingApplication.length === 0) {
+    if (application.length === 0) {
       return NextResponse.json(
         { error: 'Application not found', code: 'APPLICATION_NOT_FOUND' },
-        { status: 400 }
+        { status: 404 }
       );
     }
 
-    const currentTimestamp = new Date().toISOString();
-
-    // Create action
+    const now = new Date().toISOString();
     const newAction = await db
       .insert(actions)
       .values({
         applicationId,
-        type,
+        type: type.trim(),
         payload: payload || null,
-        createdBy,
-        createdAt: currentTimestamp
+        createdBy: createdBy || null,
+        createdAt: now,
       })
       .returning();
 
-    // Update application stage if applicable
-    const newStage = STAGE_MAPPING[type as ActionType];
-    let updatedApplication = existingApplication[0];
-
-    if (newStage) {
-      const updated = await db
-        .update(applications)
-        .set({
-          stage: newStage,
-          updatedAt: currentTimestamp
-        })
-        .where(eq(applications.id, applicationId))
-        .returning();
-
-      updatedApplication = updated[0];
-    } else {
-      // Still update the updatedAt timestamp
-      const updated = await db
-        .update(applications)
-        .set({
-          updatedAt: currentTimestamp
-        })
-        .where(eq(applications.id, applicationId))
-        .returning();
-
-      updatedApplication = updated[0];
-    }
-
-    return NextResponse.json(
-      {
-        action: newAction[0],
-        applicationStage: updatedApplication.stage
-      },
-      { status: 201 }
-    );
-
+    return NextResponse.json(newAction[0], { status: 201 });
   } catch (error) {
     console.error('POST /api/applications/[id]/actions error:', error);
     return NextResponse.json(
@@ -138,50 +72,19 @@ export async function GET(
     const { id } = await params;
     const applicationId = parseInt(id);
 
-    if (!applicationId || isNaN(applicationId)) {
+    if (isNaN(applicationId)) {
       return NextResponse.json(
-        { error: 'Valid application ID is required', code: 'INVALID_ID' },
+        { error: 'Invalid application ID', code: 'INVALID_ID' },
         { status: 400 }
       );
     }
 
-    // Check if application exists
-    const existingApplication = await db
-      .select()
-      .from(applications)
-      .where(eq(applications.id, applicationId))
-      .limit(1);
-
-    if (existingApplication.length === 0) {
-      return NextResponse.json(
-        { error: 'Application not found', code: 'APPLICATION_NOT_FOUND' },
-        { status: 404 }
-      );
-    }
-
-    // Get all actions for the application with user info
     const actionsList = await db
-      .select({
-        id: actions.id,
-        applicationId: actions.applicationId,
-        type: actions.type,
-        payload: actions.payload,
-        createdBy: actions.createdBy,
-        createdAt: actions.createdAt,
-        createdByUser: {
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          avatarUrl: users.avatarUrl
-        }
-      })
+      .select()
       .from(actions)
-      .leftJoin(users, eq(actions.createdBy, users.id))
-      .where(eq(actions.applicationId, applicationId))
-      .orderBy(desc(actions.createdAt));
+      .where(eq(actions.applicationId, applicationId));
 
     return NextResponse.json(actionsList, { status: 200 });
-
   } catch (error) {
     console.error('GET /api/applications/[id]/actions error:', error);
     return NextResponse.json(

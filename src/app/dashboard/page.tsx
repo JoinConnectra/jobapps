@@ -1,14 +1,19 @@
-
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession, authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
+  const [stats, setStats] = useState({
+    jobs: 0,
+    applications: 0,
+    organizations: 0,
+  });
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -16,17 +21,34 @@ export default function DashboardPage() {
     }
   }, [session, isPending, router]);
 
+  useEffect(() => {
+    if (session?.user) {
+      fetchStats();
+    }
+  }, [session]);
+
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      
+      // Fetch organizations
+      const orgsResponse = await fetch("/api/organizations", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (orgsResponse.ok) {
+        const orgs = await orgsResponse.json();
+        setStats(prev => ({ ...prev, organizations: orgs.length }));
+      }
+
+      // Fetch jobs (we'll need to implement this properly later)
+      // For now just showing 0s
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    }
+  };
+
   const handleSignOut = async () => {
-    const token = localStorage.getItem("bearer_token");
-
-    const { error } = await authClient.signOut({
-      fetchOptions: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    });
-
+    const { error } = await authClient.signOut();
     if (error?.code) {
       toast.error(error.code);
     } else {
@@ -54,7 +76,9 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#F5F1E8]">
       <nav className="bg-white border-b border-border">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-display font-bold text-foreground">Dashboard</h1>
+          <Link href="/dashboard" className="text-2xl font-display font-bold text-foreground">
+            Rapha
+          </Link>
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{session.user.name}</p>
@@ -82,15 +106,15 @@ export default function DashboardPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="text-2xl font-bold text-primary mb-1">0</div>
+                <div className="text-2xl font-bold text-primary mb-1">{stats.jobs}</div>
                 <div className="text-sm text-muted-foreground">Active Jobs</div>
               </div>
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <div className="text-2xl font-bold text-accent mb-1">0</div>
+                <div className="text-2xl font-bold text-accent mb-1">{stats.applications}</div>
                 <div className="text-sm text-muted-foreground">Applications</div>
               </div>
               <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="text-2xl font-bold text-secondary mb-1">0</div>
+                <div className="text-2xl font-bold text-secondary mb-1">{stats.organizations}</div>
                 <div className="text-sm text-muted-foreground">Organizations</div>
               </div>
             </div>
@@ -99,22 +123,22 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h3 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
-                <div className="text-lg font-semibold text-foreground mb-2">Create Organization</div>
-                <p className="text-sm text-muted-foreground">Set up your company or university profile</p>
-              </button>
-              <button className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
-                <div className="text-lg font-semibold text-foreground mb-2">Post a Job</div>
-                <p className="text-sm text-muted-foreground">Start hiring with AI-powered job descriptions</p>
-              </button>
-              <button className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
-                <div className="text-lg font-semibold text-foreground mb-2">Review Applications</div>
-                <p className="text-sm text-muted-foreground">Listen to voice answers and evaluate candidates</p>
-              </button>
-              <button className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
+              <Link href="/dashboard/organizations" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
+                <div className="text-lg font-semibold text-foreground mb-2">Manage Organizations</div>
+                <p className="text-sm text-muted-foreground">View and manage your companies or university profiles</p>
+              </Link>
+              <Link href="/dashboard/jobs" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
+                <div className="text-lg font-semibold text-foreground mb-2">View All Jobs</div>
+                <p className="text-sm text-muted-foreground">See all job postings across organizations</p>
+              </Link>
+              <Link href="/dashboard/candidates" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
+                <div className="text-lg font-semibold text-foreground mb-2">Browse Candidates</div>
+                <p className="text-sm text-muted-foreground">View all applications and candidate profiles</p>
+              </Link>
+              <Link href="/dashboard/analytics" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
                 <div className="text-lg font-semibold text-foreground mb-2">View Analytics</div>
                 <p className="text-sm text-muted-foreground">Track pipeline metrics and hiring performance</p>
-              </button>
+              </Link>
             </div>
           </div>
 
