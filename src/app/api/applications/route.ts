@@ -1,0 +1,216 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/db';
+import { applications, jobs } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+
+// Email validation helper
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { jobId, applicantEmail, applicantUserId, stage, source } = body;
+
+    // Validate required fields
+    if (!jobId) {
+      return NextResponse.json(
+        { error: 'jobId is required', code: 'MISSING_JOB_ID' },
+        { status: 400 }
+      );
+    }
+
+    if (!applicantEmail) {
+      return NextResponse.json(
+        { error: 'applicantEmail is required', code: 'MISSING_APPLICANT_EMAIL' },
+        { status: 400 }
+      );
+    }
+
+    // Validate email format
+    if (!isValidEmail(applicantEmail)) {
+      return NextResponse.json(
+        { error: 'Invalid email format', code: 'INVALID_EMAIL_FORMAT' },
+        { status: 400 }
+      );
+    }
+
+    // Validate jobId is a valid integer
+    const parsedJobId = parseInt(jobId);
+    if (isNaN(parsedJobId)) {
+      return NextResponse.json(
+        { error: 'jobId must be a valid integer', code: 'INVALID_JOB_ID' },
+        { status: 400 }
+      );
+    }
+
+    // Check if job exists
+    const job = await db.select()
+      .from(jobs)
+      .where(eq(jobs.id, parsedJobId))
+      .limit(1);
+
+    if (job.length === 0) {
+      return NextResponse.json(
+        { error: 'Job not found', code: 'JOB_NOT_FOUND' },
+        { status: 400 }
+      );
+    }
+
+    // Prepare application data
+    const now = new Date().toISOString();
+    const applicationData: any = {
+      jobId: parsedJobId,
+      applicantEmail: applicantEmail.toLowerCase().trim(),
+      stage: stage || 'applied',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Add optional fields if provided
+    if (applicantUserId !== undefined && applicantUserId !== null) {
+      const parsedUserId = parseInt(applicantUserId);
+      if (!isNaN(parsedUserId)) {
+        applicationData.applicantUserId = parsedUserId;
+      }
+    }
+
+    if (source) {
+      applicationData.source = source.trim();
+    }
+
+    // Create application
+    const newApplication = await db.insert(applications)
+      .values(applicationData)
+      .returning();
+
+    return NextResponse.json(newApplication[0], { status: 201 });
+
+  } catch (error) {
+    console.error('POST /api/applications error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error: ' + (error as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get('id');
+
+    // Single application by ID
+    if (id) {
+      const parsedId = parseInt(id);
+      if (isNaN(parsedId)) {
+        return NextResponse.json(
+          { error: 'Valid ID is required', code: 'INVALID_ID' },
+          { status: 400 }
+        );
+      }
+
+      const application = await db.select({
+        id: applications.id,
+        jobId: applications.jobId,
+        applicantUserId: applications.applicantUserId,
+        applicantEmail: applications.applicantEmail,
+        stage: applications.stage,
+        source: applications.source,
+        createdAt: applications.createdAt,
+        updatedAt: applications.updatedAt,
+        jobTitle: jobs.title,
+      })
+        .from(applications)
+        .leftJoin(jobs, eq(applications.jobId, jobs.id))
+        .where(eq(applications.id, parsedId))
+        .limit(1);
+
+      if (application.length === 0) {
+        return NextResponse.json(
+          { error: 'Application not found', code: 'APPLICATION_NOT_FOUND' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(application[0], { status: 200 });
+    }
+
+    // List applications with filters
+    const jobId = searchParams.get('jobId');
+    const orgId = searchParams.get('orgId');
+    const stage = searchParams.get('stage');
+    const limit = Math.min(parseInt(searchParams.get('limit') ?? '10'), 100);
+    const offset = parseInt(searchParams.get('offset') ?? '0');
+
+    // Require either jobId or orgId for filtering
+    if (!jobId && !orgId) {
+      return NextResponse.json(
+        { error: 'Either jobId or orgId is required', code: 'MISSING_FILTER_PARAMS' },
+        { status: 400 }
+      );
+    }
+
+    // Build query with join to jobs table
+    let query = db.select({
+      id: applications.id,
+      jobId: applications.jobId,
+      applicantUserId: applications.applicantUserId,
+      applicantEmail: applications.applicantEmail,
+      stage: applications.stage,
+      source: applications.source,
+      createdAt: applications.createdAt,
+      updatedAt: applications.updatedAt,
+      jobTitle: jobs.title,
+      orgId: jobs.orgId,
+    })
+      .from(applications)
+      .innerJoin(jobs, eq(applications.jobId, jobs.id));
+
+    // Apply filters
+    const conditions = [];
+
+    if (jobId) {
+      const parsedJobId = parseInt(jobId);
+      if (isNaN(parsedJobId)) {
+        return NextResponse.json(
+          { error: 'jobId must be a valid integer', code: 'INVALID_JOB_ID' },
+          { status: 400 }
+        );
+      }
+      conditions.push(eq(applications.jobId, parsedJobId));
+    }
+
+    if (orgId) {
+      const parsedOrgId = parseInt(orgId);
+      if (isNaN(parsedOrgId)) {
+        return NextResponse.json(
+          { error: 'orgId must be a valid integer', code: 'INVALID_ORG_ID' },
+          { status: 400 }
+        );
+      }
+      conditions.push(eq(jobs.orgId, parsedOrgId));
+    }
+
+    if (stage) {
+      conditions.push(eq(applications.stage, stage.trim()));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const results = await query.limit(limit).offset(offset);
+
+    return NextResponse.json(results, { status: 200 });
+
+  } catch (error) {
+    console.error('GET /api/applications error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error: ' + (error as Error).message },
+      { status: 500 }
+    );
+  }
+}
