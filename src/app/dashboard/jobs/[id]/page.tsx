@@ -13,7 +13,9 @@ import Link from "next/link";
 interface Question {
   id?: number;
   prompt: string;
+  kind?: 'voice' | 'text';
   maxSec: number;
+  maxChars?: number | null;
   required: boolean;
   orderIndex: number;
 }
@@ -83,7 +85,9 @@ export default function JobDetailPage() {
       ...questions,
       {
         prompt: "",
+        kind: 'voice',
         maxSec: 120,
+        maxChars: null,
         required: true,
         orderIndex: questions.length,
       },
@@ -209,15 +213,15 @@ export default function JobDetailPage() {
             )}
           </div>
 
-          {/* Voice Questions */}
+          {/* Questions */}
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-display font-bold text-foreground">
-                  Voice Questions
+                  Questions
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Applicants will record audio answers to these questions
+                  Configure voice or text based questions for applicants
                 </p>
               </div>
               <Button onClick={addQuestion} className="gap-2">
@@ -267,7 +271,18 @@ export default function JobDetailPage() {
                       />
                     </div>
 
-                    <div className="flex gap-4 items-center">
+                  <div className="flex gap-4 items-center flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm">Type:</Label>
+                      <select
+                        value={question.kind || 'voice'}
+                        onChange={(e) => updateQuestion(index, 'kind', e.target.value as any)}
+                        className="border border-border rounded px-2 py-1"
+                      >
+                        <option value="voice">Voice</option>
+                        <option value="text">Text</option>
+                      </select>
+                    </div>
                       <div className="flex items-center gap-2">
                         <Label className="text-sm">Max Duration:</Label>
                         <Input
@@ -288,6 +303,17 @@ export default function JobDetailPage() {
                           seconds
                         </span>
                       </div>
+                    {question.kind === 'text' && (
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm">Max chars:</Label>
+                        <Input
+                          type="number"
+                          value={question.maxChars || 0}
+                          onChange={(e) => updateQuestion(index, 'maxChars', parseInt(e.target.value))}
+                          className="w-24"
+                        />
+                      </div>
+                    )}
 
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input

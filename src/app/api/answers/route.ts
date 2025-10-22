@@ -5,18 +5,32 @@ import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const audioFile = formData.get('audio') as File;
-    const applicationId = formData.get('applicationId') as string;
-    const questionId = formData.get('questionId') as string;
-    const durationSec = formData.get('durationSec') as string;
+    // Accept both multipart (voice) and JSON (text)
+    const contentType = request.headers.get('content-type') || '';
+    let audioFile: File | null = null;
+    let textAnswer: string | null = null;
+    let applicationId: string;
+    let questionId: string;
+    let durationSec: string = '0';
 
-    if (!audioFile || !applicationId || !questionId) {
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      audioFile = formData.get('audio') as File;
+      applicationId = String(formData.get('applicationId'));
+      questionId = String(formData.get('questionId'));
+      durationSec = String(formData.get('durationSec') || '0');
+      textAnswer = null;
+    } else {
+      const body = await request.json();
+      applicationId = String(body.applicationId);
+      questionId = String(body.questionId);
+      textAnswer = body.textAnswer ?? null;
+      durationSec = String(body.durationSec ?? '0');
+    }
+
+    if ((!audioFile && !textAnswer) || !applicationId || !questionId) {
       return NextResponse.json(
-        {
-          error: 'Audio file, applicationId, and questionId are required',
-          code: 'MISSING_FIELDS',
-        },
+        { error: 'Answer payload, applicationId, and questionId are required', code: 'MISSING_FIELDS' },
         { status: 400 }
       );
     }
@@ -60,9 +74,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // For now, we'll store a mock S3 key
-    // In production, upload to actual cloud storage (Supabase, S3, etc.)
-    const mockS3Key = `answers/${appId}/${qId}/${Date.now()}.webm`;
+    // For now, we'll store a mock S3 key for audio
+    const mockS3Key = audioFile ? `answers/${appId}/${qId}/${Date.now()}.webm` : null;
 
     const now = new Date().toISOString();
     const newAnswer = await db
@@ -72,6 +85,7 @@ export async function POST(request: NextRequest) {
         questionId: qId,
         audioS3Key: mockS3Key,
         durationSec: duration,
+        textAnswer: textAnswer,
         createdAt: now,
       })
       .returning();

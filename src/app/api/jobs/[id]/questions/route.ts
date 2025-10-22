@@ -63,7 +63,7 @@ export async function POST(
       );
     }
 
-    const { prompt, maxSec, required, orderIndex } = body;
+    const { prompt, maxSec, required, orderIndex, kind, maxChars } = body;
 
     if (!prompt || prompt.trim() === '') {
       return NextResponse.json(
@@ -90,7 +90,9 @@ export async function POST(
       .values({
         jobId,
         prompt: prompt.trim(),
+        kind: (kind === 'text' || kind === 'voice') ? kind : 'voice',
         maxSec: maxSec || 120,
+        maxChars: maxChars || null,
         required: required !== undefined ? required : true,
         orderIndex: orderIndex !== undefined ? orderIndex : 0,
         createdAt: now,

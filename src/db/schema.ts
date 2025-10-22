@@ -27,6 +27,8 @@ export const users = sqliteTable('users', {
   phone: text('phone'),
   locale: text('locale').default('en'),
   avatarUrl: text('avatar_url'),
+  // 'applicant' | 'employer' | 'university_admin'
+  accountType: text('account_type').default('applicant').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -67,6 +69,8 @@ export const jobs = sqliteTable('jobs', {
   salaryRange: text('salary_range'),
   descriptionMd: text('description_md'),
   status: text('status').default('draft'),
+  // 'public' | 'institutions' | 'both'
+  visibility: text('visibility').default('public'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -75,7 +79,10 @@ export const jobQuestions = sqliteTable('job_questions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   jobId: integer('job_id').notNull().references(() => jobs.id),
   prompt: text('prompt').notNull(),
+  // 'voice' | 'text'
+  kind: text('kind').default('voice').notNull(),
   maxSec: integer('max_sec').default(120),
+  maxChars: integer('max_chars'),
   required: integer('required', { mode: 'boolean' }).default(true),
   orderIndex: integer('order_index'),
   createdAt: text('created_at').notNull(),
@@ -90,6 +97,14 @@ export const jdVersions = sqliteTable('jd_versions', {
   createdAt: text('created_at').notNull(),
 });
 
+// Mapping: jobs visible to selected universities
+export const jobUniversities = sqliteTable('job_universities', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  jobId: integer('job_id').notNull().references(() => jobs.id),
+  universityOrgId: integer('university_org_id').notNull().references(() => organizations.id),
+  createdAt: text('created_at').notNull(),
+});
+
 export const applications = sqliteTable('applications', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   jobId: integer('job_id').notNull().references(() => jobs.id),
@@ -97,6 +112,7 @@ export const applications = sqliteTable('applications', {
   applicantEmail: text('applicant_email').notNull(),
   stage: text('stage').default('applied'),
   source: text('source'),
+  applicantUniversityId: integer('applicant_university_id').references(() => organizations.id),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -115,6 +131,7 @@ export const answers = sqliteTable('answers', {
   questionId: integer('question_id').notNull().references(() => jobQuestions.id),
   audioS3Key: text('audio_s3_key'),
   durationSec: integer('duration_sec'),
+  textAnswer: text('text_answer'),
   createdAt: text('created_at').notNull(),
 });
 

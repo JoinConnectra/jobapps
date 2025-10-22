@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { applications, jobs } from '@/db/schema';
+import { applications, jobs, organizations, studentProfiles } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 // Email validation helper
@@ -12,7 +12,7 @@ function isValidEmail(email: string): boolean {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jobId, applicantEmail, applicantUserId, stage, source } = body;
+    const { jobId, applicantEmail, applicantUserId, stage, source, applicantUniversityId } = body;
 
     // Validate required fields
     if (!jobId) {
@@ -81,6 +81,13 @@ export async function POST(request: NextRequest) {
       applicationData.source = source.trim();
     }
 
+    if (applicantUniversityId !== undefined && applicantUniversityId !== null) {
+      const uniId = parseInt(String(applicantUniversityId));
+      if (!isNaN(uniId)) {
+        applicationData.applicantUniversityId = uniId;
+      }
+    }
+
     // Create application
     const newApplication = await db.insert(applications)
       .values(applicationData)
@@ -122,9 +129,12 @@ export async function GET(request: NextRequest) {
         createdAt: applications.createdAt,
         updatedAt: applications.updatedAt,
         jobTitle: jobs.title,
+        applicantUniversityId: applications.applicantUniversityId,
+        applicantUniversityName: organizations.name,
       })
         .from(applications)
         .leftJoin(jobs, eq(applications.jobId, jobs.id))
+        .leftJoin(organizations, eq(applications.applicantUniversityId, organizations.id))
         .where(eq(applications.id, parsedId))
         .limit(1);
 

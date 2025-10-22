@@ -35,7 +35,7 @@ const FinalCtaSection = () => {
         </p>
         <a
           href="https://app.withrapha.com/"
-          className="inline-block bg-[#FF6B3D] text-white font-semibold text-[1.125rem] px-8 py-4 rounded-lg transition-transform duration-200 hover:scale-105"
+          className="inline-block bg-[#6a994e] text-white font-semibold text-[1.125rem] px-8 py-4 rounded-lg transition-transform duration-200 hover:scale-105"
         >
           Get started for free
         </a>

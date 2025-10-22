@@ -5,6 +5,8 @@ import { useSession, authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ArrowRight, User } from "lucide-react";
 
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
@@ -12,8 +14,11 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({
     jobs: 0,
     applications: 0,
-    organizations: 0,
   });
+  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [loadingOrg, setLoadingOrg] = useState(true);
+
+  const [feed, setFeed] = useState<Array<{ at: string; title: string; href?: string }>>([]);
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -23,29 +28,66 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (session?.user) {
-      fetchStats();
+      fetchOrgAndStats();
     }
   }, [session]);
 
-  const fetchStats = async () => {
+  const fetchOrgAndStats = async () => {
     try {
       const token = localStorage.getItem("bearer_token");
-      
-      // Fetch organizations
-      const orgsResponse = await fetch("/api/organizations", {
+      // Fetch my organizations
+      const orgsResponse = await fetch("/api/organizations?mine=true", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (orgsResponse.ok) {
         const orgs = await orgsResponse.json();
-        setStats(prev => ({ ...prev, organizations: orgs.length }));
+        // no orgs count on dashboard to avoid org concept surfacing
+        const primary = Array.isArray(orgs) && orgs.length > 0 ? orgs[0] : null;
+        setOrg(primary ? { id: primary.id, name: primary.name } : null);
+        setLoadingOrg(false);
+
+        // Fetch job/app counts and recent activity for primary org
+        if (primary) {
+          const jobsResp = await fetch(`/api/jobs?orgId=${primary.id}&limit=10`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (jobsResp.ok) {
+            const jobsData = await jobsResp.json();
+            setStats((prev) => ({ ...prev, jobs: Array.isArray(jobsData) ? jobsData.length : 0 }));
+          }
+
+          const appsResp = await fetch(`/api/applications?orgId=${primary.id}&limit=20`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (appsResp.ok) {
+            const appsData = await appsResp.json();
+            setStats((prev) => ({ ...prev, applications: Array.isArray(appsData) ? appsData.length : 0 }));
+
+            const items: Array<{ at: string; title: string; href?: string }> = [];
+            for (const a of appsData) {
+              items.push({
+                at: a.createdAt,
+                title: `${a.applicantEmail} applied to ${a.jobTitle}`,
+                href: `/dashboard/applications/${a.id}`,
+              });
+            }
+            // sort newest first
+            items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+            setFeed(items.slice(0, 25));
+          }
+        }
       }
 
       // Fetch jobs (we'll need to implement this properly later)
       // For now just showing 0s
     } catch (error) {
       console.error("Failed to fetch stats:", error);
+    } finally {
+      setLoadingOrg(false);
     }
   };
+
+  // No inline job creation on dashboard; that lives under /dashboard/jobs
 
   const handleSignOut = async () => {
     const { error } = await authClient.signOut();
@@ -76,9 +118,14 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#F5F1E8]">
       <nav className="bg-white border-b border-border">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/dashboard" className="text-2xl font-display font-bold text-foreground">
-            Rapha
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="text-2xl font-display font-bold text-foreground">
+              Rapha
+            </Link>
+            {org && (
+              <span className="text-sm text-muted-foreground">/ {org.name}</span>
+            )}
+          </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{session.user.name}</p>
@@ -94,67 +141,57 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-            <h2 className="text-3xl font-display font-bold text-foreground mb-4">
-              Welcome back, {session.user.name}! 👋
-            </h2>
-            <p className="text-muted-foreground mb-6">
-              Your Pakistan-focused hiring platform is ready. Let's build something amazing together.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="text-2xl font-bold text-primary mb-1">{stats.jobs}</div>
-                <div className="text-sm text-muted-foreground">Active Jobs</div>
+      <main className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* Sidebar */}
+          <aside className="md:col-span-3">
+            <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-6">
+              <div className="mb-6">
+                <div className="text-lg font-display font-bold text-foreground">{org?.name || "Your Company"}</div>
               </div>
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <div className="text-2xl font-bold text-accent mb-1">{stats.applications}</div>
-                <div className="text-sm text-muted-foreground">Applications</div>
+              <div className="space-y-2">
+                <Button onClick={() => router.push("/dashboard/jobs?create=1")} className="w-full justify-between">
+                  Create a Job
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => router.push("/dashboard")}>Activities</Button>
+                <Button variant="ghost" className="w-full justify-start" onClick={() => router.push("/dashboard/jobs")}>Jobs</Button>
               </div>
-              <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="text-2xl font-bold text-secondary mb-1">{stats.organizations}</div>
-                <div className="text-sm text-muted-foreground">Organizations</div>
+              <div className="mt-8 pt-6 border-t border-border flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-foreground">{session.user.name}</div>
+                  <div className="text-xs text-muted-foreground">{session.user.email}</div>
+                </div>
+                <button onClick={handleSignOut} className="text-xs text-muted-foreground hover:text-foreground">Sign out</button>
               </div>
             </div>
-          </div>
+          </aside>
 
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <h3 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Link href="/dashboard/organizations" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
-                <div className="text-lg font-semibold text-foreground mb-2">Manage Organizations</div>
-                <p className="text-sm text-muted-foreground">View and manage your companies or university profiles</p>
-              </Link>
-              <Link href="/dashboard/jobs" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
-                <div className="text-lg font-semibold text-foreground mb-2">View All Jobs</div>
-                <p className="text-sm text-muted-foreground">See all job postings across organizations</p>
-              </Link>
-              <Link href="/dashboard/candidates" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
-                <div className="text-lg font-semibold text-foreground mb-2">Browse Candidates</div>
-                <p className="text-sm text-muted-foreground">View all applications and candidate profiles</p>
-              </Link>
-              <Link href="/dashboard/analytics" className="p-6 border-2 border-border rounded-xl hover:border-primary hover:bg-blue-50 transition-all text-left">
-                <div className="text-lg font-semibold text-foreground mb-2">View Analytics</div>
-                <p className="text-sm text-muted-foreground">Track pipeline metrics and hiring performance</p>
-              </Link>
+          {/* Activities Feed */}
+          <section className="md:col-span-9">
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <h2 className="text-2xl font-display font-bold text-foreground mb-6">Activities</h2>
+              {feed.length === 0 ? (
+                <p className="text-muted-foreground">No recent activity yet.</p>
+              ) : (
+                <div className="space-y-6">
+                  {feed.map((item, idx) => (
+                    <Link key={idx} href={item.href || "#"} className="block">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-foreground">{item.title}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{new Date(item.at).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-
-          <div className="mt-8 bg-gradient-to-r from-primary to-accent rounded-2xl shadow-lg p-8 text-white">
-            <h3 className="text-2xl font-display font-bold mb-3">🚀 Platform Features</h3>
-            <ul className="space-y-2 text-sm">
-              <li>✅ Multi-tenant organizations with role-based access control</li>
-              <li>✅ AI-powered job description generation</li>
-              <li>✅ Voice answer submissions from candidates</li>
-              <li>✅ Automatic transcription and AI summaries</li>
-              <li>✅ Collaborative review with inline comments</li>
-              <li>✅ University portals for student recruitment</li>
-              <li>✅ Urdu/English multi-language support</li>
-              <li>✅ Activity timeline and audit logs</li>
-            </ul>
-          </div>
+          </section>
         </div>
       </main>
     </div>

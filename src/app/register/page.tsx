@@ -29,6 +29,10 @@ export default function RegisterPage() {
     confirmPassword: "",
     phone: "",
     locale: "en",
+    accountType: "applicant" as "applicant" | "employer",
+    companyName: "",
+    companyUrl: "",
+    universityId: "",
   });
 
   useEffect(() => {
@@ -68,6 +72,24 @@ export default function RegisterPage() {
         return;
       }
 
+      // Bootstrap profile and optional organization
+      try {
+        await fetch("/api/bootstrap/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || null,
+            locale: formData.locale,
+            accountType: formData.accountType,
+            companyName: formData.accountType === 'employer' ? formData.companyName : undefined,
+            companyUrl: formData.accountType === 'employer' ? formData.companyUrl : undefined,
+            universityId: formData.accountType === 'applicant' ? formData.universityId || null : null,
+          }),
+        });
+      } catch {}
+
       toast.success("Account created successfully! Please log in.");
       router.push("/login?registered=true");
     } catch (error) {
@@ -105,6 +127,19 @@ export default function RegisterPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">I am a</label>
+              <div className="flex gap-3">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="radio" name="acct" checked={formData.accountType==='applicant'} onChange={()=>setFormData({...formData,accountType:'applicant'})} />
+                  Applicant
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="radio" name="acct" checked={formData.accountType==='employer'} onChange={()=>setFormData({...formData,accountType:'employer'})} />
+                  Company
+                </label>
+              </div>
+            </div>
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
                 Full name
@@ -154,6 +189,27 @@ export default function RegisterPage() {
                 placeholder="+92 300 1234567"
               />
             </div>
+
+            {formData.accountType === 'employer' && (
+              <>
+                <div>
+                  <label htmlFor="companyName" className="block text-sm font-medium text-foreground mb-2">Company name</label>
+                  <input id="companyName" value={formData.companyName} onChange={(e)=>setFormData({...formData,companyName:e.target.value})} required className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Acme Inc." />
+                </div>
+                <div>
+                  <label htmlFor="companyUrl" className="block text-sm font-medium text-foreground mb-2">Company link (optional)</label>
+                  <input id="companyUrl" value={formData.companyUrl} onChange={(e)=>setFormData({...formData,companyUrl:e.target.value})} className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="https://acme.com" />
+                </div>
+              </>
+            )}
+
+            {formData.accountType === 'applicant' && (
+              <div>
+                <label htmlFor="universityId" className="block text-sm font-medium text-foreground mb-2">Educational institution (optional)</label>
+                <input id="universityId" value={formData.universityId} onChange={(e)=>setFormData({...formData,universityId:e.target.value})} className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all" placeholder="Enter university ID or leave blank" />
+                <p className="text-xs text-muted-foreground mt-1">We’ll auto-verify via email domain later.</p>
+              </div>
+            )}
 
             <div>
               <label htmlFor="locale" className="block text-sm font-medium text-foreground mb-2">
