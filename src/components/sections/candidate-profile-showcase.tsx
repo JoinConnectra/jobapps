@@ -100,10 +100,10 @@ const SideNavItem = ({ icon, label, active = false }: { icon: React.ReactNode; l
 
 export default function CandidateProfileShowcase() {
   return (
-    <section className="w-full bg-[#FFF9F1] font-body text-text-primary py-12 px-4 md:px-8">
-      <div className="grid w-full max-w-[1400px] mx-auto grid-cols-[240px_1fr_380px] rounded-xl shadow-2xl overflow-hidden border border-border">
+    <section className="w-full bg-white font-body text-text-primary py-16 px-4 md:px-8">
+      <div className="grid w-full max-w-[1400px] mx-auto grid-cols-1 lg:grid-cols-[240px_1fr_380px] rounded-xl shadow-2xl overflow-hidden border border-border">
         {/* Left Sidebar */}
-        <aside className="bg-[#1e1e1e] text-white flex flex-col p-4">
+        <aside className="bg-[#1e1e1e] text-white flex flex-col p-4 hidden lg:flex">
           <div className="mb-8">
             <Image
               src="https://framerusercontent.com/images/3fTRzVqDE2tYJAm3vxT2cW0r3Y.png"
@@ -141,7 +141,7 @@ export default function CandidateProfileShowcase() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="p-8 relative bg-card">
+        <main className="p-6 lg:p-8 relative bg-card">
           <Badge variant="secondary" className="absolute bottom-40 left-0 -rotate-90 origin-bottom-left -translate-x-1/2 ml-3 py-1 px-4 text-sm font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/80">
             Founding Designer
           </Badge>
@@ -218,7 +218,7 @@ export default function CandidateProfileShowcase() {
         </main>
 
         {/* Right Sidebar - Activity */}
-        <aside className="p-6 pt-8 bg-card border-l border-border">
+        <aside className="p-4 lg:p-6 pt-6 lg:pt-8 bg-card border-l border-border hidden lg:block">
           <h2 className="text-lg font-semibold mb-4">Activity</h2>
           <Tabs defaultValue="timeline" className="w-full">
             <TabsList className="grid w-full grid-cols-3 bg-muted">

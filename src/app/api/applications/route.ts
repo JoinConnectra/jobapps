@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { applications, jobs, organizations, studentProfiles } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { applications, jobs, organizations, studentProfiles, activity, users } from '@/db/schema';
+import { eq, and, asc, or, like } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/auth';
 
 // Email validation helper
 function isValidEmail(email: string): boolean {
@@ -93,6 +94,35 @@ export async function POST(request: NextRequest) {
       .values(applicationData)
       .returning();
 
+    // Write activity: applicant applied to job (org scoped)
+    try {
+      const nowIso = new Date().toISOString();
+      const jobRow = job[0];
+
+      let actorUserId: number | null = null;
+      const sessionUser = await getCurrentUser(request);
+      if (sessionUser?.email) {
+        const appUser = await db.select().from(users).where(eq(users.email, sessionUser.email)).limit(1);
+        if (appUser.length > 0) {
+          // @ts-ignore drizzle typing returns readonly
+          actorUserId = (appUser[0] as any).id as number;
+        }
+      }
+
+      await db.insert(activity).values({
+        orgId: jobRow.orgId,
+        actorUserId,
+        entityType: 'application',
+        entityId: newApplication[0].id,
+        action: 'applied',
+        diffJson: { applicantEmail: applicationData.applicantEmail, jobId: jobRow.id, jobTitle: jobRow.title },
+        createdAt: nowIso,
+      });
+    } catch (err) {
+      console.error('Failed to write activity for application:', err);
+      // non-fatal
+    }
+
     return NextResponse.json(newApplication[0], { status: 201 });
 
   } catch (error) {
@@ -152,13 +182,14 @@ export async function GET(request: NextRequest) {
     const jobId = searchParams.get('jobId');
     const orgId = searchParams.get('orgId');
     const stage = searchParams.get('stage');
+    const search = searchParams.get('search');
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '10'), 100);
     const offset = parseInt(searchParams.get('offset') ?? '0');
 
-    // Require either jobId or orgId for filtering
-    if (!jobId && !orgId) {
+    // For search functionality, we don't require jobId or orgId
+    if (!search && !jobId && !orgId) {
       return NextResponse.json(
-        { error: 'Either jobId or orgId is required', code: 'MISSING_FILTER_PARAMS' },
+        { error: 'Either jobId, orgId, or search is required', code: 'MISSING_FILTER_PARAMS' },
         { status: 400 }
       );
     }
@@ -208,9 +239,30 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(applications.stage, stage.trim()));
     }
 
+    if (search) {
+      const searchTerm = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          like(applications.applicantEmail, searchTerm),
+          like(jobs.title, searchTerm)
+        )
+      );
+      
+      // When searching, also filter by orgId if provided
+      if (orgId) {
+        const parsedOrgId = parseInt(orgId);
+        if (!isNaN(parsedOrgId)) {
+          conditions.push(eq(jobs.orgId, parsedOrgId));
+        }
+      }
+    }
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
+
+    // Order by creation date (oldest first)
+    query = query.orderBy(asc(applications.createdAt));
 
     const results = await query.limit(limit).offset(offset);
 

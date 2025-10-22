@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useSession } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Eye, Users } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Eye, Users, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Edit, Save, X } from "lucide-react";
 import Link from "next/link";
+import CommandPalette from "@/components/CommandPalette";
+import { useCommandPalette } from "@/hooks/use-command-palette";
 
 interface Question {
   id?: number;
@@ -35,10 +39,21 @@ export default function JobDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session, isPending } = useSession();
+  const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } = useCommandPalette();
   const [job, setJob] = useState<Job | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    title: '',
+    dept: '',
+    locationMode: '',
+    salaryRange: '',
+    descriptionMd: '',
+    status: ''
+  });
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -49,8 +64,26 @@ export default function JobDetailPage() {
   useEffect(() => {
     if (session?.user && params.id) {
       fetchJobData();
+      fetchOrg();
     }
   }, [session, params.id]);
+
+  const fetchOrg = async () => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const orgResp = await fetch("/api/organizations?mine=true", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (orgResp.ok) {
+        const orgs = await orgResp.json();
+        if (Array.isArray(orgs) && orgs.length > 0) {
+          setOrg(orgs[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch org:", error);
+    }
+  };
 
   const fetchJobData = async () => {
     try {
@@ -63,6 +96,14 @@ export default function JobDetailPage() {
       if (jobResponse.ok) {
         const jobData = await jobResponse.json();
         setJob(jobData);
+        setEditData({
+          title: jobData.title || '',
+          dept: jobData.dept || '',
+          locationMode: jobData.locationMode || '',
+          salaryRange: jobData.salaryRange || '',
+          descriptionMd: jobData.descriptionMd || '',
+          status: jobData.status || ''
+        });
       }
 
       const questionsResponse = await fetch(`/api/jobs/${params.id}/questions`, {
@@ -134,9 +175,65 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleEdit = () => {
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    if (job) {
+      setEditData({
+        title: job.title || '',
+        dept: job.dept || '',
+        locationMode: job.locationMode || '',
+        salaryRange: job.salaryRange || '',
+        descriptionMd: job.descriptionMd || '',
+        status: job.status || ''
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/jobs/${params.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editData),
+      });
+
+      if (response.ok) {
+        const updatedJob = await response.json();
+        setJob(updatedJob);
+        setEditing(false);
+        toast.success("Job updated successfully!");
+      } else {
+        toast.error("Failed to update job");
+      }
+    } catch (error) {
+      toast.error("An error occurred while updating the job");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    const { error } = await authClient.signOut();
+    if (error?.code) {
+      toast.error(error.code);
+    } else {
+      localStorage.removeItem("bearer_token");
+      router.push("/");
+    }
+  };
+
   if (isPending || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
+      <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -147,53 +244,236 @@ export default function JobDetailPage() {
   const applicationUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/apply/${job.id}`;
 
   return (
-    <div className="min-h-screen bg-[#F5F1E8]">
-      <nav className="bg-white border-b border-border">
-        <div className="container mx-auto px-4 py-4">
-          <Link
-            href={`/dashboard/organizations/${job.orgId}`}
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Organization
-          </Link>
+    <div className="min-h-screen bg-[#FEFEFA] flex">
+      {/* Left Sidebar */}
+      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
+        <div className="p-6">
+          <div className="text-xl font-display font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
+          
+          <Button onClick={() => router.push("/dashboard/jobs?create=1")} className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0">
+            + Create a Job
+          </Button>
+          
+          <nav className="space-y-1">
+            <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900" onClick={() => router.push("/dashboard")}>
+              <Bell className="w-4 h-4 mr-3" />
+              Activities
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-700 bg-[#F5F1E8] text-gray-900" onClick={() => router.push("/dashboard/jobs")}>
+              <Briefcase className="w-4 h-4 mr-3" />
+              Jobs
+            </Button>
+          </nav>
         </div>
-      </nav>
+        
+        <div className="mt-auto p-6 border-t border-gray-200">
+          <div className="space-y-3">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-gray-500 text-sm"
+              onClick={openCommandPalette}
+            >
+              <Search className="w-4 h-4 mr-3" />
+              Search
+              <span className="ml-auto text-xs">⌘K</span>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+              <HelpCircle className="w-4 h-4 mr-3" />
+              Help & Support
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+              <UserPlus className="w-4 h-4 mr-3" />
+              Invite people
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4 mr-3" />
+              Log out
+            </Button>
+          </div>
+          
+          <div className="mt-6 flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+              <span className="text-white text-sm font-medium">{session.user.name?.charAt(0)}</span>
+            </div>
+            <div className="text-sm font-medium text-gray-900">{session.user.name}</div>
+          </div>
+        </div>
+      </aside>
 
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-5xl mx-auto">
-          {/* Job Header */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-display font-bold text-foreground mb-2">
-                  {job.title}
-                </h1>
-                <p className="text-muted-foreground">
-                  {job.dept} • {job.locationMode} • {job.salaryRange}
-                </p>
-              </div>
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  job.status === "published"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-700"
-                }`}
+      {/* Main Content */}
+      <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
+        <div className="p-8">
+        <div className="max-w-5xl">
+          <div className="flex items-center gap-4 mb-8">
+            <nav className="flex items-center gap-2 text-sm">
+              <Link
+                href="/dashboard"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                {job.status}
-              </span>
+                Dashboard
+              </Link>
+              <span className="text-gray-400">&gt;</span>
+              <Link
+                href="/dashboard/jobs"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Jobs
+              </Link>
+              <span className="text-gray-400">&gt;</span>
+              <span className="text-gray-900 font-medium">{job.title}</span>
+            </nav>
+          </div>
+
+          {/* Job Header */}
+          <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex-1">
+                {editing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs text-gray-500 mb-1 block">Job Title</Label>
+                      <Input
+                        value={editData.title}
+                        onChange={(e) => setEditData({...editData, title: e.target.value})}
+                        className="text-sm"
+                        placeholder="Enter job title"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">Department</Label>
+                        <Input
+                          value={editData.dept}
+                          onChange={(e) => setEditData({...editData, dept: e.target.value})}
+                          className="text-sm"
+                          placeholder="e.g. Engineering"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">Location</Label>
+                        <Input
+                          value={editData.locationMode}
+                          onChange={(e) => setEditData({...editData, locationMode: e.target.value})}
+                          className="text-sm"
+                          placeholder="e.g. Remote, NYC"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">Salary Range</Label>
+                        <Input
+                          value={editData.salaryRange}
+                          onChange={(e) => setEditData({...editData, salaryRange: e.target.value})}
+                          className="text-sm"
+                          placeholder="e.g. $80k-120k"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500 mb-1 block">Job Description</Label>
+                      <Textarea
+                        value={editData.descriptionMd}
+                        onChange={(e) => setEditData({...editData, descriptionMd: e.target.value})}
+                        className="text-sm min-h-[100px]"
+                        placeholder="Enter job description..."
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h2 className="text-lg font-medium text-gray-900 mb-1">
+                      {job.title}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {job.dept} • {job.locationMode} • {job.salaryRange}
+                    </p>
+                    {job.descriptionMd && (
+                      <div className="mt-2 text-sm text-gray-600 max-w-2xl">
+                        {job.descriptionMd}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 ml-4">
+                {editing ? (
+                  <>
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      size="sm"
+                      className="gap-1 text-xs"
+                    >
+                      <Save className="w-3 h-3" />
+                      {saving ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      onClick={handleCancel}
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      onClick={handleEdit}
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Edit
+                    </Button>
+                    <Select value={job.status} onValueChange={async (value) => {
+                      try {
+                        const token = localStorage.getItem("bearer_token");
+                        const response = await fetch(`/api/jobs/${params.id}`, {
+                          method: "PATCH",
+                          headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({ status: value }),
+                        });
+
+                        if (response.ok) {
+                          const updatedJob = await response.json();
+                          setJob(updatedJob);
+                          toast.success("Status updated successfully!");
+                        } else {
+                          toast.error("Failed to update status");
+                        }
+                      } catch (error) {
+                        toast.error("An error occurred while updating status");
+                      }
+                    }}>
+                      <SelectTrigger className="w-32 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="published">Published</SelectItem>
+                        <SelectItem value="closed">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3">
               <Link href={`/dashboard/jobs/${job.id}/applications`} className="flex-1">
-                <Button variant="outline" className="w-full gap-2">
+                <Button variant="outline" className="w-full gap-2 text-sm">
                   <Users className="w-4 h-4" />
                   View Applications
                 </Button>
               </Link>
               <Button
                 variant="outline"
-                className="gap-2"
+                className="gap-2 text-sm"
                 onClick={() => window.open(applicationUrl, '_blank')}
               >
                 <Eye className="w-4 h-4" />
@@ -202,11 +482,11 @@ export default function JobDetailPage() {
             </div>
 
             {job.status === "published" && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <Label className="text-sm font-medium text-foreground mb-2 block">
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <Label className="text-xs font-medium text-gray-900 mb-1 block">
                   Application URL:
                 </Label>
-                <code className="text-sm bg-white px-3 py-2 rounded border border-border block overflow-x-auto">
+                <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200 block overflow-x-auto">
                   {applicationUrl}
                 </code>
               </div>
@@ -214,49 +494,49 @@ export default function JobDetailPage() {
           </div>
 
           {/* Questions */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-2xl font-display font-bold text-foreground">
+                <h2 className="text-lg font-medium text-gray-900">
                   Questions
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                   Configure voice or text based questions for applicants
                 </p>
               </div>
-              <Button onClick={addQuestion} className="gap-2">
+              <Button onClick={addQuestion} className="gap-2 text-sm">
                 <Plus className="w-4 h-4" />
                 Add Question
               </Button>
             </div>
 
             {questions.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
-                <p className="text-muted-foreground mb-4">
+              <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                <p className="text-sm text-gray-500 mb-3">
                   No questions added yet
                 </p>
-                <Button onClick={addQuestion} variant="outline">
+                <Button onClick={addQuestion} variant="outline" className="text-sm">
                   Add Your First Question
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {questions.map((question, index) => (
                   <div
                     key={index}
-                    className="p-4 border border-border rounded-lg space-y-3"
+                    className="p-4 border border-gray-200 rounded-lg space-y-3"
                   >
                     <div className="flex items-start justify-between">
-                      <span className="text-sm font-medium text-muted-foreground">
+                      <span className="text-xs font-medium text-gray-500">
                         Question {index + 1}
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => removeQuestion(index)}
-                        className="text-destructive hover:text-destructive"
+                        className="text-red-600 hover:text-red-700 text-xs"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
 
@@ -267,24 +547,24 @@ export default function JobDetailPage() {
                           updateQuestion(index, "prompt", e.target.value)
                         }
                         placeholder="e.g., Tell us about your experience with React"
-                        className="font-medium"
+                        className="text-sm"
                       />
                     </div>
 
-                  <div className="flex gap-4 items-center flex-wrap">
+                  <div className="flex gap-3 items-center flex-wrap">
                     <div className="flex items-center gap-2">
-                      <Label className="text-sm">Type:</Label>
+                      <Label className="text-xs">Type:</Label>
                       <select
                         value={question.kind || 'voice'}
                         onChange={(e) => updateQuestion(index, 'kind', e.target.value as any)}
-                        className="border border-border rounded px-2 py-1"
+                        className="border border-gray-300 rounded px-2 py-1 text-xs"
                       >
                         <option value="voice">Voice</option>
                         <option value="text">Text</option>
                       </select>
                     </div>
                       <div className="flex items-center gap-2">
-                        <Label className="text-sm">Max Duration:</Label>
+                        <Label className="text-xs">Max Duration:</Label>
                         <Input
                           type="number"
                           value={question.maxSec}
@@ -295,22 +575,22 @@ export default function JobDetailPage() {
                               parseInt(e.target.value)
                             )
                           }
-                          className="w-20"
+                          className="w-16 text-xs"
                           min="30"
                           max="300"
                         />
-                        <span className="text-sm text-muted-foreground">
-                          seconds
+                        <span className="text-xs text-gray-500">
+                          sec
                         </span>
                       </div>
                     {question.kind === 'text' && (
                       <div className="flex items-center gap-2">
-                        <Label className="text-sm">Max chars:</Label>
+                        <Label className="text-xs">Max chars:</Label>
                         <Input
                           type="number"
                           value={question.maxChars || 0}
                           onChange={(e) => updateQuestion(index, 'maxChars', parseInt(e.target.value))}
-                          className="w-24"
+                          className="w-20 text-xs"
                         />
                       </div>
                     )}
@@ -322,9 +602,9 @@ export default function JobDetailPage() {
                           onChange={(e) =>
                             updateQuestion(index, "required", e.target.checked)
                           }
-                          className="w-4 h-4"
+                          className="w-3 h-3"
                         />
-                        <span className="text-sm">Required</span>
+                        <span className="text-xs">Required</span>
                       </label>
                     </div>
                   </div>
@@ -333,7 +613,7 @@ export default function JobDetailPage() {
                 <Button
                   onClick={saveQuestions}
                   disabled={saving}
-                  className="w-full"
+                  className="w-full text-sm"
                 >
                   {saving ? "Saving..." : "Save Questions"}
                 </Button>
@@ -341,7 +621,14 @@ export default function JobDetailPage() {
             )}
           </div>
         </div>
+        </div>
       </main>
+      
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen} 
+        onClose={closeCommandPalette}
+        orgId={org?.id}
+      />
     </div>
   );
 }

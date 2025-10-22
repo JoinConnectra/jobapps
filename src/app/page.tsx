@@ -20,8 +20,8 @@ export default function Page() {
       <FeaturesOverviewSection />
       <AiAssistantFeature />
       <ActivityCrmFeature />
-      <GlobalTeamSection />
-      <TestimonialsSection />
+      {/* <GlobalTeamSection /> */}
+      {/* <TestimonialsSection /> */}
       <FinalCtaSection />
       <Footer />
     </main>

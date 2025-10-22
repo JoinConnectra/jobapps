@@ -2,9 +2,9 @@ import { Sparkles, UserCheck, UserX, Mail } from 'lucide-react';
 
 const AiAssistantFeature = () => {
   return (
-    <section className="py-20 lg:py-24">
-      <div className="container">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16 items-start">
+    <section className="bg-white py-20 lg:py-24">
+      <div className="container mx-auto px-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16 items-start max-w-6xl mx-auto">
           {/* Column 1: AI Assistant */}
           <div className="flex flex-col">
             <div className="bg-card rounded-2xl p-8 border border-border w-full">
@@ -26,10 +26,10 @@ const AiAssistantFeature = () => {
               </div>
             </div>
             <div className="mt-8 text-left">
-              <h3 className="text-[1.75rem] font-semibold text-[#4169E1] leading-tight">
+              <h3 className="text-2xl lg:text-[1.75rem] font-semibold text-[#6a994e] leading-tight">
                 Ask Rapha and you shall receive
               </h3>
-              <p className="mt-4 text-muted-foreground text-lg">
+              <p className="mt-4 text-muted-foreground text-base lg:text-lg">
                 Rapha can assist with job descriptions, shortlisting applicants and any other back-office task.
               </p>
             </div>
@@ -66,10 +66,10 @@ const AiAssistantFeature = () => {
               </div>
             </div>
             <div className="mt-8 text-left">
-              <h3 className="text-[1.75rem] font-semibold text-[#4169E1] leading-tight">
+              <h3 className="text-2xl lg:text-[1.75rem] font-semibold text-[#6a994e] leading-tight">
                 Quick commands to move fast
               </h3>
-              <p className="mt-4 text-muted-foreground text-lg">
+              <p className="mt-4 text-muted-foreground text-base lg:text-lg">
                 Navigate your jobs, applicants, and all parts of Rapha without ever reaching for your mouse
               </p>
             </div>

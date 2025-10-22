@@ -15,6 +15,13 @@
       "when": 1761067429625,
       "tag": "0001_dusty_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1761113234781,
+      "tag": "0002_common_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

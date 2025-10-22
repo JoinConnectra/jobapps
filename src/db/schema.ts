@@ -221,6 +221,24 @@ export const activity = sqliteTable('activity', {
   createdAt: text('created_at').notNull(),
 });
 
+// Answer reactions (likes/dislikes)
+export const answerReactions = sqliteTable('answer_reactions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  answerId: integer('answer_id').notNull().references(() => answers.id),
+  userId: integer('user_id').notNull().references(() => users.id),
+  reaction: text('reaction').notNull(), // 'like' or 'dislike'
+  createdAt: text('created_at').notNull(),
+});
+
+// Answer comments
+export const answerComments = sqliteTable('answer_comments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  answerId: integer('answer_id').notNull().references(() => answers.id),
+  userId: integer('user_id').notNull().references(() => users.id),
+  comment: text('comment').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 export const subscriptions = sqliteTable('subscriptions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   orgId: integer('org_id').notNull().references(() => organizations.id),
