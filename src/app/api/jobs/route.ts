@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { jobs, organizations, jobUniversities } from '@/db/schema';
+import { jobs, organizations, jobUniversities, activity, users } from '@/db/schema';
 import { eq, like, and, desc } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,6 +72,36 @@ export async function POST(request: NextRequest) {
       if (records.length > 0) {
         await db.insert(jobUniversities).values(records);
       }
+    }
+
+    // Log activity: job created
+    try {
+      const sessionUser = await getCurrentUser(request);
+      let actorUserId: number | null = null;
+      if (sessionUser?.email) {
+        const appUser = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, sessionUser.email))
+          .limit(1);
+        if (appUser.length > 0) {
+          // @ts-ignore drizzle typing returns readonly
+          actorUserId = (appUser[0] as any).id as number;
+        }
+      }
+
+      await db.insert(activity).values({
+        orgId: orgIdInt,
+        actorUserId,
+        entityType: 'job',
+        entityId: newJob[0].id,
+        action: 'created',
+        diffJson: { jobTitle: title?.trim() || '', jobId: newJob[0].id },
+        createdAt: now,
+      });
+    } catch (err) {
+      console.error('Failed to write activity for job creation:', err);
+      // do not block job creation on activity failure
     }
 
     return NextResponse.json(newJob[0], { status: 201 });

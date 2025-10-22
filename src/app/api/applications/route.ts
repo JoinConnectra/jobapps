@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { applications, jobs, organizations, studentProfiles } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { applications, jobs, organizations, studentProfiles, activity, users } from '@/db/schema';
+import { eq, and, asc } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/auth';
 
 // Email validation helper
 function isValidEmail(email: string): boolean {
@@ -92,6 +93,35 @@ export async function POST(request: NextRequest) {
     const newApplication = await db.insert(applications)
       .values(applicationData)
       .returning();
+
+    // Write activity: applicant applied to job (org scoped)
+    try {
+      const nowIso = new Date().toISOString();
+      const jobRow = job[0];
+
+      let actorUserId: number | null = null;
+      const sessionUser = await getCurrentUser(request);
+      if (sessionUser?.email) {
+        const appUser = await db.select().from(users).where(eq(users.email, sessionUser.email)).limit(1);
+        if (appUser.length > 0) {
+          // @ts-ignore drizzle typing returns readonly
+          actorUserId = (appUser[0] as any).id as number;
+        }
+      }
+
+      await db.insert(activity).values({
+        orgId: jobRow.orgId,
+        actorUserId,
+        entityType: 'application',
+        entityId: newApplication[0].id,
+        action: 'applied',
+        diffJson: { applicantEmail: applicationData.applicantEmail, jobId: jobRow.id, jobTitle: jobRow.title },
+        createdAt: nowIso,
+      });
+    } catch (err) {
+      console.error('Failed to write activity for application:', err);
+      // non-fatal
+    }
 
     return NextResponse.json(newApplication[0], { status: 201 });
 
@@ -211,6 +241,9 @@ export async function GET(request: NextRequest) {
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
+
+    // Order by creation date (oldest first)
+    query = query.orderBy(asc(applications.createdAt));
 
     const results = await query.limit(limit).offset(offset);
 

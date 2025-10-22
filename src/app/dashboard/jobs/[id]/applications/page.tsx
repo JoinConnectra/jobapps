@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useSession } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User, Clock, Filter } from "lucide-react";
+import { ArrowLeft, User, Clock, Filter, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface Application {
   id: number;
@@ -29,6 +30,7 @@ export default function JobApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -39,8 +41,26 @@ export default function JobApplicationsPage() {
   useEffect(() => {
     if (session?.user && params.id) {
       fetchData();
+      fetchOrg();
     }
   }, [session, params.id, filter]);
+
+  const fetchOrg = async () => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const orgResp = await fetch("/api/organizations?mine=true", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (orgResp.ok) {
+        const orgs = await orgResp.json();
+        if (Array.isArray(orgs) && orgs.length > 0) {
+          setOrg(orgs[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch org:", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -76,9 +96,19 @@ export default function JobApplicationsPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    const { error } = await authClient.signOut();
+    if (error?.code) {
+      toast.error(error.code);
+    } else {
+      localStorage.removeItem("bearer_token");
+      router.push("/");
+    }
+  };
+
   if (isPending || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
+      <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -98,43 +128,110 @@ export default function JobApplicationsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F5F1E8]">
-      <nav className="bg-white border-b border-border">
-        <div className="container mx-auto px-4 py-4">
-          <Link
-            href={`/dashboard/jobs/${params.id}`}
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Job
-          </Link>
+    <div className="min-h-screen bg-[#FEFEFA] flex">
+      {/* Left Sidebar */}
+      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col">
+        <div className="p-6">
+          <div className="text-xl font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
+          
+          <Button onClick={() => router.push("/dashboard/jobs?create=1")} className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0">
+            + Create a Job
+          </Button>
+          
+          <nav className="space-y-1">
+            <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900" onClick={() => router.push("/dashboard")}>
+              <Bell className="w-4 h-4 mr-3" />
+              Activities
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-700 bg-[#F5F1E8] text-gray-900" onClick={() => router.push("/dashboard/jobs")}>
+              <Briefcase className="w-4 h-4 mr-3" />
+              Jobs
+            </Button>
+          </nav>
         </div>
-      </nav>
+        
+        <div className="mt-auto p-6 border-t border-gray-200">
+          <div className="space-y-3">
+            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+              <Search className="w-4 h-4 mr-3" />
+              Search
+              <span className="ml-auto text-xs">⌘K</span>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+              <HelpCircle className="w-4 h-4 mr-3" />
+              Help & Support
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+              <UserPlus className="w-4 h-4 mr-3" />
+              Invite people
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4 mr-3" />
+              Log out
+            </Button>
+          </div>
+          
+          <div className="mt-6 flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+              <span className="text-white text-sm font-medium">{session.user.name?.charAt(0)}</span>
+            </div>
+            <div className="text-sm font-medium text-gray-900">{session.user.name}</div>
+          </div>
+        </div>
+      </aside>
 
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-6xl mx-auto">
+      {/* Main Content */}
+      <main className="flex-1 bg-[#FEFEFA] p-8">
+        <div className="max-w-6xl">
+          <div className="flex items-center gap-4 mb-8">
+            <nav className="flex items-center gap-2 text-sm">
+              <Link
+                href="/dashboard"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Dashboard
+              </Link>
+              <span className="text-gray-400">&gt;</span>
+              <Link
+                href="/dashboard/jobs"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Jobs
+              </Link>
+              <span className="text-gray-400">&gt;</span>
+              <Link
+                href={`/dashboard/jobs/${params.id}`}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                {job.title}
+              </Link>
+              <span className="text-gray-400">&gt;</span>
+              <span className="text-gray-900 font-medium">Applications</span>
+            </nav>
+          </div>
+
           {/* Header */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-            <h1 className="text-3xl font-display font-bold text-foreground mb-2">
+          <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-1">
               {job.title} - Applications
-            </h1>
-            <p className="text-muted-foreground">
+            </h2>
+            <p className="text-sm text-gray-500">
               {applications.length} total application{applications.length !== 1 ? "s" : ""}
             </p>
           </div>
 
           {/* Filter Tabs */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
             <div className="flex items-center gap-2 flex-wrap">
-              <Filter className="w-4 h-4 text-muted-foreground" />
+              <Filter className="w-4 h-4 text-gray-500" />
               {stages.map((stage) => (
                 <button
                   key={stage.value}
                   onClick={() => setFilter(stage.value)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     filter === stage.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   {stage.label} ({stage.count})
@@ -144,40 +241,40 @@ export default function JobApplicationsPage() {
           </div>
 
           {/* Applications List */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="bg-white rounded-lg shadow-sm">
             {applications.length === 0 ? (
               <div className="text-center py-12">
-                <User className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">
+                <User className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500">
                   No applications found for this filter
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="divide-y divide-gray-100">
                 {applications.map((app) => (
                   <Link
                     key={app.id}
                     href={`/dashboard/applications/${app.id}`}
-                    className="block p-4 border border-border rounded-lg hover:border-primary hover:bg-blue-50/50 transition-all"
+                    className="block p-5 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                          <User className="w-5 h-5 text-primary" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-orange-600" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-semibold text-foreground">
+                          <h3 className="text-sm font-medium text-gray-900">
                             {app.applicantEmail}
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
-                            <Clock className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3 text-gray-500" />
+                            <span className="text-xs text-gray-500">
                               Applied {new Date(app.createdAt).toLocaleDateString()}
                             </span>
                             {app.source && (
                               <>
-                                <span className="text-xs text-muted-foreground">•</span>
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-xs text-gray-500">•</span>
+                                <span className="text-xs text-gray-500">
                                   via {app.source}
                                 </span>
                               </>
@@ -186,7 +283,7 @@ export default function JobApplicationsPage() {
                         </div>
                       </div>
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
                           app.stage === "hired"
                             ? "bg-green-100 text-green-700"
                             : app.stage === "rejected"
