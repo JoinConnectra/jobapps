@@ -28,7 +28,9 @@ interface Job {
 interface Question {
   id: number;
   prompt: string;
+  kind?: 'voice' | 'text';
   maxSec: number;
+  maxChars?: number | null;
   required: boolean;
   orderIndex: number;
 }
@@ -38,6 +40,11 @@ interface VoiceAnswer {
   blob: Blob | null;
   duration: number;
   audioUrl: string | null;
+}
+
+interface TextAnswerState {
+  questionId: number;
+  text: string;
 }
 
 export default function ApplyPage() {
@@ -53,6 +60,7 @@ export default function ApplyPage() {
   const [applicantEmail, setApplicantEmail] = useState("");
   const [resume, setResume] = useState<File | null>(null);
   const [voiceAnswers, setVoiceAnswers] = useState<VoiceAnswer[]>([]);
+  const [textAnswers, setTextAnswers] = useState<TextAnswerState[]>([]);
 
   // Recording state
   const [currentQuestion, setCurrentQuestion] = useState<number | null>(null);
@@ -89,6 +97,12 @@ export default function ApplyPage() {
             blob: null,
             duration: 0,
             audioUrl: null,
+          }))
+        );
+        setTextAnswers(
+          questionsData.map((q: Question) => ({
+            questionId: q.id,
+            text: '',
           }))
         );
       }
@@ -195,9 +209,13 @@ export default function ApplyPage() {
     e.preventDefault();
     
     // Validate all required questions have answers
-    const missingAnswers = questions.filter((q, idx) => 
-      q.required && !voiceAnswers[idx]?.blob
-    );
+    const missingAnswers = questions.filter((q, idx) => {
+      if (!q.required) return false;
+      if (q.kind === 'text') {
+        return !textAnswers[idx]?.text?.trim();
+      }
+      return !voiceAnswers[idx]?.blob;
+    });
 
     if (missingAnswers.length > 0) {
       toast.error("Please answer all required questions");
@@ -223,20 +241,32 @@ export default function ApplyPage() {
 
       const application = await appResponse.json();
 
-      // Upload voice answers
-      for (let i = 0; i < voiceAnswers.length; i++) {
-        const answer = voiceAnswers[i];
-        if (answer.blob) {
-          const formData = new FormData();
-          formData.append("audio", answer.blob, `answer-${i}.webm`);
-          formData.append("applicationId", application.id.toString());
-          formData.append("questionId", answer.questionId.toString());
-          formData.append("durationSec", answer.duration.toString());
-
-          await fetch("/api/answers", {
-            method: "POST",
-            body: formData,
-          });
+      // Persist answers by question kind
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (q.kind === 'text') {
+          const ta = textAnswers[i];
+          if (ta?.text?.trim()) {
+            await fetch("/api/answers", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                applicationId: application.id,
+                questionId: q.id,
+                textAnswer: ta.text.trim(),
+              }),
+            });
+          }
+        } else {
+          const va = voiceAnswers[i];
+          if (va?.blob) {
+            const formData = new FormData();
+            formData.append("audio", va.blob, `answer-${i}.webm`);
+            formData.append("applicationId", application.id.toString());
+            formData.append("questionId", q.id.toString());
+            formData.append("durationSec", va.duration.toString());
+            await fetch("/api/answers", { method: "POST", body: formData });
+          }
         }
       }
 
@@ -331,10 +361,10 @@ export default function ApplyPage() {
             {/* Voice Questions */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <h2 className="text-2xl font-display font-bold text-foreground mb-2">
-                Voice Questions
+                Questions
               </h2>
               <p className="text-muted-foreground mb-6">
-                Record your answers to the following questions
+                Answer the questions below. Some may require a voice recording; others a written answer.
               </p>
 
               <div className="space-y-6">
@@ -359,12 +389,38 @@ export default function ApplyPage() {
                             {question.prompt}
                           </p>
                         </div>
-                        <span className="text-xs bg-muted px-2 py-1 rounded">
-                          Max {question.maxSec}s
-                        </span>
+                        {question.kind === 'text' ? (
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            Text
+                          </span>
+                        ) : (
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            Max {question.maxSec}s
+                          </span>
+                        )}
                       </div>
 
-                      {!hasRecording ? (
+                      {question.kind === 'text' ? (
+                        <div>
+                          <textarea
+                            value={textAnswers[index]?.text || ''}
+                            onChange={(e) => {
+                              const updated = [...textAnswers];
+                              updated[index] = { questionId: question.id, text: e.target.value };
+                              setTextAnswers(updated);
+                            }}
+                            className="w-full border border-border rounded-lg p-3"
+                            rows={4}
+                            placeholder="Type your answer here..."
+                            maxLength={question.maxChars || undefined}
+                          />
+                          {question.maxChars ? (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {(textAnswers[index]?.text?.length || 0)}/{question.maxChars} characters
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : !hasRecording ? (
                         <div className="space-y-3">
                           {isRecording && currentQuestion === index ? (
                             <div className="text-center py-4">

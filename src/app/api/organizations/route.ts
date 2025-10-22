@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { organizations } from '@/db/schema';
+import { organizations, memberships, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,6 +43,31 @@ export async function POST(request: NextRequest) {
         updatedAt: now,
       })
       .returning();
+    // Attach creator as admin member
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (session?.user?.email) {
+      // find or create app user by email
+      const email = session.user.email;
+      let appUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (appUser.length === 0) {
+        const inserted = await db.insert(users).values({
+          email,
+          name: session.user.name || email,
+          phone: null,
+          locale: 'en',
+          avatarUrl: session.user.image || null,
+          createdAt: now,
+          updatedAt: now,
+        }).returning();
+        appUser = inserted as any;
+      }
+      await db.insert(memberships).values({
+        userId: appUser[0].id,
+        orgId: newOrg[0].id,
+        role: 'admin',
+        createdAt: now,
+      });
+    }
 
     return NextResponse.json(newOrg[0], { status: 201 });
   } catch (error) {
@@ -58,6 +84,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
     const slug = searchParams.get('slug');
+    const listMine = searchParams.get('mine');
+    const type = searchParams.get('type');
 
     if (id) {
       const orgId = parseInt(id);
@@ -101,8 +129,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(org[0], { status: 200 });
     }
 
-    // List all organizations
-    const orgs = await db.select().from(organizations);
+    // If client asks for current user's organizations (scoped view)
+    if (listMine === 'true') {
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+
+      // our auth "user" table uses text ids, but app users table is numeric. For MVP we scope by email
+      const me = await db.select().from(users).where(eq(users.email, session.user.email)).limit(1);
+      if (me.length === 0) {
+        return NextResponse.json([], { status: 200 });
+      }
+
+      let rows = await db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          slug: organizations.slug,
+          type: organizations.type,
+          plan: organizations.plan,
+          seatLimit: organizations.seatLimit,
+          createdAt: organizations.createdAt,
+          updatedAt: organizations.updatedAt,
+        })
+        .from(memberships)
+        .innerJoin(organizations, eq(memberships.orgId, organizations.id))
+        .where(eq(memberships.userId, me[0].id));
+
+      if (type) {
+        rows = rows.filter((o) => o.type === type);
+      }
+
+      return NextResponse.json(rows, { status: 200 });
+    }
+
+    // Default: list organizations, optionally by type
+    let orgs = await db.select().from(organizations);
+    if (type) {
+      orgs = orgs.filter((o) => (o as any).type === type);
+    }
     return NextResponse.json(orgs, { status: 200 });
   } catch (error) {
     console.error('GET /api/organizations error:', error);

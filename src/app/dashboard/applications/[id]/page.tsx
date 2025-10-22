@@ -35,6 +35,8 @@ interface Application {
   source: string | null;
   createdAt: string;
   jobTitle: string;
+  applicantUniversityId?: number | null;
+  applicantUniversityName?: string | null;
 }
 
 interface Answer {
@@ -215,6 +217,11 @@ export default function ApplicationDetailPage() {
                   <p className="text-muted-foreground">
                     Applied to: {application.jobTitle}
                   </p>
+                  {application.applicantUniversityName && (
+                    <p className="text-sm text-green-700 mt-1">
+                      University: {application.applicantUniversityName}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mt-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">

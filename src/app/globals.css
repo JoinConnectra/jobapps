@@ -14,10 +14,10 @@
 
 @theme {
   /* Shadcn/UI colors */
-  --color-background: #F5F1E8;
+  --color-background: #FEFEFA;
   --color-foreground: #1A1A1A;
 
-  --color-card: #FEFDFB;
+  --color-card: #FEFEFA;
   --color-card-foreground: #1A1A1A;
 
   --color-popover: #FEFDFB;
@@ -26,13 +26,13 @@
   --color-primary: #4361EE;
   --color-primary-foreground: #FFFFFF;
 
-  --color-secondary: #FF6B4A;
+  --color-secondary: #6a994e;
   --color-secondary-foreground: #FFFFFF;
 
   --color-muted: #E5E7EB;
   --color-muted-foreground: #6B7280;
 
-  --color-accent: #14B8A6;
+  --color-accent: #6a994e;
   --color-accent-foreground: #FFFFFF;
 
   --color-destructive: #ef4444; /* Default red, not explicitly in design system but good to have */
@@ -43,7 +43,7 @@
   --color-ring: #4361EE; /* Using primary blue for ring */
 
   /* Chart colors (default shadcn, not explicitly in design system) */
-  --color-chart-1: #e67e22;
+  --color-chart-1: #6a994e;
   --color-chart-2: #2d8659;
   --color-chart-3: #1e3a5f;
   --color-chart-4: #f1c40f;

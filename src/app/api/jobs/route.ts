@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { jobs, organizations } from '@/db/schema';
+import { jobs, organizations, jobUniversities } from '@/db/schema';
 import { eq, like, and, desc } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orgId, title, dept, locationMode, salaryRange, descriptionMd, status } = body;
+    const { orgId, title, dept, locationMode, salaryRange, descriptionMd, status, visibility, universityIds } = body;
 
     // Validate required fields
     if (!orgId) {
@@ -56,10 +56,22 @@ export async function POST(request: NextRequest) {
         salaryRange: salaryRange?.trim() || null,
         descriptionMd: descriptionMd?.trim() || null,
         status: status?.trim() || 'draft',
+        visibility: visibility?.trim() || 'public',
         createdAt: now,
         updatedAt: now,
       })
       .returning();
+
+    // If selected institutions provided, create mappings
+    if (Array.isArray(universityIds) && universityIds.length > 0) {
+      const records = universityIds
+        .map((u: any) => parseInt(String(u)))
+        .filter((n: number) => !isNaN(n))
+        .map((uId: number) => ({ jobId: newJob[0].id, universityOrgId: uId, createdAt: now }));
+      if (records.length > 0) {
+        await db.insert(jobUniversities).values(records);
+      }
+    }
 
     return NextResponse.json(newJob[0], { status: 201 });
 
@@ -77,6 +89,7 @@ export async function GET(request: NextRequest) {
     const id = searchParams.get('id');
     const orgId = searchParams.get('orgId');
     const status = searchParams.get('status');
+    const universityId = searchParams.get('universityId');
     const search = searchParams.get('search');
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '10'), 100);
     const offset = parseInt(searchParams.get('offset') ?? '0');
@@ -149,12 +162,22 @@ export async function GET(request: NextRequest) {
     // Execute query with all conditions
     const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
     
-    const results = await db.select()
-      .from(jobs)
-      .where(whereCondition)
-      .orderBy(desc(jobs.createdAt))
-      .limit(limit)
-      .offset(offset);
+    // If filtering by university visibility, restrict accordingly
+    let baseQuery = db.select().from(jobs).where(whereCondition).orderBy(desc(jobs.createdAt)).limit(limit).offset(offset) as any;
+    if (universityId) {
+      const uniId = parseInt(universityId);
+      if (!isNaN(uniId)) {
+        // show jobs where visibility is 'both' or 'institutions' and mapped to uniId
+        // For SQLite in drizzle, perform a simple subquery filter via IN
+        // We'll fetch and filter in-memory for MVP
+        const temp = await db.select().from(jobs).where(whereCondition).orderBy(desc(jobs.createdAt));
+        const mappings = await db.select().from(jobUniversities);
+        const results = temp.filter(j => j.visibility !== 'public' && (j.visibility === 'both' || j.visibility === 'institutions') && mappings.some(m => m.jobId === j.id && m.universityOrgId === uniId)).slice(offset, offset + limit);
+        return NextResponse.json(results, { status: 200 });
+      }
+    }
+
+    const results = await baseQuery;
 
     return NextResponse.json(results, { status: 200 });
 

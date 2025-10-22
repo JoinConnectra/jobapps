@@ -69,7 +69,7 @@ export default function HeroSection() {
       </div>
 
       <div className="container relative z-20 flex flex-col items-center text-center">
-        <div className="bg-[#FF6B3D] text-white text-sm font-semibold py-2 px-5 rounded-full mb-6 leading-none">
+        <div className="bg-[#6a994e] text-white text-sm font-semibold py-2 px-5 rounded-full mb-6 leading-none">
           Hi we're Rapha
         </div>
 

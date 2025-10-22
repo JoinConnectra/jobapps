@@ -31,6 +31,8 @@ export default function NewJobPage() {
     salaryRange: "",
     descriptionMd: "",
     status: "draft",
+    visibility: 'public' as 'public' | 'institutions' | 'both',
+    universityIds: [] as number[],
   });
 
   const handleGenerateJD = async () => {
@@ -110,6 +112,7 @@ export default function NewJobPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          // Redirect new job creation to main dashboard flow; use first org and push to /dashboard/jobs
           orgId: params.id,
           ...formData,
         }),
@@ -267,6 +270,26 @@ export default function NewJobPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+            <div>
+              <Label>Visibility</Label>
+              <Select
+                value={formData.visibility}
+                onValueChange={(value) => setFormData({ ...formData, visibility: value as any })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="institutions">Selected Institutions Only</SelectItem>
+                  <SelectItem value="both">Institutions + Public</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Choose who can view/apply to this job.
+              </p>
+            </div>
 
               <div className="flex gap-3 pt-4">
                 <Button

@@ -87,7 +87,7 @@ const FeaturesOverviewSection = () => {
                 <div className="mt-3 space-y-2 border-t border-gray-200 pt-3">
                     <div className="flex items-center gap-x-2">
                         <User className="h-6 w-6 rounded-full bg-gray-100 p-1 text-gray-500" />
-                        <Badge className="border-orange-200 bg-orange-50 text-orange-700">Recruiter</Badge>
+                        <Badge className="border-green-200 bg-green-50 text-green-700">Recruiter</Badge>
                     </div>
                     <div className="flex items-center gap-x-2">
                         <User className="h-6 w-6 rounded-full bg-gray-100 p-1 text-gray-500" />
