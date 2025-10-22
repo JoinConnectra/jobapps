@@ -143,7 +143,7 @@ export default function DashboardPage() {
       {/* Left Sidebar */}
       <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col">
         <div className="p-6">
-          <div className="text-xl font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
+          <div className="text-xl font-display font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
           
           <Button onClick={() => router.push("/dashboard/jobs?create=1")} className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0">
             + Create a Job
@@ -209,44 +209,57 @@ export default function DashboardPage() {
 
           {/* Filter Buttons */}
           <div className="flex items-center gap-2 mb-6">
-            <button
-              onClick={() => setActivityFilter("all")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activityFilter === "all"
-                  ? "bg-orange-500 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setActivityFilter("company")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activityFilter === "company"
-                  ? "bg-orange-500 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Company
-            </button>
-            <button
-              onClick={() => setActivityFilter("applicants")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activityFilter === "applicants"
-                  ? "bg-orange-500 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Applicants
-            </button>
+              <button
+                onClick={() => setActivityFilter("all")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activityFilter === "all"
+                    ? "bg-[#6a994e] text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setActivityFilter("company")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activityFilter === "company"
+                    ? "bg-[#6a994e] text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                Company
+              </button>
+              <button
+                onClick={() => setActivityFilter("applicants")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activityFilter === "applicants"
+                    ? "bg-[#6a994e] text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                Applicants
+              </button>
           </div>
           
           {/* Activities List */}
           <div className="bg-white rounded-lg shadow-sm">
             {feed.length === 0 ? (
-              <div className="text-center py-12">
-                <Bell className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-500">No recent activity yet.</p>
+              <div className="text-center py-16">
+                <div className="flex items-center justify-center mb-6">
+                  <div className="w-16 h-16 border-2 border-gray-300 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 border border-gray-300 rounded-sm flex items-center justify-center">
+                      <Bell className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
+                <p className="text-sm text-gray-500 mb-6">Once you start posting jobs and receiving applications, activity will appear here</p>
+                <Button 
+                  onClick={() => router.push("/dashboard/jobs?create=1")}
+                  className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
+                >
+                  Post your first job
+                </Button>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -262,7 +275,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <Link href={item.href || "#"} className="block cursor-pointer">
-                          <div className="text-sm text-gray-900 hover:text-orange-600 transition-colors">
+                              <div className="text-sm text-gray-900 hover:text-[#6a994e] transition-colors">
                             {item.title}
                           </div>
                         </Link>

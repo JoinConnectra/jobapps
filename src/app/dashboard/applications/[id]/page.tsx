@@ -227,7 +227,7 @@ export default function ApplicationDetailPage() {
       {/* Left Sidebar */}
       <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col">
         <div className="p-6">
-          <div className="text-xl font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
+          <div className="text-xl font-display font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
           
           <Button onClick={() => router.push("/dashboard/jobs?create=1")} className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0">
             + Create a Job

@@ -6,8 +6,10 @@ import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Eye, Users, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Eye, Users, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Edit, Save, X } from "lucide-react";
 import Link from "next/link";
 
 interface Question {
@@ -40,6 +42,15 @@ export default function JobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    title: '',
+    dept: '',
+    locationMode: '',
+    salaryRange: '',
+    descriptionMd: '',
+    status: ''
+  });
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -82,6 +93,14 @@ export default function JobDetailPage() {
       if (jobResponse.ok) {
         const jobData = await jobResponse.json();
         setJob(jobData);
+        setEditData({
+          title: jobData.title || '',
+          dept: jobData.dept || '',
+          locationMode: jobData.locationMode || '',
+          salaryRange: jobData.salaryRange || '',
+          descriptionMd: jobData.descriptionMd || '',
+          status: jobData.status || ''
+        });
       }
 
       const questionsResponse = await fetch(`/api/jobs/${params.id}/questions`, {
@@ -153,6 +172,52 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleEdit = () => {
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    if (job) {
+      setEditData({
+        title: job.title || '',
+        dept: job.dept || '',
+        locationMode: job.locationMode || '',
+        salaryRange: job.salaryRange || '',
+        descriptionMd: job.descriptionMd || '',
+        status: job.status || ''
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/jobs/${params.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editData),
+      });
+
+      if (response.ok) {
+        const updatedJob = await response.json();
+        setJob(updatedJob);
+        setEditing(false);
+        toast.success("Job updated successfully!");
+      } else {
+        toast.error("Failed to update job");
+      }
+    } catch (error) {
+      toast.error("An error occurred while updating the job");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSignOut = async () => {
     const { error } = await authClient.signOut();
     if (error?.code) {
@@ -180,7 +245,7 @@ export default function JobDetailPage() {
       {/* Left Sidebar */}
       <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col">
         <div className="p-6">
-          <div className="text-xl font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
+          <div className="text-xl font-display font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
           
           <Button onClick={() => router.push("/dashboard/jobs?create=1")} className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0">
             + Create a Job
@@ -254,23 +319,141 @@ export default function JobDetailPage() {
           {/* Job Header */}
           <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-1">
-                  {job.title}
-                </h2>
-                <p className="text-sm text-gray-500">
-                  {job.dept} • {job.locationMode} • {job.salaryRange}
-                </p>
+              <div className="flex-1">
+                {editing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs text-gray-500 mb-1 block">Job Title</Label>
+                      <Input
+                        value={editData.title}
+                        onChange={(e) => setEditData({...editData, title: e.target.value})}
+                        className="text-sm"
+                        placeholder="Enter job title"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">Department</Label>
+                        <Input
+                          value={editData.dept}
+                          onChange={(e) => setEditData({...editData, dept: e.target.value})}
+                          className="text-sm"
+                          placeholder="e.g. Engineering"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">Location</Label>
+                        <Input
+                          value={editData.locationMode}
+                          onChange={(e) => setEditData({...editData, locationMode: e.target.value})}
+                          className="text-sm"
+                          placeholder="e.g. Remote, NYC"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">Salary Range</Label>
+                        <Input
+                          value={editData.salaryRange}
+                          onChange={(e) => setEditData({...editData, salaryRange: e.target.value})}
+                          className="text-sm"
+                          placeholder="e.g. $80k-120k"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500 mb-1 block">Job Description</Label>
+                      <Textarea
+                        value={editData.descriptionMd}
+                        onChange={(e) => setEditData({...editData, descriptionMd: e.target.value})}
+                        className="text-sm min-h-[100px]"
+                        placeholder="Enter job description..."
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h2 className="text-lg font-medium text-gray-900 mb-1">
+                      {job.title}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {job.dept} • {job.locationMode} • {job.salaryRange}
+                    </p>
+                    {job.descriptionMd && (
+                      <div className="mt-2 text-sm text-gray-600 max-w-2xl">
+                        {job.descriptionMd}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <span
-                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  job.status === "published"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-700"
-                }`}
-              >
-                {job.status}
-              </span>
+              <div className="flex items-center gap-2 ml-4">
+                {editing ? (
+                  <>
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      size="sm"
+                      className="gap-1 text-xs"
+                    >
+                      <Save className="w-3 h-3" />
+                      {saving ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      onClick={handleCancel}
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      onClick={handleEdit}
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Edit
+                    </Button>
+                    <Select value={job.status} onValueChange={async (value) => {
+                      try {
+                        const token = localStorage.getItem("bearer_token");
+                        const response = await fetch(`/api/jobs/${params.id}`, {
+                          method: "PATCH",
+                          headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({ status: value }),
+                        });
+
+                        if (response.ok) {
+                          const updatedJob = await response.json();
+                          setJob(updatedJob);
+                          toast.success("Status updated successfully!");
+                        } else {
+                          toast.error("Failed to update status");
+                        }
+                      } catch (error) {
+                        toast.error("An error occurred while updating status");
+                      }
+                    }}>
+                      <SelectTrigger className="w-32 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="published">Published</SelectItem>
+                        <SelectItem value="closed">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-3">

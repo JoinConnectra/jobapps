@@ -308,7 +308,7 @@ export default function AllJobsPage() {
       {/* Left Sidebar */}
       <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col">
         <div className="p-6">
-          <div className="text-xl font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
+          <div className="text-xl font-display font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
           
           <Button onClick={() => router.push("/dashboard/jobs?create=1")} className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0">
             + Create a Job
@@ -454,7 +454,7 @@ export default function AllJobsPage() {
                 onClick={() => setStatusFilter("all")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   statusFilter === "all"
-                    ? "bg-orange-500 text-white"
+                    ? "bg-[#6a994e] text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -464,7 +464,7 @@ export default function AllJobsPage() {
                 onClick={() => setStatusFilter("published")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   statusFilter === "published"
-                    ? "bg-orange-500 text-white"
+                    ? "bg-[#6a994e] text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -474,7 +474,7 @@ export default function AllJobsPage() {
                 onClick={() => setStatusFilter("draft")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   statusFilter === "draft"
-                    ? "bg-orange-500 text-white"
+                    ? "bg-[#6a994e] text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -484,7 +484,7 @@ export default function AllJobsPage() {
                 onClick={() => setStatusFilter("archived")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   statusFilter === "archived"
-                    ? "bg-orange-500 text-white"
+                    ? "bg-[#6a994e] text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -508,9 +508,22 @@ export default function AllJobsPage() {
           {/* Jobs List */}
           <div className="bg-white rounded-lg shadow-sm">
             {jobs.length === 0 ? (
-              <div className="text-center py-12">
-                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-500">No jobs found</p>
+              <div className="text-center py-16">
+                <div className="flex items-center justify-center mb-6">
+                  <div className="w-16 h-16 border-2 border-gray-300 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 border border-gray-300 rounded-sm flex items-center justify-center">
+                      <Plus className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Post a job</h3>
+                <p className="text-sm text-gray-500 mb-6">Once you do, they will sit right here for you</p>
+                <Button 
+                  onClick={() => router.push("/dashboard/jobs?create=1")}
+                  className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
+                >
+                  Create your first job
+                </Button>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -519,7 +532,7 @@ export default function AllJobsPage() {
                     <div className="flex items-center justify-between mb-3">
                       <Link href={`/dashboard/jobs/${job.id}`} className="flex-1 cursor-pointer">
                         <div className="flex items-center gap-3">
-                          <h3 className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors">
+                          <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors">
                             {job.title}
                           </h3>
                           {job.locationMode && (
