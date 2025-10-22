@@ -34,7 +34,7 @@ const AudioCard = ({
 
 export default function HeroSection() {
   return (
-    <section className="relative bg-[#FFF9F1] overflow-hidden pt-32 pb-40 md:pt-40 md:pb-48 lg:pt-48 lg:pb-60">
+    <section className="relative bg-[#FFF9F1] overflow-hidden py-20 md:py-32 lg:py-40">
       <div className="absolute inset-0 z-0">
         <AudioCard
           question="Why do you want to work at Octolane"
@@ -68,16 +68,16 @@ export default function HeroSection() {
         />
       </div>
 
-      <div className="container relative z-20 flex flex-col items-center text-center">
-        <div className="bg-[#6a994e] text-white text-sm font-semibold py-2 px-5 rounded-full mb-6 leading-none">
+      <div className="container relative z-20 flex flex-col items-center text-center px-6">
+        <div className="bg-[#6a994e] text-white text-sm font-semibold py-2 px-5 rounded-full mb-8 leading-none">
           Hi we're Rapha
         </div>
 
-        <h1 className="font-display font-bold text-[#1A1A1A] text-[40px] md:text-[56px] lg:text-[72px] leading-[1.1] tracking-[-0.02em]">
+        <h1 className="font-display font-bold text-[#1A1A1A] text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.1] tracking-[-0.02em] max-w-5xl">
           Making hiring more human
         </h1>
 
-        <p className="mt-6 text-lg text-[#666666] max-w-[720px] leading-[1.6]">
+        <p className="mt-8 text-lg md:text-xl text-[#666666] max-w-3xl leading-[1.6]">
           The recruiting platform that captures culture fit and hard skills from
           your applicants through audio responses — never rely on resumes and
           LinkedIns alone
@@ -85,7 +85,7 @@ export default function HeroSection() {
 
         <a
           href="https://app.withrapha.com/"
-          className="mt-8 inline-flex items-center justify-center gap-2 rounded-lg bg-[#1A1A1A] px-7 py-3.5 text-base font-semibold text-white transition-colors hover:bg-black/80"
+          className="mt-10 inline-flex items-center justify-center gap-2 rounded-lg bg-[#1A1A1A] px-8 py-4 text-base font-semibold text-white transition-colors hover:bg-black/80"
         >
           Try Rapha - it's free
           <MoveRight className="h-5 w-5" />

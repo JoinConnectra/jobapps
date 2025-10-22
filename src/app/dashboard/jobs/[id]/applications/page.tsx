@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, User, Clock, Filter, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import CommandPalette from "@/components/CommandPalette";
+import { useCommandPalette } from "@/hooks/use-command-palette";
 
 interface Application {
   id: number;
@@ -26,6 +28,7 @@ export default function JobApplicationsPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session, isPending } = useSession();
+  const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } = useCommandPalette();
   const [job, setJob] = useState<Job | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,7 +133,7 @@ export default function JobApplicationsPage() {
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
       {/* Left Sidebar */}
-      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col">
+      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
         <div className="p-6">
           <div className="text-xl font-display font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
           
@@ -152,7 +155,11 @@ export default function JobApplicationsPage() {
         
         <div className="mt-auto p-6 border-t border-gray-200">
           <div className="space-y-3">
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-gray-500 text-sm"
+              onClick={openCommandPalette}
+            >
               <Search className="w-4 h-4 mr-3" />
               Search
               <span className="ml-auto text-xs">⌘K</span>
@@ -181,7 +188,8 @@ export default function JobApplicationsPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 bg-[#FEFEFA] p-8">
+      <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
+        <div className="p-8">
         <div className="max-w-6xl">
           <div className="flex items-center gap-4 mb-8">
             <nav className="flex items-center gap-2 text-sm">
@@ -300,7 +308,14 @@ export default function JobApplicationsPage() {
             )}
           </div>
         </div>
+        </div>
       </main>
+      
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen} 
+        onClose={closeCommandPalette}
+        orgId={org?.id}
+      />
     </div>
   );
 }

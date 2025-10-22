@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { applications, jobs, organizations, studentProfiles, activity, users } from '@/db/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, or, like } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 
 // Email validation helper
@@ -182,13 +182,14 @@ export async function GET(request: NextRequest) {
     const jobId = searchParams.get('jobId');
     const orgId = searchParams.get('orgId');
     const stage = searchParams.get('stage');
+    const search = searchParams.get('search');
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '10'), 100);
     const offset = parseInt(searchParams.get('offset') ?? '0');
 
-    // Require either jobId or orgId for filtering
-    if (!jobId && !orgId) {
+    // For search functionality, we don't require jobId or orgId
+    if (!search && !jobId && !orgId) {
       return NextResponse.json(
-        { error: 'Either jobId or orgId is required', code: 'MISSING_FILTER_PARAMS' },
+        { error: 'Either jobId, orgId, or search is required', code: 'MISSING_FILTER_PARAMS' },
         { status: 400 }
       );
     }
@@ -236,6 +237,24 @@ export async function GET(request: NextRequest) {
 
     if (stage) {
       conditions.push(eq(applications.stage, stage.trim()));
+    }
+
+    if (search) {
+      const searchTerm = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          like(applications.applicantEmail, searchTerm),
+          like(jobs.title, searchTerm)
+        )
+      );
+      
+      // When searching, also filter by orgId if provided
+      if (orgId) {
+        const parsedOrgId = parseInt(orgId);
+        if (!isNaN(parsedOrgId)) {
+          conditions.push(eq(jobs.orgId, parsedOrgId));
+        }
+      }
     }
 
     if (conditions.length > 0) {

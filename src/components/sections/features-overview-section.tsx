@@ -5,24 +5,24 @@ import Image from 'next/image';
 
 const FeaturesOverviewSection = () => {
   return (
-    <section id="rapha-features" className="bg-background py-24 sm:py-32">
+    <section id="rapha-features" className="bg-[#FEFEFA] py-24 sm:py-32">
       <div className="container mx-auto px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
+        <div className="mx-auto max-w-4xl text-center">
           <div className="flex justify-center">
              <div className="relative rounded-full px-4 py-1 text-sm leading-6 text-primary ring-1 ring-primary/20 hover:ring-primary/30">
               You'll never recruit alone
             </div>
           </div>
-          <h2 className="mt-4 font-display text-[40px] font-bold tracking-tight text-text-primary sm:text-[56px]">
+          <h2 className="mt-6 font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-text-primary">
             What's under the hood
           </h2>
         </div>
 
-        <div className="mt-16 sm:mt-20 lg:mt-24">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <div className="mt-20 sm:mt-24 lg:mt-28">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
             {/* Card 1: Let your applicants sell themselves */}
-            <div className="flex flex-col rounded-2xl bg-[#FAF6F1] p-8 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
-              <div className="relative flex-grow rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col rounded-2xl bg-[#FAF6F1] p-6 lg:p-8 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+              <div className="relative flex-grow rounded-xl border border-gray-200 bg-white p-4 lg:p-6 shadow-sm">
                 <div className="text-sm">
                   <p className="font-medium text-gray-500">Question 1 of 3</p>
                   <p className="mt-1 text-base font-semibold text-gray-800">What's your origin story?</p>
@@ -57,17 +57,17 @@ const FeaturesOverviewSection = () => {
                   </p>
                 </div>
               </div>
-              <h3 className="mt-8 text-[28px] font-semibold text-[#4169E1]">
+              <h3 className="mt-6 lg:mt-8 text-2xl lg:text-[28px] font-semibold text-[#6a994e]">
                 Let your applicants sell themselves
               </h3>
-              <p className="mt-4 text-lg text-text-secondary">
+              <p className="mt-4 text-base lg:text-lg text-text-secondary">
                 Applicants are now able to finally sell themselves and answer any of your behavioral, technical, sales, design, product related questions async
               </p>
             </div>
 
             {/* Card 2: Redefine or skip the first call */}
-            <div className="flex flex-col rounded-2xl bg-card p-8 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
-              <div className="flex-grow rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col rounded-2xl bg-card p-6 lg:p-8 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+              <div className="flex-grow rounded-xl border border-gray-200 bg-white p-4 lg:p-6 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <button className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
@@ -102,10 +102,10 @@ const FeaturesOverviewSection = () => {
                   </p>
                 </div>
               </div>
-              <h3 className="mt-8 text-[28px] font-semibold text-[#4169E1]">
+              <h3 className="mt-6 lg:mt-8 text-2xl lg:text-[28px] font-semibold text-[#6a994e]">
                 Redefine or skip the first call
               </h3>
-              <p className="mt-4 text-lg text-text-secondary">
+              <p className="mt-4 text-base lg:text-lg text-text-secondary">
                 Build consensus with your hiring team around the applicant's narrative to redefine what the first call means or skip the first call completely
               </p>
             </div>

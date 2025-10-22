@@ -44,29 +44,30 @@ const logos: Logo[] = [
 
 const CompanyLogosSection = () => {
   return (
-    <section className="bg-background py-16">
-      <div className="container mx-auto flex max-w-[1200px] flex-col items-center">
-        <p className="mb-12 text-center text-2xl font-normal text-[#333333]">
+    <section className="bg-white py-20">
+      <div className="container mx-auto flex max-w-6xl flex-col items-center px-6">
+        <p className="mb-16 text-center text-xl md:text-2xl font-normal text-[#333333] max-w-4xl">
           Supporting founders, recruiters, agencies and hiring managers
         </p>
 
-        <div className="mb-12 w-full overflow-x-auto">
-          <div className="flex min-w-max items-center justify-center gap-12 py-4 sm:gap-16">
+        <div className="mb-16 w-full overflow-x-auto">
+          <div className="flex min-w-max items-center justify-center gap-8 md:gap-12 lg:gap-16 py-4">
             {logos.map((logo, index) => (
-              <Image
-                key={index}
-                src={logo.src}
-                alt={logo.alt}
-                width={logo.width}
-                height={logo.height}
-                className="max-h-8 w-auto object-contain opacity-60 transition-opacity duration-300 hover:opacity-100"
-              />
+              <div key={index} className="flex items-center justify-center h-12">
+                <Image
+                  src={logo.src}
+                  alt={logo.alt}
+                  width={logo.width}
+                  height={logo.height}
+                  className="max-h-8 w-auto object-contain opacity-60 transition-opacity duration-300 hover:opacity-100"
+                />
+              </div>
             ))}
           </div>
         </div>
 
         <Button
-          className="h-auto rounded-lg bg-[#4169E1] px-6 py-3 text-base font-medium text-white hover:bg-[#4169E1]/90"
+          className="h-auto rounded-lg bg-[#6a994e] px-8 py-4 text-base font-medium text-white hover:bg-[#5a8a3e] transition-colors"
         >
           You&apos;ll never recruit alone
         </Button>

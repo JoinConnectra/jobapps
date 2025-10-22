@@ -25,17 +25,17 @@ const FinalCtaSection = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto flex flex-col items-center text-center py-20 md:py-32 px-6">
-        <h1 className="font-display font-bold text-white text-[2.5rem] leading-[1.1] md:text-[3.5rem]">
+      <div className="relative z-10 container mx-auto flex flex-col items-center text-center py-24 md:py-32 lg:py-40 px-6">
+        <h1 className="font-display font-bold text-white text-3xl md:text-4xl lg:text-5xl xl:text-6xl leading-[1.1] max-w-5xl">
           Ready to save 50 hrs per week?
         </h1>
-        <p className="mt-6 mb-10 text-white/90 text-lg md:text-xl max-w-[600px]">
+        <p className="mt-8 mb-12 text-white/90 text-lg md:text-xl lg:text-2xl max-w-3xl leading-relaxed">
           Connect with our team and learn how Rapha can help your team grow
           faster and better.
         </p>
         <a
           href="https://app.withrapha.com/"
-          className="inline-block bg-[#6a994e] text-white font-semibold text-[1.125rem] px-8 py-4 rounded-lg transition-transform duration-200 hover:scale-105"
+          className="inline-block bg-[#6a994e] text-white font-semibold text-lg px-10 py-5 rounded-lg transition-transform duration-200 hover:scale-105 hover:bg-[#5a8a3e]"
         >
           Get started for free
         </a>

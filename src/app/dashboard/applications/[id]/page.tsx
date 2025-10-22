@@ -30,8 +30,12 @@ import {
   UserPlus,
   LogOut,
   Bell,
+  MessageSquare,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
+import CommandPalette from "@/components/CommandPalette";
+import { useCommandPalette } from "@/hooks/use-command-palette";
 
 interface Application {
   id: number;
@@ -57,16 +61,38 @@ interface Question {
   prompt: string;
 }
 
+interface Reaction {
+  id: number;
+  answerId: number;
+  userId: number;
+  reaction: 'like' | 'dislike';
+  createdAt: string;
+}
+
+interface Comment {
+  id: number;
+  answerId: number;
+  userId: number;
+  comment: string;
+  createdAt: string;
+  userName?: string;
+  userEmail?: string;
+}
+
 export default function ApplicationDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session, isPending } = useSession();
+  const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } = useCommandPalette();
   const [application, setApplication] = useState<Application | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingAnswer, setPlayingAnswer] = useState<number | null>(null);
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [reactions, setReactions] = useState<Record<number, Reaction[]>>({});
+  const [comments, setComments] = useState<Record<number, Comment[]>>({});
+  const [newComment, setNewComment] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -122,6 +148,11 @@ export default function ApplicationDetailPage() {
         if (answersResponse.ok) {
           const answersData = await answersResponse.json();
           setAnswers(answersData);
+          
+          // Fetch reactions and comments for each answer
+          for (const answer of answersData) {
+            await fetchReactionsAndComments(answer.id);
+          }
         }
 
         // Fetch questions
@@ -141,6 +172,34 @@ export default function ApplicationDetailPage() {
       console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchReactionsAndComments = async (answerId: number) => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      
+      // Fetch reactions
+      const reactionsResponse = await fetch(`/api/answers/${answerId}/reactions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (reactionsResponse.ok) {
+        const reactionsData = await reactionsResponse.json();
+        setReactions(prev => ({ ...prev, [answerId]: reactionsData }));
+      }
+      
+      // Fetch comments
+      const commentsResponse = await fetch(`/api/answers/${answerId}/comments`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (commentsResponse.ok) {
+        const commentsData = await commentsResponse.json();
+        setComments(prev => ({ ...prev, [answerId]: commentsData }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch reactions/comments:", error);
     }
   };
 
@@ -202,6 +261,62 @@ export default function ApplicationDetailPage() {
     }
   };
 
+  const handleReaction = async (answerId: number, reaction: 'like' | 'dislike') => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/answers/${answerId}/reactions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          reaction,
+          userId: session?.user?.id || 1, // TODO: Get from session
+        }),
+      });
+
+      if (response.ok) {
+        await fetchReactionsAndComments(answerId);
+        toast.success(`Reaction ${reaction}d`);
+      } else {
+        toast.error("Failed to add reaction");
+      }
+    } catch (error) {
+      toast.error("An error occurred");
+    }
+  };
+
+  const handleAddComment = async (answerId: number) => {
+    const comment = newComment[answerId];
+    if (!comment.trim()) return;
+
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/answers/${answerId}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          comment,
+          userId: session?.user?.id || 1, // TODO: Get from session
+        }),
+      });
+
+      if (response.ok) {
+        setNewComment(prev => ({ ...prev, [answerId]: "" }));
+        await fetchReactionsAndComments(answerId);
+        toast.success("Comment added");
+      } else {
+        toast.error("Failed to add comment");
+      }
+    } catch (error) {
+      toast.error("An error occurred");
+    }
+  };
+
   const handleSignOut = async () => {
     const { error } = await authClient.signOut();
     if (error?.code) {
@@ -225,7 +340,7 @@ export default function ApplicationDetailPage() {
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
       {/* Left Sidebar */}
-      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col">
+      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
         <div className="p-6">
           <div className="text-xl font-display font-bold text-gray-900 mb-6">{org?.name || "forshadow"}</div>
           
@@ -247,7 +362,11 @@ export default function ApplicationDetailPage() {
         
         <div className="mt-auto p-6 border-t border-gray-200">
           <div className="space-y-3">
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-gray-500 text-sm"
+              onClick={openCommandPalette}
+            >
               <Search className="w-4 h-4 mr-3" />
               Search
               <span className="ml-auto text-xs">⌘K</span>
@@ -276,34 +395,36 @@ export default function ApplicationDetailPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 bg-[#FEFEFA] p-8">
-        <div className="max-w-6xl">
-          <div className="flex items-center gap-4 mb-8">
-            <nav className="flex items-center gap-2 text-sm">
-              <Link
-                href="/dashboard"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                Dashboard
-              </Link>
-              <span className="text-gray-400">&gt;</span>
-              <Link
-                href="/dashboard/jobs"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                Jobs
-              </Link>
-              <span className="text-gray-400">&gt;</span>
-              <Link
-                href={`/dashboard/jobs/${application.jobId}`}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                {application.jobTitle}
-              </Link>
-              <span className="text-gray-400">&gt;</span>
-              <span className="text-gray-900 font-medium">{application.applicantEmail}</span>
-            </nav>
-          </div>
+      <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
+        <div className="p-8 max-w-6xl grid grid-cols-1 lg:grid-cols-[1fr_256px] gap-8">
+          {/* Main Content Area */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 mb-8">
+              <nav className="flex items-center gap-2 text-sm">
+                <Link
+                  href="/dashboard"
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <span className="text-gray-400">&gt;</span>
+                <Link
+                  href="/dashboard/jobs"
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Jobs
+                </Link>
+                <span className="text-gray-400">&gt;</span>
+                <Link
+                  href={`/dashboard/jobs/${application.jobId}`}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  {application.jobTitle}
+                </Link>
+                <span className="text-gray-400">&gt;</span>
+                <span className="text-gray-900 font-medium">{application.applicantEmail}</span>
+              </nav>
+            </div>
 
           {/* Application Header */}
           <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
@@ -465,13 +586,33 @@ export default function ApplicationDetailPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 mt-3">
-                        <Button variant="ghost" size="sm" className="gap-1 text-xs">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="gap-1 text-xs"
+                          onClick={() => handleReaction(answer.id, 'like')}
+                        >
                           <ThumbsUp className="w-3 h-3" />
                           Like
+                          {reactions[answer.id]?.filter(r => r.reaction === 'like').length > 0 && (
+                            <span className="ml-1 text-green-600">
+                              ({reactions[answer.id]?.filter(r => r.reaction === 'like').length})
+                            </span>
+                          )}
                         </Button>
-                        <Button variant="ghost" size="sm" className="gap-1 text-xs">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="gap-1 text-xs"
+                          onClick={() => handleReaction(answer.id, 'dislike')}
+                        >
                           <ThumbsDown className="w-3 h-3" />
                           Dislike
+                          {reactions[answer.id]?.filter(r => r.reaction === 'dislike').length > 0 && (
+                            <span className="ml-1 text-red-600">
+                              ({reactions[answer.id]?.filter(r => r.reaction === 'dislike').length})
+                            </span>
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -497,8 +638,87 @@ export default function ApplicationDetailPage() {
               Generate Summary
             </Button>
           </div>
+          </div>
+
+          {/* Right Sidebar - Activity */}
+          <aside className="w-64 bg-[#FEFEFA] border-l border-gray-200 flex flex-col h-screen sticky top-0">
+            <div className="p-6 flex flex-col h-full overflow-hidden">
+              <h2 className="text-lg font-semibold mb-6">Activity</h2>
+
+              {/* Comments Section */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden">
+                <div className="space-y-4">
+                  {answers.map((answer, index) => {
+                    const question = questions.find((q) => q.id === answer.questionId);
+                    const answerComments = comments[answer.id] || [];
+                    
+                    return (
+                      <div key={answer.id} className="space-y-3">
+                        {/* Question Header */}
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-sm font-medium text-gray-900 mb-2 break-words">
+                            {question?.prompt || `Question ${index + 1}`}
+                          </p>
+                        </div>
+
+                        {/* Comments */}
+                        {answerComments.length > 0 && (
+                          <div className="space-y-2">
+                            {answerComments.map((comment) => (
+                              <div key={comment.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <span className="text-xs font-medium text-gray-600">
+                                    {comment.userName?.charAt(0) || 'U'}
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-baseline justify-between mb-1">
+                                    <p className="text-xs font-semibold text-gray-900 truncate">
+                                      {comment.userName || 'User'}
+                                    </p>
+                                    <p className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                                      {new Date(comment.createdAt).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <p className="text-xs text-gray-700 break-words">{comment.comment}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add Comment */}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Add a comment..."
+                            value={newComment[answer.id] || ''}
+                            onChange={(e) => setNewComment(prev => ({ ...prev, [answer.id]: e.target.value }))}
+                            className="flex-1 text-xs px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handleAddComment(answer.id)}
+                            className="text-xs px-3 py-2 flex-shrink-0"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </aside>
         </div>
       </main>
+      
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen} 
+        onClose={closeCommandPalette}
+        orgId={org?.id}
+      />
     </div>
   );
 }
