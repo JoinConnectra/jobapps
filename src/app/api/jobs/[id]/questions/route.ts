@@ -85,7 +85,7 @@ export async function POST(
       );
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
     const newQuestion = await db.insert(jobQuestions)
       .values({
         jobId,

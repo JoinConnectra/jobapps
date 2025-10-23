@@ -53,7 +53,7 @@ export async function POST(
         answerId: parseInt(params.id),
         userId,
         reaction,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(),
       });
     }
 

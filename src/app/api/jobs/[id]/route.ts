@@ -73,7 +73,7 @@ export async function PATCH(
 
     // Prepare update data
     const updateData: any = {
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date(),
     };
 
     if (title !== undefined) updateData.title = title.trim();

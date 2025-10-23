@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare application data
-    const now = new Date().toISOString();
+    const now = new Date();
     const applicationData: any = {
       jobId: parsedJobId,
       applicantEmail: applicantEmail.toLowerCase().trim(),
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     // Write activity: applicant applied to job (org scoped)
     try {
-      const nowIso = new Date().toISOString();
+      const nowIso = new Date();
       const jobRow = job[0];
 
       let actorUserId: number | null = null;

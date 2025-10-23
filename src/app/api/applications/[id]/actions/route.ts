@@ -42,7 +42,7 @@ export async function POST(
       );
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
     const newAction = await db
       .insert(actions)
       .values({

@@ -74,16 +74,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // For now, we'll store a mock S3 key for audio
-    const mockS3Key = audioFile ? `answers/${appId}/${qId}/${Date.now()}.webm` : null;
+    // Upload the actual audio file and get the URL
+    let audioUrl = null;
+    if (audioFile) {
+      try {
+        const uploadFormData = new FormData();
+        uploadFormData.append('audio', audioFile);
+        uploadFormData.append('applicationId', appId.toString());
+        uploadFormData.append('questionId', qId.toString());
+        uploadFormData.append('durationSec', durationSec);
 
-    const now = new Date().toISOString();
+        const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/audio/upload`, {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          audioUrl = uploadResult.audioUrl;
+        } else {
+          console.error('Audio upload failed:', await uploadResponse.text());
+        }
+      } catch (uploadError) {
+        console.error('Audio upload error:', uploadError);
+      }
+    }
+
+    const now = new Date();
     const newAnswer = await db
       .insert(answers)
       .values({
         applicationId: appId,
         questionId: qId,
-        audioS3Key: mockS3Key,
+        audioS3Key: audioUrl, // Store the actual audio URL
         durationSec: duration,
         textAnswer: textAnswer,
         createdAt: now,

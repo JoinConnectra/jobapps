@@ -21,7 +21,7 @@ export async function POST(
       answerId: parseInt(params.id),
       userId,
       comment,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(),
     });
 
     return NextResponse.json({ success: true, id: result.insertId });

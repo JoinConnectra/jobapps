@@ -89,6 +89,9 @@ export default function ApplicationDetailPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingAnswer, setPlayingAnswer] = useState<number | null>(null);
+  const [audioElements, setAudioElements] = useState<Record<number, HTMLAudioElement>>({});
+  const [currentTime, setCurrentTime] = useState<Record<number, number>>({});
+  const [audioMetadataLoaded, setAudioMetadataLoaded] = useState<Record<number, boolean>>({});
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
   const [reactions, setReactions] = useState<Record<number, Reaction[]>>({});
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
@@ -106,6 +109,44 @@ export default function ApplicationDetailPage() {
       fetchOrg();
     }
   }, [session, params.id]);
+
+  // Preload audio metadata when answers are loaded
+  useEffect(() => {
+    if (answers.length > 0) {
+      answers.forEach(answer => {
+        if (answer.audioS3Key && answer.audioS3Key.startsWith('/uploads/audio/')) {
+          const audio = new Audio();
+          audio.preload = 'metadata';
+          
+          audio.addEventListener('loadedmetadata', () => {
+            console.log(`Audio ${answer.id} metadata loaded, duration:`, audio.duration);
+            // Update the audio elements with the loaded audio
+            setAudioElements(prev => ({ ...prev, [answer.id]: audio }));
+            // Mark metadata as loaded
+            setAudioMetadataLoaded(prev => ({ ...prev, [answer.id]: true }));
+          });
+          
+          audio.addEventListener('error', (e) => {
+            console.error(`Failed to preload audio ${answer.id}:`, e);
+          });
+          
+          audio.src = answer.audioS3Key;
+        }
+      });
+    }
+  }, [answers]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(audioElements).forEach(audio => {
+        if (audio) {
+          audio.pause();
+          audio.src = '';
+        }
+      });
+    };
+  }, [audioElements]);
 
   const fetchOrg = async () => {
     try {
@@ -147,6 +188,7 @@ export default function ApplicationDetailPage() {
 
         if (answersResponse.ok) {
           const answersData = await answersResponse.json();
+          console.log('Loaded answers:', answersData);
           setAnswers(answersData);
           
           // Fetch reactions and comments for each answer
@@ -325,6 +367,164 @@ export default function ApplicationDetailPage() {
       localStorage.removeItem("bearer_token");
       router.push("/");
     }
+  };
+
+  // Audio playback functions
+  const toggleAudio = async (answerId: number, audioS3Key: string) => {
+    console.log('toggleAudio called:', { answerId, audioS3Key });
+    
+    try {
+      // If this answer is currently playing, pause it
+      if (playingAnswer === answerId) {
+        const audio = audioElements[answerId];
+        if (audio) {
+          audio.pause();
+          setPlayingAnswer(null);
+        }
+        return;
+      }
+
+      // Stop any currently playing audio
+      if (playingAnswer) {
+        const currentAudio = audioElements[playingAnswer];
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+        }
+      }
+
+      // Use existing audio element if available, otherwise create new one
+      let audio = audioElements[answerId];
+      if (!audio) {
+        audio = new Audio();
+        audio.preload = 'metadata';
+        
+        // Set up event listeners
+        audio.addEventListener('timeupdate', () => {
+          setCurrentTime(prev => ({ ...prev, [answerId]: audio.currentTime }));
+        });
+        
+        audio.addEventListener('ended', () => {
+          setPlayingAnswer(null);
+          setCurrentTime(prev => ({ ...prev, [answerId]: 0 }));
+        });
+        
+        audio.addEventListener('error', (e) => {
+          console.error('Audio error:', e);
+          console.error('Audio src:', audio.src);
+          console.error('Audio networkState:', audio.networkState);
+          console.error('Audio readyState:', audio.readyState);
+          toast.error('Failed to load audio file');
+          setPlayingAnswer(null);
+        });
+        
+        audio.addEventListener('loadstart', () => {
+          console.log('Audio load started');
+        });
+        
+        audio.addEventListener('loadedmetadata', () => {
+          console.log('Audio metadata loaded, duration:', audio.duration);
+        });
+        
+        audio.addEventListener('canplay', () => {
+          console.log('Audio can play, duration:', audio.duration);
+          // Update the duration in state if we have a valid duration
+          if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+            setCurrentTime(prev => ({ ...prev, [answerId]: 0 }));
+          }
+        });
+        
+        audio.addEventListener('loadeddata', () => {
+          console.log('Audio data loaded');
+        });
+
+        setAudioElements(prev => ({ ...prev, [answerId]: audio }));
+      }
+
+      // Set the audio source and wait for it to load
+      // Check if it's a real audio URL or a mock S3 key
+      if (audioS3Key && audioS3Key.startsWith('/uploads/audio/')) {
+        // It's a real audio file URL
+        audio.src = audioS3Key;
+        console.log('Loading real audio from:', audio.src);
+      } else {
+        // It's a mock S3 key, use our fallback API
+        audio.src = `/api/audio/${encodeURIComponent(audioS3Key)}`;
+        console.log('Loading mock audio from:', audio.src);
+      }
+      audio.currentTime = currentTime[answerId] || 0;
+      
+      // Wait for the audio to be ready before playing
+      return new Promise((resolve, reject) => {
+        const handleCanPlay = () => {
+          console.log('Audio ready to play');
+          audio.removeEventListener('canplay', handleCanPlay);
+          audio.removeEventListener('error', handleError);
+          audio.play().then(() => {
+            setPlayingAnswer(answerId);
+            resolve(true);
+          }).catch(reject);
+        };
+        
+        const handleError = (e: Event) => {
+          console.error('Audio failed to load:', e);
+          console.error('Audio src:', audio.src);
+          console.error('Audio networkState:', audio.networkState);
+          console.error('Audio readyState:', audio.readyState);
+          audio.removeEventListener('canplay', handleCanPlay);
+          audio.removeEventListener('error', handleError);
+          toast.error('Failed to load audio file');
+          setPlayingAnswer(null);
+          reject(e);
+        };
+        
+        audio.addEventListener('canplay', handleCanPlay);
+        audio.addEventListener('error', handleError);
+        
+        // Add a timeout to prevent hanging
+        const timeout = setTimeout(() => {
+          console.error('Audio loading timeout');
+          audio.removeEventListener('canplay', handleCanPlay);
+          audio.removeEventListener('error', handleError);
+          toast.error('Audio loading timeout');
+          setPlayingAnswer(null);
+          reject(new Error('Audio loading timeout'));
+        }, 10000); // 10 second timeout
+        
+        // Clear timeout when audio loads successfully
+        const originalHandleCanPlay = handleCanPlay;
+        const originalHandleError = handleError;
+        
+        const wrappedHandleCanPlay = () => {
+          clearTimeout(timeout);
+          originalHandleCanPlay();
+        };
+        
+        const wrappedHandleError = (e: Event) => {
+          clearTimeout(timeout);
+          originalHandleError(e);
+        };
+        
+        audio.removeEventListener('canplay', handleCanPlay);
+        audio.removeEventListener('error', handleError);
+        audio.addEventListener('canplay', wrappedHandleCanPlay);
+        audio.addEventListener('error', wrappedHandleError);
+        
+        // Start loading the audio
+        audio.load();
+      });
+      
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      toast.error('Failed to play audio');
+      setPlayingAnswer(null);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (isPending || loading) {
@@ -529,91 +729,54 @@ export default function ApplicationDetailPage() {
                   return (
                     <div
                       key={answer.id}
-                      className="p-4 border border-gray-200 rounded-lg"
+                      className="bg-gray-50 rounded-lg p-4 flex items-center gap-4"
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-900 mb-1">
-                            Question {index + 1}
-                          </h3>
-                          <p className="text-xs text-gray-500">
-                            {question?.prompt || "Question not found"}
-                          </p>
-                        </div>
-                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                          {answer.durationSec}s
+                      {/* Play Button */}
+                      <button
+                        onClick={() => toggleAudio(answer.id, answer.audioS3Key)}
+                        className="w-10 h-10 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                      >
+                        {playingAnswer === answer.id ? (
+                          <Pause className="w-4 h-4 text-gray-700" />
+                        ) : (
+                          <Play className="w-4 h-4 text-gray-700 ml-0.5" />
+                        )}
+                      </button>
+
+                      {/* Question Content */}
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                          {question?.prompt || "Question not found"}
+                        </h3>
+                        <p className="text-xs text-gray-600">
+                          Feel free to get technical here!
+                        </p>
+                      </div>
+
+                      {/* Duration and Actions */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-500">
+                          {formatTime(currentTime[answer.id] || 0)} / {
+                            audioMetadataLoaded[answer.id] 
+                              ? formatTime(audioElements[answer.id]?.duration || answer.durationSec || 0)
+                              : 'Loading...'
+                          }
                         </span>
-                      </div>
-
-                      {/* Audio Player Placeholder */}
-                      <div className="bg-gray-50 rounded-lg p-3">
+                        
                         <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setPlayingAnswer(answer.id)}
-                            className="text-xs"
+                          <button
+                            onClick={() => handleReaction(answer.id, 'like')}
+                            className="p-1 hover:bg-gray-200 rounded transition-colors"
                           >
-                            {playingAnswer === answer.id ? (
-                              <Pause className="w-3 h-3" />
-                            ) : (
-                              <Play className="w-3 h-3" />
-                            )}
-                          </Button>
-                          <div className="flex-1">
-                            <div className="h-1.5 bg-orange-200 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-orange-500 rounded-full"
-                                style={{ width: "0%" }}
-                              />
-                            </div>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            0:00 / {Math.floor(answer.durationSec / 60)}:
-                            {(answer.durationSec % 60).toString().padStart(2, "0")}
-                          </span>
+                            <ThumbsUp className="w-4 h-4 text-gray-500" />
+                          </button>
+                          <button
+                            onClick={() => handleReaction(answer.id, 'dislike')}
+                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                          >
+                            <ThumbsDown className="w-4 h-4 text-gray-500" />
+                          </button>
                         </div>
-
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <p className="text-xs text-gray-500 mb-1">
-                            <strong>Transcript:</strong> (AI transcription pending)
-                          </p>
-                          <p className="text-xs text-gray-500 italic">
-                            Audio file: {answer.audioS3Key}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 mt-3">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="gap-1 text-xs"
-                          onClick={() => handleReaction(answer.id, 'like')}
-                        >
-                          <ThumbsUp className="w-3 h-3" />
-                          Like
-                          {reactions[answer.id]?.filter(r => r.reaction === 'like').length > 0 && (
-                            <span className="ml-1 text-green-600">
-                              ({reactions[answer.id]?.filter(r => r.reaction === 'like').length})
-                            </span>
-                          )}
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="gap-1 text-xs"
-                          onClick={() => handleReaction(answer.id, 'dislike')}
-                        >
-                          <ThumbsDown className="w-3 h-3" />
-                          Dislike
-                          {reactions[answer.id]?.filter(r => r.reaction === 'dislike').length > 0 && (
-                            <span className="ml-1 text-red-600">
-                              ({reactions[answer.id]?.filter(r => r.reaction === 'dislike').length})
-                            </span>
-                          )}
-                        </Button>
                       </div>
                     </div>
                   );

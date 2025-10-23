@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       entityType: entityType.trim(),
       entityId,
       action: action.trim(),
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(),
     };
 
     // Add optional fields
