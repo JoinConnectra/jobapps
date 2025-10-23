@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     // For now, we'll store a mock S3 key for audio
     const mockS3Key = audioFile ? `answers/${appId}/${qId}/${Date.now()}.webm` : null;
 
-    const now = new Date().toISOString();
+    const now = new Date();
     const newAnswer = await db
       .insert(answers)
       .values({

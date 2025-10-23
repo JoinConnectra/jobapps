@@ -29,7 +29,7 @@ export async function PATCH(
     }
 
     // Update application
-    const now = new Date().toISOString();
+    const now = new Date();
     const updated = await db
       .update(applications)
       .set({

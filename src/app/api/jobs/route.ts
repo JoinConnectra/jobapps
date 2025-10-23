@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare insert data with defaults and auto-generated fields
-    const now = new Date().toISOString();
+    const now = new Date();
     const newJob = await db.insert(jobs)
       .values({
         orgId: orgIdInt,

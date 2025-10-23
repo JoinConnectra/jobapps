@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
     const newOrg = await db
       .insert(organizations)
       .values({

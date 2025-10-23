@@ -1,13 +1,13 @@
 
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
 import * as schema from '@/db/schema';
 
-const client = createClient({
-  url: process.env.TURSO_CONNECTION_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
 });
 
-export const db = drizzle(client, { schema });
+export const db = drizzle(pool, { schema });
 
 export type Database = typeof db;

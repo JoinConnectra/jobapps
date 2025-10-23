@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, email, phone, locale, accountType, companyName, companyUrl, universityId } = body;
 
-    const now = new Date().toISOString();
+    const now = new Date();
 
     // ensure app user exists (separate from auth user)
     let appUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
