@@ -458,38 +458,47 @@ export default function ApplicationDetailPage() {
   };
 
   // Assign assessment handler
-  const handleAssignAssessment = async () => {
-    if (!selectedAssessmentId || !applicationId) return;
-    setAssignSubmitting(true);
-    try {
-      const token = localStorage.getItem("bearer_token");
-      const resp = await fetch(`/api/applications/${applicationId}/assessments`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          assessmentId: Number(selectedAssessmentId),
-          dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
-        }),
-      });
+  // Assign assessment handler
+const handleAssignAssessment = async () => {
+  if (!selectedAssessmentId || !applicationId) return;
+  setAssignSubmitting(true);
+  try {
+    const token = localStorage.getItem("bearer_token");
+    const resp = await fetch(`/api/applications/${applicationId}/assessments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        assessmentId: Number(selectedAssessmentId),
+        dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+      }),
+    });
 
-      if (resp.ok) {
-        toast.success("Assessment assigned");
-        await loadAssignments(applicationId);
-        setAssignOpen(false);
-        setSelectedAssessmentId("");
-        setDueAt("");
-      } else {
-        toast.error("Failed to assign assessment");
+    if (resp.ok) {
+      toast.success("Assessment assigned");
+      await loadAssignments(applicationId);
+
+      // 👇 Automatically move application to "assessment" stage
+      // Only call if not already in that stage (optional guard)
+      if (application?.stage !== "assessment") {
+        await updateStage("assessment");
       }
-    } catch (e) {
-      toast.error("An error occurred");
-    } finally {
-      setAssignSubmitting(false);
+
+      setAssignOpen(false);
+      setSelectedAssessmentId("");
+      setDueAt("");
+    } else {
+      toast.error("Failed to assign assessment");
     }
-  };
+  } catch (e) {
+    toast.error("An error occurred");
+  } finally {
+    setAssignSubmitting(false);
+  }
+};
+
 
   // Audio playback functions
   const toggleAudio = async (answerId: number, audioS3Key: string) => {
