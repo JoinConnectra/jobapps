@@ -356,3 +356,18 @@ export const verification = pgTable('verification', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow(),
 });
+
+export const applicationAssessments = pgTable("application_assessments", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").notNull(), // FK → applications.id
+  assessmentId: integer("assessment_id").notNull(),   // FK → assessments.id
+  status: text("status").default("assigned"),          // assigned | invited | started | submitted | reviewed
+  dueAt: timestamp("due_at", { withTimezone: false }),
+  invitedAt: timestamp("invited_at", { withTimezone: false }),
+  startedAt: timestamp("started_at", { withTimezone: false }),
+  submittedAt: timestamp("submitted_at", { withTimezone: false }),
+  score: integer("score"),
+  resultJson: jsonb("result_json"),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow().notNull(),
+});

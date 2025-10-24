@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -80,9 +83,38 @@ interface Comment {
   userEmail?: string;
 }
 
+type AssessmentRow = {
+  id: number;
+  title: string;
+  type: string;
+  duration: string;
+  status: string;
+};
+
+type AppAssignmentRow = {
+  id: number;
+  assessmentId: number;
+  status: string;
+  dueAt: string | null;
+  invitedAt: string | null;
+  startedAt: string | null;
+  submittedAt: string | null;
+  score: number | null;
+  resultJson: any;
+  createdAt: string;
+  assessmentTitle: string;
+  assessmentType: string;
+  assessmentDuration: string;
+};
+
 export default function ApplicationDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const applicationId = useMemo(
+    () => Number(Array.isArray(params?.id) ? params?.id?.[0] : params?.id),
+    [params]
+  );
+
   const { data: session, isPending } = useSession();
   const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } = useCommandPalette();
   const [application, setApplication] = useState<Application | null>(null);
@@ -99,6 +131,15 @@ export default function ApplicationDetailPage() {
   const [showCommentPrompt, setShowCommentPrompt] = useState<Record<number, boolean>>({});
   const [pendingReaction, setPendingReaction] = useState<Record<number, 'like' | 'dislike' | null>>({});
 
+  // New: Assign Assessment dialog state
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assessments, setAssessments] = useState<AssessmentRow[]>([]);
+  const [assignments, setAssignments] = useState<AppAssignmentRow[]>([]);
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>("");
+  const [dueAt, setDueAt] = useState<string>("");
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
+  const orgIdForAssessments = org?.id ?? null;
+
   useEffect(() => {
     if (!isPending && !session?.user) {
       router.push("/login");
@@ -111,6 +152,20 @@ export default function ApplicationDetailPage() {
       fetchOrg();
     }
   }, [session, params.id]);
+
+  // Load assessments when org is known
+  useEffect(() => {
+    if (orgIdForAssessments) {
+      loadAssessments(orgIdForAssessments);
+    }
+  }, [orgIdForAssessments]);
+
+  // Load existing assignments when applicationId is known
+  useEffect(() => {
+    if (applicationId) {
+      loadAssignments(applicationId);
+    }
+  }, [applicationId]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -164,9 +219,8 @@ export default function ApplicationDetailPage() {
 
         if (answersResponse.ok) {
           const answersData = await answersResponse.json();
-          console.log('Loaded answers:', answersData);
           setAnswers(answersData);
-          
+
           // Fetch reactions and comments for each answer
           for (const answer of answersData) {
             await fetchReactionsAndComments(answer.id);
@@ -190,6 +244,36 @@ export default function ApplicationDetailPage() {
       console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAssessments = async (orgId: number) => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const resp = await fetch(`/api/assessments?orgId=${orgId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        const rows: AssessmentRow[] = await resp.json();
+        setAssessments(rows);
+      }
+    } catch (e) {
+      console.error("Failed to load assessments:", e);
+    }
+  };
+
+  const loadAssignments = async (appId: number) => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const resp = await fetch(`/api/applications/${appId}/assessments`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        const rows: AppAssignmentRow[] = await resp.json();
+        setAssignments(rows);
+      }
+    } catch (e) {
+      console.error("Failed to load application assignments:", e);
     }
   };
 
@@ -281,62 +365,38 @@ export default function ApplicationDetailPage() {
 
   const handleReaction = async (answerId: number, reaction: 'like' | 'dislike') => {
     try {
-      // Check if user is authenticated
       if (!session?.user?.id) {
         toast.error("Please log in to react to answers");
         return;
       }
       
       const token = localStorage.getItem("bearer_token");
-      const userId = session.user.id;
-      
-      console.log('Reaction request:', {
-        answerId,
-        reaction,
-        userId,
-        token: token ? 'present' : 'missing',
-        session: session?.user,
-        isPending,
-        hasSession: !!session
-      });
-      
       const response = await fetch(`/api/answers/${answerId}/reactions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          reaction,
-        }),
+        body: JSON.stringify({ reaction }),
       });
-
-      console.log('Reaction response:', response.status, response.statusText);
       
       if (response.ok) {
         await fetchReactionsAndComments(answerId);
-        
-        // Store the reaction and show comment prompt
         setPendingReaction(prev => ({ ...prev, [answerId]: reaction }));
         setShowCommentPrompt(prev => ({ ...prev, [answerId]: true }));
-        
         toast.success(`Reaction ${reaction}d - Please add a comment explaining your feedback`);
       } else {
-        const errorText = await response.text();
-        console.error('Reaction error response:', errorText);
         toast.error("Failed to add reaction");
       }
     } catch (error) {
-      console.error('Reaction error:', error);
       toast.error("An error occurred");
     }
   };
 
   const handleAddComment = async (answerId: number) => {
     const comment = newComment[answerId];
-    if (!comment.trim()) return;
+    if (!comment?.trim()) return;
 
-    // Check if user is authenticated
     if (!session?.user?.id) {
       toast.error("Please log in to add comments");
       return;
@@ -350,9 +410,7 @@ export default function ApplicationDetailPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          comment,
-        }),
+        body: JSON.stringify({ comment }),
       });
 
       if (response.ok) {
@@ -374,9 +432,7 @@ export default function ApplicationDetailPage() {
       const token = localStorage.getItem("bearer_token");
       const response = await fetch(`/api/answers/${answerId}/comments/${commentId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
@@ -401,12 +457,43 @@ export default function ApplicationDetailPage() {
     }
   };
 
+  // Assign assessment handler
+  const handleAssignAssessment = async () => {
+    if (!selectedAssessmentId || !applicationId) return;
+    setAssignSubmitting(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const resp = await fetch(`/api/applications/${applicationId}/assessments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          assessmentId: Number(selectedAssessmentId),
+          dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+        }),
+      });
+
+      if (resp.ok) {
+        toast.success("Assessment assigned");
+        await loadAssignments(applicationId);
+        setAssignOpen(false);
+        setSelectedAssessmentId("");
+        setDueAt("");
+      } else {
+        toast.error("Failed to assign assessment");
+      }
+    } catch (e) {
+      toast.error("An error occurred");
+    } finally {
+      setAssignSubmitting(false);
+    }
+  };
+
   // Audio playback functions
   const toggleAudio = async (answerId: number, audioS3Key: string) => {
-    console.log('toggleAudio called:', { answerId, audioS3Key });
-    
     try {
-      // If this answer is currently playing, pause it
       if (playingAnswer === answerId) {
         const audio = audioElements[answerId];
         if (audio) {
@@ -416,7 +503,6 @@ export default function ApplicationDetailPage() {
         return;
       }
 
-      // Stop any currently playing audio
       if (playingAnswer) {
         const currentAudio = audioElements[playingAnswer];
         if (currentAudio) {
@@ -425,13 +511,11 @@ export default function ApplicationDetailPage() {
         }
       }
 
-      // Create new audio element if it doesn't exist
       let audio = audioElements[answerId];
       if (!audio) {
         audio = new Audio();
         audio.preload = 'metadata';
         
-        // Set up event listeners
         audio.addEventListener('timeupdate', () => {
           setCurrentTime(prev => ({ ...prev, [answerId]: audio.currentTime }));
         });
@@ -441,113 +525,44 @@ export default function ApplicationDetailPage() {
           setCurrentTime(prev => ({ ...prev, [answerId]: 0 }));
         });
         
-        audio.addEventListener('error', (e) => {
-          console.error('Audio error:', e);
-          console.error('Audio src:', audio.src);
-          console.error('Audio networkState:', audio.networkState);
-          console.error('Audio readyState:', audio.readyState);
+        audio.addEventListener('error', () => {
           toast.error('Failed to load audio file');
           setPlayingAnswer(null);
-        });
-        
-        audio.addEventListener('loadstart', () => {
-          console.log('Audio load started');
-        });
-        
-        audio.addEventListener('loadedmetadata', () => {
-          console.log('Audio metadata loaded, duration:', audio.duration);
-        });
-        
-        audio.addEventListener('canplay', () => {
-          console.log('Audio can play, duration:', audio.duration);
-          // Update the duration in state if we have a valid duration
-          if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-            setCurrentTime(prev => ({ ...prev, [answerId]: 0 }));
-          }
-        });
-        
-        audio.addEventListener('loadeddata', () => {
-          console.log('Audio data loaded');
         });
 
         setAudioElements(prev => ({ ...prev, [answerId]: audio }));
       }
 
-      // Set the audio source and wait for it to load
-      // Check if it's a real audio URL or a mock S3 key
-      if (audioS3Key && audioS3Key.startsWith('/uploads/audio/')) {
-        // It's a real audio file URL
-        audio.src = audioS3Key;
-        console.log('Loading real audio from:', audio.src);
-      } else {
-        // It's a mock S3 key, use our fallback API
-        audio.src = `/api/audio/${encodeURIComponent(audioS3Key)}`;
-        console.log('Loading mock audio from:', audio.src);
-      }
+      audio.src = audioS3Key && audioS3Key.startsWith('/uploads/audio/')
+        ? audioS3Key
+        : `/api/audio/${encodeURIComponent(audioS3Key)}`;
+
       audio.currentTime = currentTime[answerId] || 0;
       
-      // Wait for the audio to be ready before playing
-      return new Promise((resolve, reject) => {
-        const handleCanPlay = () => {
-          console.log('Audio ready to play');
-          audio.removeEventListener('canplay', handleCanPlay);
-          audio.removeEventListener('error', handleError);
+      await new Promise<void>((resolve, reject) => {
+        const onCanPlay = () => {
+          cleanup();
           audio.play().then(() => {
             setPlayingAnswer(answerId);
-            resolve(true);
+            resolve();
           }).catch(reject);
         };
-        
-        const handleError = (e: Event) => {
-          console.error('Audio failed to load:', e);
-          console.error('Audio src:', audio.src);
-          console.error('Audio networkState:', audio.networkState);
-          console.error('Audio readyState:', audio.readyState);
-          audio.removeEventListener('canplay', handleCanPlay);
-          audio.removeEventListener('error', handleError);
+        const onError = (e: Event) => {
+          cleanup();
           toast.error('Failed to load audio file');
           setPlayingAnswer(null);
           reject(e);
         };
-        
-        audio.addEventListener('canplay', handleCanPlay);
-        audio.addEventListener('error', handleError);
-        
-        // Add a timeout to prevent hanging
-        const timeout = setTimeout(() => {
-          console.error('Audio loading timeout');
-          audio.removeEventListener('canplay', handleCanPlay);
-          audio.removeEventListener('error', handleError);
-          toast.error('Audio loading timeout');
-          setPlayingAnswer(null);
-          reject(new Error('Audio loading timeout'));
-        }, 10000); // 10 second timeout
-        
-        // Clear timeout when audio loads successfully
-        const originalHandleCanPlay = handleCanPlay;
-        const originalHandleError = handleError;
-        
-        const wrappedHandleCanPlay = () => {
-          clearTimeout(timeout);
-          originalHandleCanPlay();
+        const cleanup = () => {
+          audio.removeEventListener('canplay', onCanPlay);
+          audio.removeEventListener('error', onError);
         };
-        
-        const wrappedHandleError = (e: Event) => {
-          clearTimeout(timeout);
-          originalHandleError(e);
-        };
-        
-        audio.removeEventListener('canplay', handleCanPlay);
-        audio.removeEventListener('error', handleError);
-        audio.addEventListener('canplay', wrappedHandleCanPlay);
-        audio.addEventListener('error', wrappedHandleError);
-        
-        // Start loading the audio
+        audio.addEventListener('canplay', onCanPlay);
+        audio.addEventListener('error', onError);
         audio.load();
       });
-      
+
     } catch (error) {
-      console.error('Error playing audio:', error);
       toast.error('Failed to play audio');
       setPlayingAnswer(null);
     }
@@ -590,17 +605,17 @@ export default function ApplicationDetailPage() {
               Jobs
             </Button>
             <Button
-                          variant="ghost"
-                          className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-                          disabled={!org?.id}
-                          title={!org?.id ? "Select or create an organization first" : "Assessments"}
-                          onClick={() =>
-                            org?.id && router.push(`/dashboard/organizations/${org.id}/assessments`)
-                          }
-                        >
-                          <ListChecks className="w-4 h-4 mr-3" />
-                          Assessments
-                        </Button>
+              variant="ghost"
+              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
+              disabled={!org?.id}
+              title={!org?.id ? "Select or create an organization first" : "Assessments"}
+              onClick={() =>
+                org?.id && router.push(`/dashboard/organizations/${org.id}/assessments`)
+              }
+            >
+              <ListChecks className="w-4 h-4 mr-3" />
+              Assessments
+            </Button>
           </nav>
         </div>
         
@@ -670,187 +685,229 @@ export default function ApplicationDetailPage() {
               </nav>
             </div>
 
-          {/* Application Header */}
-          <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-medium text-gray-900 mb-1">
-                    {application.applicantEmail}
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    Applied to: {application.jobTitle}
-                  </p>
-                  {application.applicantUniversityName && (
-                    <p className="text-xs text-green-700 mt-1">
-                      University: {application.applicantUniversityName}
+            {/* Application Header */}
+            <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-medium text-gray-900 mb-1">
+                      {application.applicantEmail}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      Applied to: {application.jobTitle}
                     </p>
-                  )}
-                  <div className="flex items-center gap-2 mt-1">
-                    <Clock className="w-3 h-3 text-gray-500" />
-                    <span className="text-xs text-gray-500">
-                      {new Date(application.createdAt).toLocaleDateString()}
-                    </span>
+                    {application.applicantUniversityName && (
+                      <p className="text-xs text-green-700 mt-1">
+                        University: {application.applicantUniversityName}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mt-1">
+                      <Clock className="w-3 h-3 text-gray-500" />
+                      <span className="text-xs text-gray-500">
+                        {new Date(application.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
+
+                <div className="text-right">
+                  <label className="text-xs text-gray-500 block mb-1">
+                    Status
+                  </label>
+                  <Select value={application.stage} onValueChange={updateStage}>
+                    <SelectTrigger className="w-32 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="applied">Applied</SelectItem>
+                      <SelectItem value="reviewing">Reviewing</SelectItem>
+                      <SelectItem value="phone_screen">Phone Screen</SelectItem>
+                      <SelectItem value="onsite">Onsite</SelectItem>
+                      <SelectItem value="offer">Offer</SelectItem>
+                      <SelectItem value="hired">Hired</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="text-right">
-                <label className="text-xs text-gray-500 block mb-1">
-                  Status
-                </label>
-                <Select value={application.stage} onValueChange={updateStage}>
-                  <SelectTrigger className="w-32 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="applied">Applied</SelectItem>
-                    <SelectItem value="reviewing">Reviewing</SelectItem>
-                    <SelectItem value="phone_screen">Phone Screen</SelectItem>
-                    <SelectItem value="onsite">Onsite</SelectItem>
-                    <SelectItem value="offer">Offer</SelectItem>
-                    <SelectItem value="hired">Hired</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Quick Actions */}
+              {/* Quick Actions */}
+<div className="space-y-2">
+  {/* Row 1 */}
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+    <Button
+      variant="outline"
+      className="gap-2 text-sm"
+      onClick={() => handleQuickAction("move_to_phone")}
+    >
+      <Phone className="w-3 h-3" />
+      Phone Screen
+    </Button>
+    <Button
+      variant="outline"
+      className="gap-2 text-sm"
+      onClick={() => handleQuickAction("email_sent")}
+    >
+      <Mail className="w-3 h-3" />
+      Send Email
+    </Button>
+    <Button
+      variant="outline"
+      className="gap-2 text-sm"
+      onClick={() => setAssignOpen(true)}
+      disabled={!orgIdForAssessments}
+      title={!orgIdForAssessments ? "Select or create an organization first" : "Assign assessment"}
+    >
+      <ListChecks className="w-3 h-3" />
+      Assign Assessment
+    </Button>
+  </div>
+
+  {/* Row 2 */}
+  <div className="grid grid-cols-2 gap-2">
+    <Button
+      variant="outline"
+      className="gap-2 text-sm text-green-600 hover:text-green-700"
+    >
+      <ThumbsUp className="w-3 h-3" />
+      Approve
+    </Button>
+    <Button
+      variant="outline"
+      className="gap-2 text-sm text-red-600 hover:text-red-700"
+      onClick={() => handleQuickAction("reject")}
+    >
+      <X className="w-3 h-3" />
+      Reject
+    </Button>
+  </div>
+</div>
+
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Button
-                variant="outline"
-                className="gap-2 text-sm"
-                onClick={() => handleQuickAction("move_to_phone")}
-              >
-                <Phone className="w-3 h-3" />
-                Move to Phone Screen
-              </Button>
-              <Button
-                variant="outline"
-                className="gap-2 text-sm"
-                onClick={() => handleQuickAction("email_sent")}
-              >
-                <Mail className="w-3 h-3" />
-                Send Email
-              </Button>
-              <Button
-                variant="outline"
-                className="gap-2 text-sm text-green-600 hover:text-green-700"
-              >
-                <ThumbsUp className="w-3 h-3" />
-                Approve
-              </Button>
-              <Button
-                variant="outline"
-                className="gap-2 text-sm text-red-600 hover:text-red-700"
-                onClick={() => handleQuickAction("reject")}
-              >
-                <X className="w-3 h-3" />
-                Reject
-              </Button>
-            </div>
-          </div>
-
-          {/* Voice Answers */}
-          <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              Voice Answers
-            </h2>
-
-            {answers.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-gray-500">No voice answers recorded</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {answers.map((answer, index) => {
-                  const question = questions.find((q) => q.id === answer.questionId);
-                  
-                  return (
-                    <div
-                      key={answer.id}
-                      className="bg-gray-50 rounded-lg p-4 flex items-center gap-4"
-                    >
-                      {/* Play Button */}
-                      <button
-                        onClick={() => toggleAudio(answer.id, answer.audioS3Key)}
-                        className="w-10 h-10 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
-                      >
-                        {playingAnswer === answer.id ? (
-                          <Pause className="w-4 h-4 text-gray-700" />
-                        ) : (
-                          <Play className="w-4 h-4 text-gray-700 ml-0.5" />
-                        )}
-                      </button>
-
-                      {/* Question Content */}
-                      <div className="flex-1">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                          {question?.prompt || "Question not found"}
-                        </h3>
-                        <p className="text-xs text-gray-600">
-                          Feel free to get technical here!
-                        </p>
-                      </div>
-
-                      {/* Duration and Actions */}
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-gray-500">
-                          {formatTime(currentTime[answer.id] || 0)} / {formatTime(
-                            audioElements[answer.id]?.duration || answer.durationSec || 0
-                          )}
-                        </span>
-                        
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleReaction(answer.id, 'like')}
-                            className={`p-1 hover:bg-gray-200 rounded transition-colors ${
-                              pendingReaction[answer.id] === 'like' ? 'bg-green-100' : ''
-                            }`}
-                          >
-                            <ThumbsUp className={`w-4 h-4 ${
-                              pendingReaction[answer.id] === 'like' ? 'text-green-600' : 'text-gray-500'
-                            }`} />
-                          </button>
-                          <button
-                            onClick={() => handleReaction(answer.id, 'dislike')}
-                            className={`p-1 hover:bg-gray-200 rounded transition-colors ${
-                              pendingReaction[answer.id] === 'dislike' ? 'bg-red-100' : ''
-                            }`}
-                          >
-                            <ThumbsDown className={`w-4 h-4 ${
-                              pendingReaction[answer.id] === 'dislike' ? 'text-red-600' : 'text-gray-500'
-                            }`} />
-                          </button>
+            {/* Assigned Assessments */}
+            <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Assigned Assessments</h2>
+              {assignments.length === 0 ? (
+                <div className="text-sm text-gray-600">No assessments assigned yet.</div>
+              ) : (
+                <ul className="space-y-3">
+                  {assignments.map((a) => (
+                    <li key={a.id} className="border rounded-lg p-4 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{a.assessmentTitle}</div>
+                        <div className="text-xs text-gray-500">
+                          {a.assessmentType} • {a.assessmentDuration} • status: {a.status}
+                          {a.dueAt ? ` • due ${new Date(a.dueAt).toLocaleString()}` : ""}
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* AI Analysis Placeholder */}
-          <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-orange-600" />
-              <h2 className="text-lg font-medium text-gray-900">
-                AI Analysis
-              </h2>
+                      {/* Space for future: View / Remind / Remove */}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            <p className="text-sm text-gray-600 mb-3">
-              Generate an AI-powered summary of this candidate's responses
-            </p>
-            <Button className="gap-2 text-sm">
-              <Sparkles className="w-3 h-3" />
-              Generate Summary
-            </Button>
-          </div>
+
+            {/* Voice Answers */}
+            <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">
+                Voice Answers
+              </h2>
+
+              {answers.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-500">No voice answers recorded</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {answers.map((answer) => {
+                    const question = questions.find((q) => q.id === answer.questionId);
+                    
+                    return (
+                      <div
+                        key={answer.id}
+                        className="bg-gray-50 rounded-lg p-4 flex items-center gap-4"
+                      >
+                        {/* Play Button */}
+                        <button
+                          onClick={() => toggleAudio(answer.id, answer.audioS3Key)}
+                          className="w-10 h-10 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                        >
+                          {playingAnswer === answer.id ? (
+                            <Pause className="w-4 h-4 text-gray-700" />
+                          ) : (
+                            <Play className="w-4 h-4 text-gray-700 ml-0.5" />
+                          )}
+                        </button>
+
+                        {/* Question Content */}
+                        <div className="flex-1">
+                          <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                            {question?.prompt || "Question not found"}
+                          </h3>
+                          <p className="text-xs text-gray-600">
+                            Feel free to get technical here!
+                          </p>
+                        </div>
+
+                        {/* Duration and Actions */}
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-500">
+                            {formatTime(currentTime[answer.id] || 0)} / {formatTime(
+                              audioElements[answer.id]?.duration || answer.durationSec || 0
+                            )}
+                          </span>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleReaction(answer.id, 'like')}
+                              className={`p-1 hover:bg-gray-200 rounded transition-colors ${
+                                pendingReaction[answer.id] === 'like' ? 'bg-green-100' : ''
+                              }`}
+                            >
+                              <ThumbsUp className={`w-4 h-4 ${
+                                pendingReaction[answer.id] === 'like' ? 'text-green-600' : 'text-gray-500'
+                              }`} />
+                            </button>
+                            <button
+                              onClick={() => handleReaction(answer.id, 'dislike')}
+                              className={`p-1 hover:bg-gray-200 rounded transition-colors ${
+                                pendingReaction[answer.id] === 'dislike' ? 'bg-red-100' : ''
+                              }`}
+                            >
+                              <ThumbsDown className={`w-4 h-4 ${
+                                pendingReaction[answer.id] === 'dislike' ? 'text-red-600' : 'text-gray-500'
+                              }`} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* AI Analysis Placeholder */}
+            <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-4 h-4 text-orange-600" />
+                <h2 className="text-lg font-medium text-gray-900">
+                  AI Analysis
+                </h2>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">
+                Generate an AI-powered summary of this candidate's responses
+              </p>
+              <Button className="gap-2 text-sm">
+                <Sparkles className="w-3 h-3" />
+                Generate Summary
+              </Button>
+            </div>
           </div>
 
           {/* Right Sidebar - Activity */}
@@ -861,8 +918,7 @@ export default function ApplicationDetailPage() {
               {/* Comments Section */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 <div className="space-y-4">
-                  {answers.map((answer, index) => {
-                    const question = questions.find((q) => q.id === answer.questionId);
+                  {answers.map((answer) => {
                     const answerComments = comments[answer.id] || [];
                     
                     return (
@@ -914,7 +970,6 @@ export default function ApplicationDetailPage() {
                                       <p className="text-xs text-gray-400">
                                         {new Date(comment.createdAt).toLocaleDateString()}
                                       </p>
-                                      {/* Only show delete button for current user's comments */}
                                       {comment.userEmail === session?.user?.email && (
                                         <button
                                           onClick={() => handleDeleteComment(comment.id, answer.id)}
@@ -1001,6 +1056,58 @@ export default function ApplicationDetailPage() {
         onClose={closeCommandPalette}
         orgId={org?.id}
       />
+
+      {/* Assign Assessment Dialog */}
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign assessment</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Assessment</Label>
+              <Select
+                value={selectedAssessmentId}
+                onValueChange={(v) => setSelectedAssessmentId(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={assessments.length ? "Select an assessment" : "No assessments available"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {assessments.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.title} ({a.type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dueAt">Due (optional)</Label>
+              <Input
+                id="dueAt"
+                type="datetime-local"
+                value={dueAt}
+                onChange={(e) => setDueAt(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button variant="ghost" onClick={() => setAssignOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignAssessment}
+              disabled={assignSubmitting || !selectedAssessmentId || !applicationId}
+            >
+              {assignSubmitting ? "Assigning..." : "Assign"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
