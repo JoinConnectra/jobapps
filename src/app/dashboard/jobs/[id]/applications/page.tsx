@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User, Clock, Filter, ListChecks, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell } from "lucide-react";
+import { ArrowLeft, User,ListChecks ,Clock, Filter, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Trash2, AlertTriangle, Check, ChevronDown, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import CommandPalette from "@/components/CommandPalette";
