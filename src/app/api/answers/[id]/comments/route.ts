@@ -8,18 +8,47 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { comment, userId } = await request.json();
+    const { comment } = await request.json();
     
-    if (!comment || !userId) {
+    if (!comment) {
       return NextResponse.json(
-        { error: "Comment and userId are required" },
+        { error: "Comment is required" },
         { status: 400 }
       );
     }
 
+    // Get the actual database user ID from the session
+    const { auth } = await import('@/lib/auth');
+    const session = await auth.api.getSession({
+      headers: request.headers
+    });
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "User not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    // Get the database user ID by looking up the user by email
+    const userResult = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, session.user.email))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      return NextResponse.json(
+        { error: "User not found in database" },
+        { status: 401 }
+      );
+    }
+
+    const dbUserId = userResult[0].id;
+
     const result = await db.insert(answerComments).values({
       answerId: parseInt(params.id),
-      userId,
+      userId: dbUserId,
       comment,
       createdAt: new Date(),
     });
@@ -42,6 +71,8 @@ export async function GET(
     const comments = await db
       .select({
         id: answerComments.id,
+        answerId: answerComments.answerId,
+        userId: answerComments.userId,
         comment: answerComments.comment,
         createdAt: answerComments.createdAt,
         userName: users.name,

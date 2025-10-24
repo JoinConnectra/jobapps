@@ -32,6 +32,7 @@ import {
   Bell,
   MessageSquare, ListChecks,
   Plus,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import CommandPalette from "@/components/CommandPalette";
@@ -91,11 +92,12 @@ export default function ApplicationDetailPage() {
   const [playingAnswer, setPlayingAnswer] = useState<number | null>(null);
   const [audioElements, setAudioElements] = useState<Record<number, HTMLAudioElement>>({});
   const [currentTime, setCurrentTime] = useState<Record<number, number>>({});
-  const [audioMetadataLoaded, setAudioMetadataLoaded] = useState<Record<number, boolean>>({});
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
   const [reactions, setReactions] = useState<Record<number, Reaction[]>>({});
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [newComment, setNewComment] = useState<Record<number, string>>({});
+  const [showCommentPrompt, setShowCommentPrompt] = useState<Record<number, boolean>>({});
+  const [pendingReaction, setPendingReaction] = useState<Record<number, 'like' | 'dislike' | null>>({});
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -109,32 +111,6 @@ export default function ApplicationDetailPage() {
       fetchOrg();
     }
   }, [session, params.id]);
-
-  // Preload audio metadata when answers are loaded
-  useEffect(() => {
-    if (answers.length > 0) {
-      answers.forEach(answer => {
-        if (answer.audioS3Key && answer.audioS3Key.startsWith('/uploads/audio/')) {
-          const audio = new Audio();
-          audio.preload = 'metadata';
-          
-          audio.addEventListener('loadedmetadata', () => {
-            console.log(`Audio ${answer.id} metadata loaded, duration:`, audio.duration);
-            // Update the audio elements with the loaded audio
-            setAudioElements(prev => ({ ...prev, [answer.id]: audio }));
-            // Mark metadata as loaded
-            setAudioMetadataLoaded(prev => ({ ...prev, [answer.id]: true }));
-          });
-          
-          audio.addEventListener('error', (e) => {
-            console.error(`Failed to preload audio ${answer.id}:`, e);
-          });
-          
-          audio.src = answer.audioS3Key;
-        }
-      });
-    }
-  }, [answers]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -305,7 +281,25 @@ export default function ApplicationDetailPage() {
 
   const handleReaction = async (answerId: number, reaction: 'like' | 'dislike') => {
     try {
+      // Check if user is authenticated
+      if (!session?.user?.id) {
+        toast.error("Please log in to react to answers");
+        return;
+      }
+      
       const token = localStorage.getItem("bearer_token");
+      const userId = session.user.id;
+      
+      console.log('Reaction request:', {
+        answerId,
+        reaction,
+        userId,
+        token: token ? 'present' : 'missing',
+        session: session?.user,
+        isPending,
+        hasSession: !!session
+      });
+      
       const response = await fetch(`/api/answers/${answerId}/reactions`, {
         method: "POST",
         headers: {
@@ -314,17 +308,26 @@ export default function ApplicationDetailPage() {
         },
         body: JSON.stringify({
           reaction,
-          userId: session?.user?.id || 1, // TODO: Get from session
         }),
       });
 
+      console.log('Reaction response:', response.status, response.statusText);
+      
       if (response.ok) {
         await fetchReactionsAndComments(answerId);
-        toast.success(`Reaction ${reaction}d`);
+        
+        // Store the reaction and show comment prompt
+        setPendingReaction(prev => ({ ...prev, [answerId]: reaction }));
+        setShowCommentPrompt(prev => ({ ...prev, [answerId]: true }));
+        
+        toast.success(`Reaction ${reaction}d - Please add a comment explaining your feedback`);
       } else {
+        const errorText = await response.text();
+        console.error('Reaction error response:', errorText);
         toast.error("Failed to add reaction");
       }
     } catch (error) {
+      console.error('Reaction error:', error);
       toast.error("An error occurred");
     }
   };
@@ -332,6 +335,12 @@ export default function ApplicationDetailPage() {
   const handleAddComment = async (answerId: number) => {
     const comment = newComment[answerId];
     if (!comment.trim()) return;
+
+    // Check if user is authenticated
+    if (!session?.user?.id) {
+      toast.error("Please log in to add comments");
+      return;
+    }
 
     try {
       const token = localStorage.getItem("bearer_token");
@@ -343,16 +352,39 @@ export default function ApplicationDetailPage() {
         },
         body: JSON.stringify({
           comment,
-          userId: session?.user?.id || 1, // TODO: Get from session
         }),
       });
 
       if (response.ok) {
         setNewComment(prev => ({ ...prev, [answerId]: "" }));
+        setShowCommentPrompt(prev => ({ ...prev, [answerId]: false }));
+        setPendingReaction(prev => ({ ...prev, [answerId]: null }));
         await fetchReactionsAndComments(answerId);
         toast.success("Comment added");
       } else {
         toast.error("Failed to add comment");
+      }
+    } catch (error) {
+      toast.error("An error occurred");
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number, answerId: number) => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/answers/${answerId}/comments/${commentId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        await fetchReactionsAndComments(answerId);
+        toast.success("Comment deleted");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to delete comment");
       }
     } catch (error) {
       toast.error("An error occurred");
@@ -393,7 +425,7 @@ export default function ApplicationDetailPage() {
         }
       }
 
-      // Use existing audio element if available, otherwise create new one
+      // Create new audio element if it doesn't exist
       let audio = audioElements[answerId];
       if (!audio) {
         audio = new Audio();
@@ -768,25 +800,31 @@ export default function ApplicationDetailPage() {
                       {/* Duration and Actions */}
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-500">
-                          {formatTime(currentTime[answer.id] || 0)} / {
-                            audioMetadataLoaded[answer.id] 
-                              ? formatTime(audioElements[answer.id]?.duration || answer.durationSec || 0)
-                              : 'Loading...'
-                          }
+                          {formatTime(currentTime[answer.id] || 0)} / {formatTime(
+                            audioElements[answer.id]?.duration || answer.durationSec || 0
+                          )}
                         </span>
                         
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleReaction(answer.id, 'like')}
-                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                            className={`p-1 hover:bg-gray-200 rounded transition-colors ${
+                              pendingReaction[answer.id] === 'like' ? 'bg-green-100' : ''
+                            }`}
                           >
-                            <ThumbsUp className="w-4 h-4 text-gray-500" />
+                            <ThumbsUp className={`w-4 h-4 ${
+                              pendingReaction[answer.id] === 'like' ? 'text-green-600' : 'text-gray-500'
+                            }`} />
                           </button>
                           <button
                             onClick={() => handleReaction(answer.id, 'dislike')}
-                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                            className={`p-1 hover:bg-gray-200 rounded transition-colors ${
+                              pendingReaction[answer.id] === 'dislike' ? 'bg-red-100' : ''
+                            }`}
                           >
-                            <ThumbsDown className="w-4 h-4 text-gray-500" />
+                            <ThumbsDown className={`w-4 h-4 ${
+                              pendingReaction[answer.id] === 'dislike' ? 'text-red-600' : 'text-gray-500'
+                            }`} />
                           </button>
                         </div>
                       </div>
@@ -816,9 +854,9 @@ export default function ApplicationDetailPage() {
           </div>
 
           {/* Right Sidebar - Activity */}
-          <aside className="w-64 bg-[#FEFEFA] border-l border-gray-200 flex flex-col h-screen sticky top-0">
-            <div className="p-6 flex flex-col h-full overflow-hidden">
-              <h2 className="text-lg font-semibold mb-6">Activity</h2>
+          <aside className="w-80 bg-[#FEFEFA] border-l border-gray-200 flex flex-col h-screen sticky top-0">
+            <div className="p-4 flex flex-col h-full overflow-hidden">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900">Activity</h2>
 
               {/* Comments Section */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -829,54 +867,123 @@ export default function ApplicationDetailPage() {
                     
                     return (
                       <div key={answer.id} className="space-y-3">
-                        {/* Question Header */}
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900 mb-2 break-words">
-                            {question?.prompt || `Question ${index + 1}`}
-                          </p>
-                        </div>
+                        {/* Reaction Display */}
+                        {reactions[answer.id] && reactions[answer.id].length > 0 && (
+                          <div className="space-y-2">
+                            {reactions[answer.id].map((reaction) => (
+                              <div key={reaction.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center gap-2 flex-1">
+                                  {reaction.reaction === 'like' ? (
+                                    <ThumbsUp className="w-4 h-4 text-green-600" />
+                                  ) : (
+                                    <ThumbsDown className="w-4 h-4 text-red-600" />
+                                  )}
+                                  <span className="text-sm font-medium text-gray-900">
+                                    You {reaction.reaction}d this answer
+                                  </span>
+                                </div>
+                                <span className="text-xs text-gray-500 flex-shrink-0">
+                                  {new Date(reaction.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Comments */}
                         {answerComments.length > 0 && (
                           <div className="space-y-2">
                             {answerComments.map((comment) => (
                               <div key={comment.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                                <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                                <div className="w-7 h-7 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
                                   <span className="text-xs font-medium text-gray-600">
                                     {comment.userName?.charAt(0) || 'U'}
                                   </span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-baseline justify-between mb-1">
-                                    <p className="text-xs font-semibold text-gray-900 truncate">
-                                      {comment.userName || 'User'}
-                                    </p>
-                                    <p className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                                      {new Date(comment.createdAt).toLocaleDateString()}
-                                    </p>
+                                  <div className="flex items-start justify-between mb-1">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-gray-900 truncate">
+                                        {comment.userName || 'User'}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        Employer
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                      <p className="text-xs text-gray-400">
+                                        {new Date(comment.createdAt).toLocaleDateString()}
+                                      </p>
+                                      {/* Only show delete button for current user's comments */}
+                                      {comment.userEmail === session?.user?.email && (
+                                        <button
+                                          onClick={() => handleDeleteComment(comment.id, answer.id)}
+                                          className="p-1 hover:bg-red-100 rounded transition-colors"
+                                          title="Delete comment"
+                                        >
+                                          <Trash2 className="w-3 h-3 text-red-500" />
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
-                                  <p className="text-xs text-gray-700 break-words">{comment.comment}</p>
+                                  <p className="text-sm text-gray-700 break-words mt-1">{comment.comment}</p>
                                 </div>
                               </div>
                             ))}
                           </div>
                         )}
 
+                        {/* Reaction Comment Prompt */}
+                        {showCommentPrompt[answer.id] && pendingReaction[answer.id] && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                {pendingReaction[answer.id] === 'like' ? (
+                                  <ThumbsUp className="w-3 h-3 text-white" />
+                                ) : (
+                                  <ThumbsDown className="w-3 h-3 text-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-blue-900">
+                                    {session?.user?.name || 'You'}
+                                  </span>
+                                  <span className="text-xs text-blue-700">
+                                    {pendingReaction[answer.id]}d this answer
+                                  </span>
+                                </div>
+                                <p className="text-xs text-blue-600 mt-1">
+                                  Please explain your feedback.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Add Comment */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-3">
                           <input
                             type="text"
-                            placeholder="Add a comment..."
+                            placeholder={showCommentPrompt[answer.id] ? `Explain why you ${pendingReaction[answer.id]}d this answer...` : "Add a comment..."}
                             value={newComment[answer.id] || ''}
                             onChange={(e) => setNewComment(prev => ({ ...prev, [answer.id]: e.target.value }))}
-                            className="flex-1 text-xs px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
+                            className={`flex-1 text-sm px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 min-w-0 ${
+                              showCommentPrompt[answer.id] 
+                                ? 'border-blue-300 focus:ring-blue-500 bg-blue-50' 
+                                : 'border-gray-300 focus:ring-blue-500'
+                            }`}
                           />
                           <Button
                             size="sm"
                             onClick={() => handleAddComment(answer.id)}
-                            className="text-xs px-3 py-2 flex-shrink-0"
+                            className={`px-3 py-2 flex-shrink-0 ${
+                              showCommentPrompt[answer.id] 
+                                ? 'bg-blue-600 hover:bg-blue-700' 
+                                : 'bg-gray-600 hover:bg-gray-700'
+                            }`}
                           >
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
