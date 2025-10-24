@@ -333,13 +333,18 @@ export default function AssessmentsPage() {
 
                     {/* (Optional) View/Edit buttons can go here */}
                     <div className="mt-4 flex gap-2">
-                      <Button variant="outline" size="sm" className="text-xs" disabled>
-                        View
-                      </Button>
-                      <Button variant="outline" size="sm" className="text-xs" disabled>
-                        Edit
-                      </Button>
-                    </div>
+  <Button asChild variant="outline" size="sm" className="text-xs">
+    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}`}>
+      View
+    </Link>
+  </Button>
+  <Button asChild variant="outline" size="sm" className="text-xs">
+    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/edit`}>
+      Edit
+    </Link>
+  </Button>
+</div>
+
                   </div>
                 ))}
               </div>
