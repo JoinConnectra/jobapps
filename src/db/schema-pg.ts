@@ -109,12 +109,54 @@ export const applications = pgTable('applications', {
   jobId: integer('job_id').notNull(),
   applicantUserId: integer('applicant_user_id'),
   applicantEmail: text('applicant_email').notNull(),
+
+  // NEW FIELDS (general contact)
+  applicantName: text('applicant_name'),
+  phone: text('phone'),
+  whatsapp: text('whatsapp'),
+  location: text('location'),
+  city: text('city'),
+  province: text('province'),
+  cnic: text('cnic'),
+
+  // NEW FIELDS (links)
+  linkedinUrl: text('linkedin_url'),
+  portfolioUrl: text('portfolio_url'),
+  githubUrl: text('github_url'),
+
+  // NEW FIELDS (work preferences)
+  workAuth: text('work_auth'),
+  needSponsorship: boolean('need_sponsorship'),
+  willingRelocate: boolean('willing_relocate'),
+  remotePref: text('remote_pref'),
+  earliestStart: text('earliest_start'),
+  salaryExpectation: text('salary_expectation'),
+
+  // Pakistan-focused extras
+  expectedSalaryPkr: integer('expected_salary_pkr'),
+  noticePeriodDays: integer('notice_period_days'),
+  experienceYears: text('experience_years'), // (you can keep numeric too; text is simplest to avoid driver issues)
+
+  // Education
+  university: text('university'),
+  degree: text('degree'),
+  graduationYear: integer('graduation_year'),
+  gpa: text('gpa'),        // store as text to avoid decimal driver quirks
+  gpaScale: text('gpa_scale'),
+
+  // Resume on this row
+  resumeS3Key: text('resume_s3_key'),
+  resumeFilename: text('resume_filename'),
+  resumeMime: text('resume_mime'),
+  resumeSize: integer('resume_size'),
+
   stage: text('stage').default('applied'),
   source: text('source'),
   applicantUniversityId: integer('applicant_university_id'),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
 
 export const resumes = pgTable('resumes', {
   id: serial('id').primaryKey(),
