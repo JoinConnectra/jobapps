@@ -277,6 +277,39 @@ export const auditLogs = pgTable('audit_logs', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
 
+// -----------------------------
+// NEW: Assessments & Questions
+// -----------------------------
+
+export const assessments = pgTable('assessments', {
+  id: serial('id').primaryKey(),
+  orgId: integer('org_id').notNull(),            // owning org
+  jobId: integer('job_id'),                      // optional link to a job
+  title: varchar('title', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(),       // 'MCQ' | 'Coding' | 'Case Study' | etc.
+  duration: varchar('duration', { length: 50 }).notNull(), // e.g. '30 min'
+  status: varchar('status', { length: 50 }).default('Draft'),
+  descriptionMd: text('description_md'),
+  isPublished: boolean('is_published').default(false),
+  createdBy: integer('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const assessmentQuestions = pgTable('assessment_questions', {
+  id: serial('id').primaryKey(),
+  assessmentId: integer('assessment_id').notNull(),
+  prompt: text('prompt').notNull(),
+  kind: text('kind').default('text').notNull(),  // 'text' | 'voice' | 'mcq' | 'coding' | 'case'
+  optionsJson: jsonb('options_json'),            // for MCQ: [{id, label}] or similar
+  correctAnswer: text('correct_answer'),         // optional (MCQ/coding autograde)
+  maxSec: integer('max_sec'),                    // for timed/voice
+  maxChars: integer('max_chars'),                // for text answers
+  required: boolean('required').default(true),
+  orderIndex: integer('order_index'),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
 // Better-auth tables (kept minimal for compatibility). If using Supabase Auth, you may replace later.
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -323,5 +356,3 @@ export const verification = pgTable('verification', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow(),
 });
-
-
