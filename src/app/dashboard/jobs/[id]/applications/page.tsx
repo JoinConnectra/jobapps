@@ -274,6 +274,7 @@ export default function JobApplicationsPage() {
     { value: "all", label: "All", count: applications.length },
     { value: "applied", label: "Applied", count: applications.filter(a => a.stage === "applied").length },
     { value: "reviewing", label: "Reviewing", count: applications.filter(a => a.stage === "reviewing").length },
+    { value: "assessment", label: "Assessment", count: applications.filter(a => a.stage === "assessments").length },
     { value: "phone_screen", label: "Phone Screen", count: applications.filter(a => a.stage === "phone_screen").length },
     { value: "onsite", label: "Onsite", count: applications.filter(a => a.stage === "onsite").length },
     { value: "offer", label: "Offer", count: applications.filter(a => a.stage === "offer").length },

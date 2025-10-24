@@ -725,6 +725,7 @@ export default function ApplicationDetailPage() {
                       <SelectItem value="applied">Applied</SelectItem>
                       <SelectItem value="reviewing">Reviewing</SelectItem>
                       <SelectItem value="phone_screen">Phone Screen</SelectItem>
+                      <SelectItem value="assessment">Assessment</SelectItem>
                       <SelectItem value="onsite">Onsite</SelectItem>
                       <SelectItem value="offer">Offer</SelectItem>
                       <SelectItem value="hired">Hired</SelectItem>
