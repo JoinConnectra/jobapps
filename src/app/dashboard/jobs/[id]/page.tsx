@@ -37,6 +37,7 @@ import {
   ListChecks,
   Plus,
   Trash2,
+  BarChartIcon,
   Eye,
   Users,
   Briefcase,
@@ -380,6 +381,14 @@ export default function JobDetailPage() {
             >
               <ListChecks className="w-4 h-4 mr-3" />
               Assessments
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
+              onClick={() => router.push("/dashboard/kpi/insights")}
+            >
+              <BarChartIcon className="w-4 h-4 mr-3" />
+              KPI · Insights
             </Button>
           </nav>
         </div>

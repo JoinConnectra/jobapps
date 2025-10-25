@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User,ListChecks ,Clock, Filter, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Trash2, AlertTriangle, Check, ChevronDown, MoreVertical } from "lucide-react";
+import { ArrowLeft, User,ListChecks ,Clock,BarChartIcon ,Filter, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Trash2, AlertTriangle, Check, ChevronDown, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import CommandPalette from "@/components/CommandPalette";
@@ -274,6 +274,7 @@ export default function JobApplicationsPage() {
     { value: "all", label: "All", count: applications.length },
     { value: "applied", label: "Applied", count: applications.filter(a => a.stage === "applied").length },
     { value: "reviewing", label: "Reviewing", count: applications.filter(a => a.stage === "reviewing").length },
+    { value: "assessment", label: "Assessment", count: applications.filter(a => a.stage === "assessments").length },
     { value: "phone_screen", label: "Phone Screen", count: applications.filter(a => a.stage === "phone_screen").length },
     { value: "onsite", label: "Onsite", count: applications.filter(a => a.stage === "onsite").length },
     { value: "offer", label: "Offer", count: applications.filter(a => a.stage === "offer").length },
@@ -312,6 +313,14 @@ export default function JobApplicationsPage() {
             >
               <ListChecks className="w-4 h-4 mr-3" />
               Assessments
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
+              onClick={() => router.push("/dashboard/kpi/insights")}
+            >
+              <BarChartIcon className="w-4 h-4 mr-3" />
+              KPI · Insights
             </Button>
           </nav>
         </div>

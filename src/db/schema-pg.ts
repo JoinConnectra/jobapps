@@ -109,12 +109,54 @@ export const applications = pgTable('applications', {
   jobId: integer('job_id').notNull(),
   applicantUserId: integer('applicant_user_id'),
   applicantEmail: text('applicant_email').notNull(),
+
+  // NEW FIELDS (general contact)
+  applicantName: text('applicant_name'),
+  phone: text('phone'),
+  whatsapp: text('whatsapp'),
+  location: text('location'),
+  city: text('city'),
+  province: text('province'),
+  cnic: text('cnic'),
+
+  // NEW FIELDS (links)
+  linkedinUrl: text('linkedin_url'),
+  portfolioUrl: text('portfolio_url'),
+  githubUrl: text('github_url'),
+
+  // NEW FIELDS (work preferences)
+  workAuth: text('work_auth'),
+  needSponsorship: boolean('need_sponsorship'),
+  willingRelocate: boolean('willing_relocate'),
+  remotePref: text('remote_pref'),
+  earliestStart: text('earliest_start'),
+  salaryExpectation: text('salary_expectation'),
+
+  // Pakistan-focused extras
+  expectedSalaryPkr: integer('expected_salary_pkr'),
+  noticePeriodDays: integer('notice_period_days'),
+  experienceYears: text('experience_years'), // (you can keep numeric too; text is simplest to avoid driver issues)
+
+  // Education
+  university: text('university'),
+  degree: text('degree'),
+  graduationYear: integer('graduation_year'),
+  gpa: text('gpa'),        // store as text to avoid decimal driver quirks
+  gpaScale: text('gpa_scale'),
+
+  // Resume on this row
+  resumeS3Key: text('resume_s3_key'),
+  resumeFilename: text('resume_filename'),
+  resumeMime: text('resume_mime'),
+  resumeSize: integer('resume_size'),
+
   stage: text('stage').default('applied'),
   source: text('source'),
   applicantUniversityId: integer('applicant_university_id'),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
 
 export const resumes = pgTable('resumes', {
   id: serial('id').primaryKey(),
@@ -277,6 +319,39 @@ export const auditLogs = pgTable('audit_logs', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
 
+// -----------------------------
+// NEW: Assessments & Questions
+// -----------------------------
+
+export const assessments = pgTable('assessments', {
+  id: serial('id').primaryKey(),
+  orgId: integer('org_id').notNull(),            // owning org
+  jobId: integer('job_id'),                      // optional link to a job
+  title: varchar('title', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(),       // 'MCQ' | 'Coding' | 'Case Study' | etc.
+  duration: varchar('duration', { length: 50 }).notNull(), // e.g. '30 min'
+  status: varchar('status', { length: 50 }).default('Draft'),
+  descriptionMd: text('description_md'),
+  isPublished: boolean('is_published').default(false),
+  createdBy: integer('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const assessmentQuestions = pgTable('assessment_questions', {
+  id: serial('id').primaryKey(),
+  assessmentId: integer('assessment_id').notNull(),
+  prompt: text('prompt').notNull(),
+  kind: text('kind').default('text').notNull(),  // 'text' | 'voice' | 'mcq' | 'coding' | 'case'
+  optionsJson: jsonb('options_json'),            // for MCQ: [{id, label}] or similar
+  correctAnswer: text('correct_answer'),         // optional (MCQ/coding autograde)
+  maxSec: integer('max_sec'),                    // for timed/voice
+  maxChars: integer('max_chars'),                // for text answers
+  required: boolean('required').default(true),
+  orderIndex: integer('order_index'),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
 // Better-auth tables (kept minimal for compatibility). If using Supabase Auth, you may replace later.
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -324,4 +399,17 @@ export const verification = pgTable('verification', {
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow(),
 });
 
-
+export const applicationAssessments = pgTable("application_assessments", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").notNull(), // FK → applications.id
+  assessmentId: integer("assessment_id").notNull(),   // FK → assessments.id
+  status: text("status").default("assigned"),          // assigned | invited | started | submitted | reviewed
+  dueAt: timestamp("due_at", { withTimezone: false }),
+  invitedAt: timestamp("invited_at", { withTimezone: false }),
+  startedAt: timestamp("started_at", { withTimezone: false }),
+  submittedAt: timestamp("submitted_at", { withTimezone: false }),
+  score: integer("score"),
+  resultJson: jsonb("result_json"),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow().notNull(),
+});

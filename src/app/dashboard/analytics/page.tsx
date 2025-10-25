@@ -103,6 +103,7 @@ export default function AnalyticsPage() {
   const stages = [
     { name: "Applied", key: "applied", color: "blue" },
     { name: "Reviewing", key: "reviewing", color: "yellow" },
+    { name: "Assessment", key: "Assessment", color: "orange" },
     { name: "Phone Screen", key: "phone_screen", color: "purple" },
     { name: "Onsite", key: "onsite", color: "indigo" },
     { name: "Offer", key: "offer", color: "green" },

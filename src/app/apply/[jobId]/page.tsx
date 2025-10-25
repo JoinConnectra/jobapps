@@ -28,7 +28,7 @@ interface Job {
 interface Question {
   id: number;
   prompt: string;
-  kind?: 'voice' | 'text';
+  kind?: "voice" | "text";
   maxSec: number;
   maxChars?: number | null;
   required: boolean;
@@ -48,17 +48,56 @@ interface TextAnswerState {
 }
 
 export default function ApplyPage() {
-  const params = useParams();
+  const params = useParams<{ jobId: string }>();
   const router = useRouter();
+
   const [job, setJob] = useState<Job | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Form data
+  // Contact
   const [applicantName, setApplicantName] = useState("");
   const [applicantEmail, setApplicantEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [location, setLocation] = useState("");
+  const [city, setCity] = useState("");
+  const [province, setProvince] = useState(""); // Punjab/Sindh/…
+  const [cnic, setCnic] = useState("");
+
+  // Links
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [portfolioUrl, setPortfolioUrl] = useState("");
+  const [githubUrl, setGithubUrl] = useState("");
+
+  // Work prefs
+  const [workAuth, setWorkAuth] = useState("");
+  const [needSponsorship, setNeedSponsorship] = useState<null | boolean>(null);
+  const [willingRelocate, setWillingRelocate] = useState<null | boolean>(null);
+  const [remotePref, setRemotePref] = useState("");
+  const [earliestStart, setEarliestStart] = useState("");
+  const [salaryExpectation, setSalaryExpectation] = useState("");
+
+  // Pakistan extras
+  const [expectedSalaryPkr, setExpectedSalaryPkr] = useState<string>("");
+  const [noticePeriodDays, setNoticePeriodDays] = useState<string>("");
+  const [experienceYears, setExperienceYears] = useState<string>("");
+
+  // Education
+  const [university, setUniversity] = useState("");
+  const [degree, setDegree] = useState("");
+  const [graduationYear, setGraduationYear] = useState<string>("");
+  const [gpa, setGpa] = useState<string>("");
+  const [gpaScale, setGpaScale] = useState<string>("4.0");
+
+  // Cover letter
+  const [coverLetter, setCoverLetter] = useState("");
+
+  // Files
   const [resume, setResume] = useState<File | null>(null);
+
+  // Answers
   const [voiceAnswers, setVoiceAnswers] = useState<VoiceAnswer[]>([]);
   const [textAnswers, setTextAnswers] = useState<TextAnswerState[]>([]);
 
@@ -75,6 +114,7 @@ export default function ApplyPage() {
 
   useEffect(() => {
     fetchJobData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.jobId]);
 
   const fetchJobData = async () => {
@@ -102,7 +142,7 @@ export default function ApplyPage() {
         setTextAnswers(
           questionsData.map((q: Question) => ({
             questionId: q.id,
-            text: '',
+            text: "",
           }))
         );
       }
@@ -163,7 +203,7 @@ export default function ApplyPage() {
           return newTime;
         });
       }, 1000);
-    } catch (error) {
+    } catch {
       toast.error("Could not access microphone");
     }
   };
@@ -190,10 +230,7 @@ export default function ApplyPage() {
     const audio = new Audio(answer.audioUrl);
     audioRef.current = audio;
 
-    audio.onended = () => {
-      setIsPlaying(null);
-    };
-
+    audio.onended = () => setIsPlaying(null);
     audio.play();
     setIsPlaying(questionIndex);
   };
@@ -205,18 +242,36 @@ export default function ApplyPage() {
     }
   };
 
+  const validateUrls = () => {
+    const isUrl = (s: string) => !s || /^https?:\/\/.+/i.test(s.trim());
+    if (!isUrl(linkedinUrl)) return "LinkedIn URL must start with http(s)://";
+    if (!isUrl(portfolioUrl)) return "Portfolio URL must start with http(s)://";
+    if (!isUrl(githubUrl)) return "GitHub URL must start with http(s)://";
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate all required questions have answers
+
+    if (!applicantName.trim() || !applicantEmail.trim()) {
+      toast.error("Please fill in your name and email");
+      return;
+    }
+    const urlErr = validateUrls();
+    if (urlErr) {
+      toast.error(urlErr);
+      return;
+    }
+
     const missingAnswers = questions.filter((q, idx) => {
       if (!q.required) return false;
-      if (q.kind === 'text') {
-        return !textAnswers[idx]?.text?.trim();
-      }
-      return !voiceAnswers[idx]?.blob;
+      //commenting so doesnt block submit change later.
+      //voice required mandatory
+      //if (q.kind === "text") return !textAnswers[idx]?.text?.trim();
+      //return !voiceAnswers[idx]?.blob;    
+      if (q.kind === "text") return !textAnswers[idx]?.text?.trim();
+      return false; // voice never blocks submit
     });
-
     if (missingAnswers.length > 0) {
       toast.error("Please answer all required questions");
       return;
@@ -225,26 +280,66 @@ export default function ApplyPage() {
     setSubmitting(true);
 
     try {
-      // Create application
+      // 1) Create application (including all metadata)
       const appResponse = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jobId: params.jobId,
-          applicantEmail,
+          jobId: Number(params.jobId),
+
+          applicantName: applicantName.trim(),
+          applicantEmail: applicantEmail.trim(),
+          phone: phone.trim() || null,
+          whatsapp: whatsapp.trim() || null,
+          location: location.trim() || null,
+          city: city.trim() || null,
+          province: province.trim() || null,
+          cnic: cnic.trim() || null,
+
+          linkedinUrl: linkedinUrl.trim() || null,
+          portfolioUrl: portfolioUrl.trim() || null,
+          githubUrl: githubUrl.trim() || null,
+
+          workAuth: workAuth || null,
+          needSponsorship:
+            needSponsorship === null ? null : Boolean(needSponsorship),
+          willingRelocate:
+            willingRelocate === null ? null : Boolean(willingRelocate),
+          remotePref: remotePref || null,
+          earliestStart: earliestStart || null,
+          salaryExpectation: salaryExpectation.trim() || null,
+
+          expectedSalaryPkr: expectedSalaryPkr ? Number(expectedSalaryPkr) : null,
+          noticePeriodDays: noticePeriodDays ? Number(noticePeriodDays) : null,
+          experienceYears: experienceYears || null,
+
+          university: university.trim() || null,
+          degree: degree.trim() || null,
+          graduationYear: graduationYear ? Number(graduationYear) : null,
+          gpa: gpa || null,
+          gpaScale: gpaScale || null,
+
+          coverLetter: coverLetter.trim() || null,
         }),
       });
-
-      if (!appResponse.ok) {
-        throw new Error("Failed to create application");
-      }
-
+      if (!appResponse.ok) throw new Error(await appResponse.text());
       const application = await appResponse.json();
 
-      // Persist answers by question kind
+      // 2) Upload resume to the application row (if provided)
+      if (resume) {
+        const rf = new FormData();
+        rf.append("resume", resume);
+        await fetch(`/api/applications/${application.id}/resume`, {
+          method: "POST",
+          body: rf,
+        });
+        // Non-blocking: if it fails, we still proceed
+      }
+
+      // 3) Persist answers
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
-        if (q.kind === 'text') {
+        if (q.kind === "text") {
           const ta = textAnswers[i];
           if (ta?.text?.trim()) {
             await fetch("/api/answers", {
@@ -272,7 +367,8 @@ export default function ApplyPage() {
 
       toast.success("Application submitted successfully!");
       router.push(`/apply/${params.jobId}/success`);
-    } catch (error) {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to submit application");
     } finally {
       setSubmitting(false);
@@ -282,7 +378,7 @@ export default function ApplyPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -291,9 +387,7 @@ export default function ApplyPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground mb-2">
-            Job not found
-          </h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Job not found</h1>
           <p className="text-muted-foreground">
             This job posting may have been removed or doesn't exist.
           </p>
@@ -324,7 +418,7 @@ export default function ApplyPage() {
                 Your Information
               </h2>
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="name">Full Name *</Label>
                   <Input
@@ -335,19 +429,288 @@ export default function ApplyPage() {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="email">Email Address *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={applicantEmail}
-                    onChange={(e) => setApplicantEmail(e.target.value)}
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="email">Email Address *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={applicantEmail}
+                      onChange={(e) => setApplicantEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Phone (optional)</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+92 3XX XXX XXXX"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="whatsapp">WhatsApp (optional)</Label>
+                    <Input
+                      id="whatsapp"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      placeholder="+92 3XX XXX XXXX"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="cnic">CNIC (optional)</Label>
+                    <Input
+                      id="cnic"
+                      value={cnic}
+                      onChange={(e) => setCnic(e.target.value)}
+                      placeholder="35101XXXXXXXXX"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="resume">Resume (Optional)</Label>
+                  <Label htmlFor="location">Location (freeform)</Label>
+                  <Input
+                    id="location"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g., DHA, Lahore"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Lahore / Karachi / Islamabad …"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="province">Province / Territory</Label>
+                    <Input
+                      id="province"
+                      value={province}
+                      onChange={(e) => setProvince(e.target.value)}
+                      placeholder="Punjab, Sindh, KPK, Balochistan, ICT, GB, AJK"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="linkedin">LinkedIn</Label>
+                    <Input
+                      id="linkedin"
+                      value={linkedinUrl}
+                      onChange={(e) => setLinkedinUrl(e.target.value)}
+                      placeholder="https://www.linkedin.com/in/username"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="portfolio">Portfolio / Website</Label>
+                    <Input
+                      id="portfolio"
+                      value={portfolioUrl}
+                      onChange={(e) => setPortfolioUrl(e.target.value)}
+                      placeholder="https://your.site"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="github">GitHub (optional)</Label>
+                  <Input
+                    id="github"
+                    value={githubUrl}
+                    onChange={(e) => setGithubUrl(e.target.value)}
+                    placeholder="https://github.com/username"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="workAuth">Work Authorization</Label>
+                    <select
+                      id="workAuth"
+                      className="w-full border border-border rounded-lg h-10 px-3 bg-white"
+                      value={workAuth}
+                      onChange={(e) => setWorkAuth(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      <option value="Citizen/PR">Citizen / Permanent Resident</option>
+                      <option value="Authorized (no sponsorship)">Authorized (no sponsorship)</option>
+                      <option value="Needs sponsorship">Needs sponsorship</option>
+                      <option value="Other / Not specified">Other / Not specified</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="needSponsorship">Require Future Sponsorship?</Label>
+                    <select
+                      id="needSponsorship"
+                      className="w-full border border-border rounded-lg h-10 px-3 bg-white"
+                      value={needSponsorship === null ? "" : needSponsorship ? "yes" : "no"}
+                      onChange={(e) =>
+                        setNeedSponsorship(e.target.value === "" ? null : e.target.value === "yes")
+                      }
+                    >
+                      <option value="">Select…</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="relocate">Willing to Relocate?</Label>
+                    <select
+                      id="relocate"
+                      className="w-full border border-border rounded-lg h-10 px-3 bg-white"
+                      value={willingRelocate === null ? "" : willingRelocate ? "yes" : "no"}
+                      onChange={(e) =>
+                        setWillingRelocate(e.target.value === "" ? null : e.target.value === "yes")
+                      }
+                    >
+                      <option value="">Select…</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="remotePref">Work Preference</Label>
+                    <select
+                      id="remotePref"
+                      className="w-full border border-border rounded-lg h-10 px-3 bg-white"
+                      value={remotePref}
+                      onChange={(e) => setRemotePref(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      <option value="Onsite">Onsite</option>
+                      <option value="Hybrid">Hybrid</option>
+                      <option value="Remote">Remote</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="start">Earliest Start Date</Label>
+                    <Input
+                      id="start"
+                      type="date"
+                      value={earliestStart}
+                      onChange={(e) => setEarliestStart(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="salary">Salary Expectation (optional)</Label>
+                    <Input
+                      id="salary"
+                      value={salaryExpectation}
+                      onChange={(e) => setSalaryExpectation(e.target.value)}
+                      placeholder="PKR range or text"
+                    />
+                  </div>
+                </div>
+
+                {/* Pakistan-focused extras */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="expYears">Experience (years)</Label>
+                    <Input
+                      id="expYears"
+                      value={experienceYears}
+                      onChange={(e) => setExperienceYears(e.target.value)}
+                      placeholder="e.g., 2.5"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="expectedPkr">Expected Salary (PKR)</Label>
+                    <Input
+                      id="expectedPkr"
+                      type="number"
+                      value={expectedSalaryPkr}
+                      onChange={(e) => setExpectedSalaryPkr(e.target.value)}
+                      placeholder="e.g., 150000"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="notice">Notice Period (days)</Label>
+                    <Input
+                      id="notice"
+                      type="number"
+                      value={noticePeriodDays}
+                      onChange={(e) => setNoticePeriodDays(e.target.value)}
+                      placeholder="e.g., 30"
+                    />
+                  </div>
+                </div>
+
+                {/* Education */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="university">University</Label>
+                    <Input
+                      id="university"
+                      value={university}
+                      onChange={(e) => setUniversity(e.target.value)}
+                      placeholder="e.g., LUMS, NUST, FAST, IBA…"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="degree">Degree</Label>
+                    <Input
+                      id="degree"
+                      value={degree}
+                      onChange={(e) => setDegree(e.target.value)}
+                      placeholder="e.g., BS CS, BBA, MS Data Science"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="gradYear">Graduation Year</Label>
+                    <Input
+                      id="gradYear"
+                      type="number"
+                      value={graduationYear}
+                      onChange={(e) => setGraduationYear(e.target.value)}
+                      placeholder="e.g., 2024"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="gpa">GPA / CGPA</Label>
+                    <Input
+                      id="gpa"
+                      value={gpa}
+                      onChange={(e) => setGpa(e.target.value)}
+                      placeholder="e.g., 3.45"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="gpaScale">GPA Scale</Label>
+                    <Input
+                      id="gpaScale"
+                      value={gpaScale}
+                      onChange={(e) => setGpaScale(e.target.value)}
+                      placeholder="4.0 / 5.0 / 100%"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="resume">Resume (optional)</Label>
                   <Input
                     id="resume"
                     type="file"
@@ -355,10 +718,22 @@ export default function ApplyPage() {
                     onChange={(e) => setResume(e.target.files?.[0] || null)}
                   />
                 </div>
+
+                <div>
+                  <Label htmlFor="cover">Cover Letter (optional)</Label>
+                  <textarea
+                    id="cover"
+                    className="w-full border border-border rounded-lg p-3"
+                    rows={6}
+                    placeholder="Share anything you want us to know…"
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Voice Questions */}
+            {/* Questions */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <h2 className="text-2xl font-display font-bold text-foreground mb-2">
                 Questions
@@ -373,26 +748,17 @@ export default function ApplyPage() {
                   const hasRecording = answer?.blob !== null;
 
                   return (
-                    <div
-                      key={question.id}
-                      className="p-6 border-2 border-border rounded-lg"
-                    >
+                    <div key={question.id} className="p-6 border-2 border-border rounded-lg">
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h3 className="font-semibold text-foreground mb-1">
                             Question {index + 1}
-                            {question.required && (
-                              <span className="text-destructive ml-1">*</span>
-                            )}
+                            {question.required && <span className="text-destructive ml-1">*</span>}
                           </h3>
-                          <p className="text-muted-foreground">
-                            {question.prompt}
-                          </p>
+                          <p className="text-muted-foreground">{question.prompt}</p>
                         </div>
-                        {question.kind === 'text' ? (
-                          <span className="text-xs bg-muted px-2 py-1 rounded">
-                            Text
-                          </span>
+                        {question.kind === "text" ? (
+                          <span className="text-xs bg-muted px-2 py-1 rounded">Text</span>
                         ) : (
                           <span className="text-xs bg-muted px-2 py-1 rounded">
                             Max {question.maxSec}s
@@ -400,13 +766,16 @@ export default function ApplyPage() {
                         )}
                       </div>
 
-                      {question.kind === 'text' ? (
+                      {question.kind === "text" ? (
                         <div>
                           <textarea
-                            value={textAnswers[index]?.text || ''}
+                            value={textAnswers[index]?.text || ""}
                             onChange={(e) => {
                               const updated = [...textAnswers];
-                              updated[index] = { questionId: question.id, text: e.target.value };
+                              updated[index] = {
+                                questionId: question.id,
+                                text: e.target.value,
+                              };
                               setTextAnswers(updated);
                             }}
                             className="w-full border border-border rounded-lg p-3"
@@ -431,15 +800,8 @@ export default function ApplyPage() {
                                 {Math.floor(recordingTime / 60)}:
                                 {(recordingTime % 60).toString().padStart(2, "0")}
                               </div>
-                              <p className="text-sm text-muted-foreground mb-4">
-                                Recording...
-                              </p>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                onClick={stopRecording}
-                                className="gap-2"
-                              >
+                              <p className="text-sm text-muted-foreground mb-4">Recording...</p>
+                              <Button type="button" variant="destructive" onClick={stopRecording} className="gap-2">
                                 <Square className="w-4 h-4" />
                                 Stop Recording
                               </Button>
@@ -466,21 +828,11 @@ export default function ApplyPage() {
                               </span>
                             </div>
                             {isPlaying === index ? (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={pauseAudio}
-                              >
+                              <Button type="button" variant="outline" size="sm" onClick={pauseAudio}>
                                 <Pause className="w-4 h-4" />
                               </Button>
                             ) : (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => playAudio(index)}
-                              >
+                              <Button type="button" variant="outline" size="sm" onClick={() => playAudio(index)}>
                                 <Play className="w-4 h-4" />
                               </Button>
                             )}
@@ -504,12 +856,7 @@ export default function ApplyPage() {
 
             {/* Submit */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full gap-2"
-                size="lg"
-              >
+              <Button type="submit" disabled={submitting} className="w-full gap-2" size="lg">
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />

@@ -1,7 +1,9 @@
+// /src/app/api/applications/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { applications, jobs, organizations, studentProfiles, activity, users } from '@/db/schema';
+import { applications, jobs, organizations, activity, users } from '@/db/schema';
 import { eq, and, asc, or, like } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 
 // Email validation helper
@@ -13,7 +15,45 @@ function isValidEmail(email: string): boolean {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jobId, applicantEmail, applicantUserId, stage, source, applicantUniversityId } = body;
+
+    // Required
+    const { jobId, applicantEmail } = body;
+
+    // Optional (legacy)
+    const { applicantUserId, stage, source, applicantUniversityId } = body;
+
+    // Optional (new fields)
+    const {
+      applicantName,
+      phone,
+      whatsapp,
+      location,
+      city,
+      province,
+      cnic,
+
+      linkedinUrl,
+      portfolioUrl,
+      githubUrl,
+
+      workAuth,
+      needSponsorship,
+      willingRelocate,
+      remotePref,
+      earliestStart,
+      salaryExpectation,
+
+      expectedSalaryPkr,
+      noticePeriodDays,
+      experienceYears,
+
+      university,
+      degree,
+      graduationYear,
+      gpa,
+      gpaScale,
+      // coverLetter, // add a DB column first if you want to store this
+    } = body;
 
     // Validate required fields
     if (!jobId) {
@@ -64,13 +104,13 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const applicationData: any = {
       jobId: parsedJobId,
-      applicantEmail: applicantEmail.toLowerCase().trim(),
+      applicantEmail: String(applicantEmail).toLowerCase().trim(),
       stage: stage || 'applied',
       createdAt: now,
       updatedAt: now,
     };
 
-    // Add optional fields if provided
+    // Optional legacy
     if (applicantUserId !== undefined && applicantUserId !== null) {
       const parsedUserId = parseInt(applicantUserId);
       if (!isNaN(parsedUserId)) {
@@ -79,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (source) {
-      applicationData.source = source.trim();
+      applicationData.source = String(source).trim();
     }
 
     if (applicantUniversityId !== undefined && applicantUniversityId !== null) {
@@ -88,6 +128,55 @@ export async function POST(request: NextRequest) {
         applicationData.applicantUniversityId = uniId;
       }
     }
+
+    // Optional NEW fields — only add if provided to avoid overwriting defaults/nulls
+    const setIf = (key: string, val: any) => {
+      if (val !== undefined && val !== null && val !== "") {
+        applicationData[key] = val;
+      }
+    };
+
+    setIf('applicantName', applicantName?.toString().trim());
+    setIf('phone', phone?.toString().trim());
+    setIf('whatsapp', whatsapp?.toString().trim());
+    setIf('location', location?.toString().trim());
+    setIf('city', city?.toString().trim());
+    setIf('province', province?.toString().trim());
+    setIf('cnic', cnic?.toString().trim());
+
+    setIf('linkedinUrl', linkedinUrl?.toString().trim());
+    setIf('portfolioUrl', portfolioUrl?.toString().trim());
+    setIf('githubUrl', githubUrl?.toString().trim());
+
+    setIf('workAuth', workAuth?.toString());
+    if (needSponsorship !== undefined && needSponsorship !== null) {
+      applicationData.needSponsorship = Boolean(needSponsorship);
+    }
+    if (willingRelocate !== undefined && willingRelocate !== null) {
+      applicationData.willingRelocate = Boolean(willingRelocate);
+    }
+    setIf('remotePref', remotePref?.toString());
+    setIf('earliestStart', earliestStart?.toString());
+    setIf('salaryExpectation', salaryExpectation?.toString());
+
+    if (expectedSalaryPkr !== undefined && expectedSalaryPkr !== null && expectedSalaryPkr !== "") {
+      const n = Number(expectedSalaryPkr);
+      if (!Number.isNaN(n)) applicationData.expectedSalaryPkr = n;
+    }
+    if (noticePeriodDays !== undefined && noticePeriodDays !== null && noticePeriodDays !== "") {
+      const n = Number(noticePeriodDays);
+      if (!Number.isNaN(n)) applicationData.noticePeriodDays = n;
+    }
+    setIf('experienceYears', experienceYears?.toString());
+
+    setIf('university', university?.toString().trim());
+    setIf('degree', degree?.toString().trim());
+    if (graduationYear !== undefined && graduationYear !== null && graduationYear !== "") {
+      const n = Number(graduationYear);
+      if (!Number.isNaN(n)) applicationData.graduationYear = n;
+    }
+    setIf('gpa', gpa?.toString());
+    setIf('gpaScale', gpaScale?.toString());
 
     // Create application
     const newApplication = await db.insert(applications)
@@ -102,7 +191,11 @@ export async function POST(request: NextRequest) {
       let actorUserId: number | null = null;
       const sessionUser = await getCurrentUser(request);
       if (sessionUser?.email) {
-        const appUser = await db.select().from(users).where(eq(users.email, sessionUser.email)).limit(1);
+        const appUser = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, sessionUser.email))
+          .limit(1);
         if (appUser.length > 0) {
           // @ts-ignore drizzle typing returns readonly
           actorUserId = (appUser[0] as any).id as number;
@@ -115,7 +208,11 @@ export async function POST(request: NextRequest) {
         entityType: 'application',
         entityId: newApplication[0].id,
         action: 'applied',
-        diffJson: { applicantEmail: applicationData.applicantEmail, jobId: jobRow.id, jobTitle: jobRow.title },
+        diffJson: {
+          applicantEmail: applicationData.applicantEmail,
+          jobId: jobRow.id,
+          jobTitle: jobRow.title,
+        },
         createdAt: nowIso,
       });
     } catch (err) {
@@ -150,23 +247,60 @@ export async function GET(request: NextRequest) {
       }
 
       const application = await db.select({
-        id: applications.id,
-        jobId: applications.jobId,
-        applicantUserId: applications.applicantUserId,
-        applicantEmail: applications.applicantEmail,
-        stage: applications.stage,
-        source: applications.source,
-        createdAt: applications.createdAt,
-        updatedAt: applications.updatedAt,
-        jobTitle: jobs.title,
-        applicantUniversityId: applications.applicantUniversityId,
-        applicantUniversityName: organizations.name,
-      })
-        .from(applications)
-        .leftJoin(jobs, eq(applications.jobId, jobs.id))
-        .leftJoin(organizations, eq(applications.applicantUniversityId, organizations.id))
-        .where(eq(applications.id, parsedId))
-        .limit(1);
+  id: applications.id,
+  jobId: applications.jobId,
+  applicantUserId: applications.applicantUserId,
+  applicantEmail: applications.applicantEmail,
+  stage: applications.stage,
+  source: applications.source,
+  createdAt: applications.createdAt,
+  updatedAt: applications.updatedAt,
+  jobTitle: jobs.title,
+  applicantUniversityId: applications.applicantUniversityId,
+  applicantUniversityName: organizations.name,
+
+  // NEW applicant fields
+  applicantName: applications.applicantName,
+  phone: applications.phone,
+  whatsapp: applications.whatsapp,
+  location: applications.location,
+  city: applications.city,
+  province: applications.province,
+  cnic: applications.cnic,
+
+  linkedinUrl: applications.linkedinUrl,
+  portfolioUrl: applications.portfolioUrl,
+  githubUrl: applications.githubUrl,
+
+  workAuth: applications.workAuth,
+  needSponsorship: applications.needSponsorship,
+  willingRelocate: applications.willingRelocate,
+  remotePref: applications.remotePref,
+  earliestStart: applications.earliestStart,
+  salaryExpectation: applications.salaryExpectation,
+
+  expectedSalaryPkr: applications.expectedSalaryPkr,
+  noticePeriodDays: applications.noticePeriodDays,
+  experienceYears: applications.experienceYears,
+
+  university: applications.university,
+  degree: applications.degree,
+  graduationYear: applications.graduationYear,
+  gpa: applications.gpa,
+  gpaScale: applications.gpaScale,
+
+  // Resume metadata
+  resumeS3Key: applications.resumeS3Key,
+  resumeFilename: applications.resumeFilename,
+  resumeMime: applications.resumeMime,
+  resumeSize: applications.resumeSize,
+})
+  .from(applications)
+  .leftJoin(jobs, eq(applications.jobId, jobs.id))
+  .leftJoin(organizations, eq(applications.applicantUniversityId, organizations.id))
+  .where(eq(applications.id, parsedId))
+  .limit(1);
+
 
       if (application.length === 0) {
         return NextResponse.json(
@@ -221,6 +355,7 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
+      // @ts-ignore
       conditions.push(eq(applications.jobId, parsedJobId));
     }
 
@@ -232,37 +367,42 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
+      // @ts-ignore
       conditions.push(eq(jobs.orgId, parsedOrgId));
     }
 
     if (stage) {
+      // @ts-ignore
       conditions.push(eq(applications.stage, stage.trim()));
     }
 
     if (search) {
       const searchTerm = `%${search.trim()}%`;
+      // @ts-ignore
       conditions.push(
         or(
           like(applications.applicantEmail, searchTerm),
           like(jobs.title, searchTerm)
         )
       );
-      
-      // When searching, also filter by orgId if provided
+
       if (orgId) {
         const parsedOrgId = parseInt(orgId);
         if (!isNaN(parsedOrgId)) {
+          // @ts-ignore
           conditions.push(eq(jobs.orgId, parsedOrgId));
         }
       }
     }
 
     if (conditions.length > 0) {
+      // @ts-ignore
       query = query.where(and(...conditions)) as any;
     }
 
     // Order by creation date (oldest first)
-    query = query.orderBy(asc(applications.createdAt));
+    //commenting out for now 
+    // query = query.orderBy(asc(applications.createdAt));
 
     const results = await query.limit(limit).offset(offset);
 
