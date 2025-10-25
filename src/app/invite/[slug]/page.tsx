@@ -91,6 +91,16 @@ export default function InvitePage() {
 
       const signupData = await signupResponse.json();
       
+      // Wait a moment for the user to be fully created in the database
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Get the user from our database by email
+      const userResponse = await fetch(`/api/users/by-email/${encodeURIComponent(formData.email)}`);
+      if (!userResponse.ok) {
+        throw new Error("Failed to find created user");
+      }
+      const userData = await userResponse.json();
+      
       // Then, add them to the organization
       const joinResponse = await fetch(`/api/organizations/${org?.id}/members`, {
         method: "POST",
@@ -98,7 +108,7 @@ export default function InvitePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: signupData.user.id,
+          userId: userData.id,
           role: "member",
         }),
       });
