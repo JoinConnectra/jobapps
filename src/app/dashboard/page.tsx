@@ -395,7 +395,15 @@ export default function DashboardPage() {
 
             {/* Activities List */}
             <div className="bg-white rounded-lg shadow-sm">
-              {feed.length === 0 ? (
+              {(() => {
+                const filteredFeed = feed.filter((item) => {
+                  if (activityFilter === "all") return true;
+                  if (activityFilter === "company") return item.kind === "company";
+                  if (activityFilter === "applicants") return item.kind === "applicants";
+                  return true;
+                });
+                return filteredFeed.length === 0;
+              })() ? (
                 // Empty state if no activity exists yet
                 <div className="text-center py-16">
                   <div className="flex items-center justify-center mb-6">
@@ -405,9 +413,15 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {activityFilter === "all" ? "No activity yet" : 
+                     activityFilter === "company" ? "No company activity" : 
+                     "No applicant activity"}
+                  </h3>
                   <p className="text-sm text-gray-500 mb-6">
-                    Once you start posting jobs and receiving applications, activity will appear here
+                    {activityFilter === "all" ? "Once you start posting jobs and receiving applications, activity will appear here" :
+                     activityFilter === "company" ? "Company activities like job creation will appear here" :
+                     "Applicant activities like job applications will appear here"}
                   </p>
                   <Button
                     onClick={() => router.push("/dashboard/jobs?create=1")}
@@ -417,9 +431,16 @@ export default function DashboardPage() {
                   </Button>
                 </div>
               ) : (
-                // Feed items
+                // Feed items - filter by activityFilter
                 <div className="divide-y divide-gray-100">
-                  {feed.map((item, idx) => (
+                  {feed
+                    .filter((item) => {
+                      if (activityFilter === "all") return true;
+                      if (activityFilter === "company") return item.kind === "company";
+                      if (activityFilter === "applicants") return item.kind === "applicants";
+                      return true;
+                    })
+                    .map((item, idx) => (
                     <div key={idx} className="p-5 hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-3">
                         {/* Icon pill by kind */}
