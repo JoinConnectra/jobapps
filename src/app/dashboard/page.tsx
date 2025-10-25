@@ -41,8 +41,10 @@ import {
   Bell,
   Send,
   ListChecks, // Icon for "Assessments" entry
+  Settings,
 } from "lucide-react";
 import CommandPalette from "@/components/CommandPalette";
+import SettingsModal from "@/components/SettingsModal";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import { getRelativeTime } from "@/lib/time-utils";
 
@@ -67,6 +69,9 @@ export default function DashboardPage() {
   type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" };
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [activityFilter, setActivityFilter] = useState<"all" | "company" | "applicants">("all");
+  
+  // ---- Settings modal state ----
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   /**
    * Auth guard:
@@ -336,7 +341,16 @@ export default function DashboardPage() {
                 {session.user.name?.charAt(0)}
               </span>
             </div>
-            <div className="text-sm font-medium text-gray-900">{session.user.name}</div>
+            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              title="Settings"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </aside>
@@ -484,6 +498,13 @@ export default function DashboardPage() {
         isOpen={isCommandPaletteOpen}
         onClose={closeCommandPalette}
         orgId={org?.id}
+      />
+
+      {/* Settings modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
       />
     </div>
   );
