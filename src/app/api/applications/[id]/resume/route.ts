@@ -29,6 +29,52 @@ function getSupabaseAdmin() {
   return createClient(url, key);
 }
 
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const appId = Number(params.id);
+    if (!Number.isFinite(appId) || appId <= 0) {
+      return NextResponse.json({ error: "Invalid application id" }, { status: 400 });
+    }
+
+    // fetch the application to read resumeS3Key
+    const row = await db.query.applications.findFirst({
+      where: eq(applications.id, appId),
+      columns: { resumeS3Key: true, resumeFilename: true, resumeMime: true, resumeSize: true },
+    });
+
+    if (!row?.resumeS3Key) {
+      return NextResponse.json({ error: "No resume on file" }, { status: 404 });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(row.resumeS3Key, 60 * 5); // 5 minutes
+
+    if (error || !data?.signedUrl) {
+      console.error("createSignedUrl error:", error);
+      return NextResponse.json({ error: "Failed to get signed URL" }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      signedUrl: data.signedUrl,
+      filename: row.resumeFilename,
+      mime: row.resumeMime,
+      size: row.resumeSize,
+    });
+  } catch (err) {
+    console.error("GET /api/applications/[id]/resume error:", err);
+    return NextResponse.json(
+      { error: "Internal server error: " + (err as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }

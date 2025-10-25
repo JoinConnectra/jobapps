@@ -247,23 +247,60 @@ export async function GET(request: NextRequest) {
       }
 
       const application = await db.select({
-        id: applications.id,
-        jobId: applications.jobId,
-        applicantUserId: applications.applicantUserId,
-        applicantEmail: applications.applicantEmail,
-        stage: applications.stage,
-        source: applications.source,
-        createdAt: applications.createdAt,
-        updatedAt: applications.updatedAt,
-        jobTitle: jobs.title,
-        applicantUniversityId: applications.applicantUniversityId,
-        applicantUniversityName: organizations.name,
-      })
-        .from(applications)
-        .leftJoin(jobs, eq(applications.jobId, jobs.id))
-        .leftJoin(organizations, eq(applications.applicantUniversityId, organizations.id))
-        .where(eq(applications.id, parsedId))
-        .limit(1);
+  id: applications.id,
+  jobId: applications.jobId,
+  applicantUserId: applications.applicantUserId,
+  applicantEmail: applications.applicantEmail,
+  stage: applications.stage,
+  source: applications.source,
+  createdAt: applications.createdAt,
+  updatedAt: applications.updatedAt,
+  jobTitle: jobs.title,
+  applicantUniversityId: applications.applicantUniversityId,
+  applicantUniversityName: organizations.name,
+
+  // NEW applicant fields
+  applicantName: applications.applicantName,
+  phone: applications.phone,
+  whatsapp: applications.whatsapp,
+  location: applications.location,
+  city: applications.city,
+  province: applications.province,
+  cnic: applications.cnic,
+
+  linkedinUrl: applications.linkedinUrl,
+  portfolioUrl: applications.portfolioUrl,
+  githubUrl: applications.githubUrl,
+
+  workAuth: applications.workAuth,
+  needSponsorship: applications.needSponsorship,
+  willingRelocate: applications.willingRelocate,
+  remotePref: applications.remotePref,
+  earliestStart: applications.earliestStart,
+  salaryExpectation: applications.salaryExpectation,
+
+  expectedSalaryPkr: applications.expectedSalaryPkr,
+  noticePeriodDays: applications.noticePeriodDays,
+  experienceYears: applications.experienceYears,
+
+  university: applications.university,
+  degree: applications.degree,
+  graduationYear: applications.graduationYear,
+  gpa: applications.gpa,
+  gpaScale: applications.gpaScale,
+
+  // Resume metadata
+  resumeS3Key: applications.resumeS3Key,
+  resumeFilename: applications.resumeFilename,
+  resumeMime: applications.resumeMime,
+  resumeSize: applications.resumeSize,
+})
+  .from(applications)
+  .leftJoin(jobs, eq(applications.jobId, jobs.id))
+  .leftJoin(organizations, eq(applications.applicantUniversityId, organizations.id))
+  .where(eq(applications.id, parsedId))
+  .limit(1);
+
 
       if (application.length === 0) {
         return NextResponse.json(
@@ -364,7 +401,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Order by creation date (oldest first)
-    //query = query.orderBy(asc(applications.createdAt));
+    //commenting out for now 
+    // query = query.orderBy(asc(applications.createdAt));
 
     const results = await query.limit(limit).offset(offset);
 
