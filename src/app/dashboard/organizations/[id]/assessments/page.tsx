@@ -12,6 +12,7 @@ import {
   HelpCircle,
   UserPlus,
   LogOut,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { useSession, authClient } from "@/lib/auth-client";
 import CommandPalette from "@/components/CommandPalette";
+import SettingsModal from "@/components/SettingsModal";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 
 /** Server shape (matches DB): */
@@ -65,6 +67,7 @@ export default function AssessmentsPage() {
 
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loadingAssessments, setLoadingAssessments] = useState(true);
@@ -280,6 +283,25 @@ export default function AssessmentsPage() {
               Log out
             </Button>
           </div>
+          
+          {/* Current user pill */}
+          <div className="mt-6 flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {session?.user?.name?.charAt(0)}
+              </span>
+            </div>
+            <div className="flex-1 text-sm font-medium text-gray-900">{session?.user?.name}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              title="Settings"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </aside>
 
@@ -364,6 +386,13 @@ export default function AssessmentsPage() {
 
       {/* Command palette overlay */}
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
+      
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+      />
 
       {/* ------------- New Assessment Dialog ------------- */}
       <Dialog open={openNew} onOpenChange={setOpenNew}>
