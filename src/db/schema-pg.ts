@@ -413,3 +413,10 @@ export const applicationAssessments = pgTable("application_assessments", {
   createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow().notNull(),
 });
+
+export const savedJobs = pgTable('saved_jobs', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  jobId: integer('job_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});
