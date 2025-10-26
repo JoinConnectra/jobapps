@@ -9,7 +9,7 @@ import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { getDashboardUrl } from "@/lib/auth-redirect";
 
 /** Helper: fetch accountType for an email (or current session if email omitted) */
-async function fetchAccountType(email?: string | null): Promise<"applicant" | "employer" | null> {
+async function fetchAccountType(email?: string | null): Promise<"applicant" | "employer" | "university" | null> {
   try {
     const res = await fetch("/api/auth/get-user", {
       method: email ? "POST" : "GET",
@@ -19,7 +19,7 @@ async function fetchAccountType(email?: string | null): Promise<"applicant" | "e
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return (data?.accountType as "applicant" | "employer") ?? null;
+    return (data?.accountType as "applicant" | "employer" | "university") ?? null;
   } catch {
     return null;
   }
@@ -59,6 +59,8 @@ export default function LoginPage() {
         router.replace("/student");
       } else if (accountType === "employer") {
         router.replace("/dashboard");
+      } else if (accountType === "university") {
+        router.replace("/university/dashboard");
       } else {
         // Fallback: if accountType not set yet, prefer student (matches your new flow)
         router.replace("/student");
