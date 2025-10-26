@@ -13,8 +13,8 @@ export default async function JobsPage() {
   const jobs = await getJobs();
 
   return (
-    // Ensure we use the full viewport width/height. Avoid wrapping this in a narrow container elsewhere.
-    <div className="w-screen h-[100dvh] overflow-hidden">
+    // Full-viewport height, NEVER allow horizontal scrolling from this page
+    <div className="h-[100dvh] max-w-full overflow-hidden overflow-x-clip">
       <JobBrowser initialJobs={jobs} />
     </div>
   );
