@@ -142,18 +142,24 @@ export default function ProfilePage() {
 
         {/* Main grid */}
         <div className="grid md:grid-cols-3 gap-6">
+          {/* LEFT COLUMN */}
           <div className="md:col-span-2 space-y-6">
             <AboutCard initial={me} />
+
+            {/* ⬇️ MOVED HERE: Application Defaults under About */}
+            <ApplicationDefaultsCard initial={me} />
+
             <ExperienceCard initial={me.experiences ?? []} />
             <EducationCard initial={me.educations ?? []} />
             <ProjectsCard initial={me.links ?? []} />
           </div>
 
+          {/* RIGHT COLUMN */}
           <div className="space-y-6">
             <SkillsCard initial={me.skills ?? []} />
             <ResumeCard resumeUrl={me.resumeUrl} />
             <ContactCard phone={me.phone} />
-            <ApplicationDefaultsCard initial={me} />
+            {/* ApplicationDefaultsCard removed from sidebar */}
           </div>
         </div>
       </div>
@@ -222,7 +228,7 @@ function AboutCard({ initial }: { initial: any }) {
           <Input label="Country" value={form.locationCountry} onChange={(v) => setForm({ ...form, locationCountry: v })} />
         </div>
         <Input label="Portfolio / Website" value={form.websiteUrl} onChange={(v) => setForm({ ...form, websiteUrl: v })} placeholder="https://" />
-        <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+92 3xx xxxxxxx" />
+        <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+92 3XX XXX XXXX" />
       </div>
       <SaveButton pending={pending} onClick={() => start(async () => {
         await fetch("/api/student/profile", {
@@ -546,7 +552,7 @@ function ContactCard({ phone }: { phone?: string }) {
         label="Phone"
         value={val}
         onChange={setVal}
-        placeholder="+92 3xx xxxxxxx"
+        placeholder="+92 3XX XXX XXXX"
       />
       <button
         onClick={save}
@@ -581,7 +587,7 @@ function ApplicationDefaultsCard({ initial }: { initial: any }) {
         ? "yes"
         : "no",
     remotePref: initial.remotePref ?? "",
-    earliestStart: toDateInputValue(initial.earliestStart), // ADDED: normalized for date input
+    earliestStart: toDateInputValue(initial.earliestStart),
     salaryExpectation: initial.salaryExpectation ?? "",
     expectedSalaryPkr: initial.expectedSalaryPkr ?? "",
     noticePeriodDays: initial.noticePeriodDays ?? "",
@@ -615,36 +621,82 @@ function ApplicationDefaultsCard({ initial }: { initial: any }) {
     <Card title="Application Defaults" icon={<ClipboardCheck size={16} />}>
       <div className="grid gap-3">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="WhatsApp" value={form.whatsapp} onChange={(v) => setForm({ ...form, whatsapp: v })} />
-          <Input label="Province" value={form.province} onChange={(v) => setForm({ ...form, province: v })} />
+          <Input
+            label="WhatsApp"
+            value={form.whatsapp}
+            onChange={(v) => setForm({ ...form, whatsapp: v })}
+            placeholder="+92 3XX XXX XXXX"
+          />
+          <Input
+            label="Province"
+            value={form.province}
+            onChange={(v) => setForm({ ...form, province: v })}
+            placeholder="Punjab, Sindh, KPK, Balochistan, ICT, GB, AJK"
+          />
         </div>
-        <Input label="CNIC" value={form.cnic} onChange={(v) => setForm({ ...form, cnic: v })} placeholder="35101XXXXXXXXX" />
+        <Input
+          label="CNIC"
+          value={form.cnic}
+          onChange={(v) => setForm({ ...form, cnic: v })}
+          placeholder="35101XXXXXXXXX"
+        />
         <div className="grid grid-cols-1 gap-3">
-          <Input label="LinkedIn" value={form.linkedinUrl} onChange={(v) => setForm({ ...form, linkedinUrl: v })} placeholder="https://www.linkedin.com/in/username" />
-          <Input label="Portfolio / Website" value={form.portfolioUrl} onChange={(v) => setForm({ ...form, portfolioUrl: v })} placeholder="https://your.site" />
-          <Input label="GitHub" value={form.githubUrl} onChange={(v) => setForm({ ...form, githubUrl: v })} placeholder="https://github.com/username" />
+          <Input
+            label="LinkedIn"
+            value={form.linkedinUrl}
+            onChange={(v) => setForm({ ...form, linkedinUrl: v })}
+            placeholder="https://www.linkedin.com/in/username"
+          />
+          <Input
+            label="Portfolio / Website"
+            value={form.portfolioUrl}
+            onChange={(v) => setForm({ ...form, portfolioUrl: v })}
+            placeholder="https://your.site"
+          />
+          <Input
+            label="GitHub"
+            value={form.githubUrl}
+            onChange={(v) => setForm({ ...form, githubUrl: v })}
+            placeholder="https://github.com/username"
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Select label="Work Authorization" value={form.workAuth} onChange={(v) => setForm({ ...form, workAuth: v })}>
+          <Select
+            label="Work Authorization"
+            value={form.workAuth}
+            onChange={(v) => setForm({ ...form, workAuth: v })}
+          >
             <option value="">Select…</option>
             <option value="Citizen/PR">Citizen / Permanent Resident</option>
             <option value="Authorized (no sponsorship)">Authorized (no sponsorship)</option>
             <option value="Needs sponsorship">Needs sponsorship</option>
             <option value="Other / Not specified">Other / Not specified</option>
           </Select>
-          <Select label="Require Sponsorship?" value={form.needSponsorship} onChange={(v) => setForm({ ...form, needSponsorship: v })}>
+          <Select
+            label="Require Sponsorship?"
+            value={form.needSponsorship}
+            onChange={(v) => setForm({ ...form, needSponsorship: v })}
+          >
             <option value="">Select…</option>
             <option value="yes">Yes</option>
             <option value="no">No</option>
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Select label="Willing to Relocate?" value={form.willingRelocate} onChange={(v) => setForm({ ...form, willingRelocate: v })}>
+          <Select
+            label="Willing to Relocate?"
+            value={form.willingRelocate}
+            onChange={(v) => setForm({ ...form, willingRelocate: v })}
+          >
             <option value="">Select…</option>
             <option value="yes">Yes</option>
             <option value="no">No</option>
           </Select>
-          <Select label="Work Preference" value={form.remotePref} onChange={(v) => setForm({ ...form, remotePref: v })}>
+          <Select
+            label="Work Preference"
+            value={form.remotePref}
+            onChange={(v) => setForm({ ...form, remotePref: v })}
+          >
             <option value="">Select…</option>
             <option value="Onsite">Onsite</option>
             <option value="Hybrid">Hybrid</option>
@@ -652,13 +704,40 @@ function ApplicationDefaultsCard({ initial }: { initial: any }) {
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Earliest Start" type="date" value={form.earliestStart} onChange={(v) => setForm({ ...form, earliestStart: v })} />
-          <Input label="Salary Expectation (text)" value={form.salaryExpectation} onChange={(v) => setForm({ ...form, salaryExpectation: v })} placeholder="PKR range or text" />
+          <Input
+            label="Earliest Start"
+            type="date"
+            value={form.earliestStart}
+            onChange={(v) => setForm({ ...form, earliestStart: v })}
+          />
+          <Input
+            label="Salary Expectation (text)"
+            value={form.salaryExpectation}
+            onChange={(v) => setForm({ ...form, salaryExpectation: v })}
+            placeholder="PKR range or text"
+          />
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Input label="Experience (years)" value={form.experienceYears} onChange={(v) => setForm({ ...form, experienceYears: v })} placeholder="e.g., 2.5" />
-          <Input label="Expected Salary (PKR)" type="number" value={form.expectedSalaryPkr} onChange={(v) => setForm({ ...form, expectedSalaryPkr: v })} />
-          <Input label="Notice Period (days)" type="number" value={form.noticePeriodDays} onChange={(v) => setForm({ ...form, noticePeriodDays: v })} />
+          <Input
+            label="Experience (years)"
+            value={form.experienceYears}
+            onChange={(v) => setForm({ ...form, experienceYears: v })}
+            placeholder="e.g., 2.5"
+          />
+          <Input
+            label="Expected Salary (PKR)"
+            type="number"
+            value={form.expectedSalaryPkr}
+            onChange={(v) => setForm({ ...form, expectedSalaryPkr: v })}
+            placeholder="e.g., 150000"
+          />
+          <Input
+            label="Notice Period (days)"
+            type="number"
+            value={form.noticePeriodDays}
+            onChange={(v) => setForm({ ...form, noticePeriodDays: v })}
+            placeholder="e.g., 30"
+          />
         </div>
       </div>
       <SaveButton
