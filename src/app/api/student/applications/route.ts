@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { applications, studentProfiles, studentEducations } from '@/db/schema-pg';
-import { eq } from 'drizzle-orm';
+import {
+  applications,
+  studentProfiles,
+  studentEducations,
+  users,
+  jobs,
+  organizations,
+} from '@/db/schema-pg';
+import { eq, desc } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
-import { users } from '@/db/schema-pg';
 
 type AppBody = {
   jobId: number;
@@ -46,6 +52,104 @@ type AppBody = {
   applicantUniversityId?: number | null;
 };
 
+/* ----------------------------- GET (list applications) ----------------------------- */
+/**
+ * Supports:
+ *   - mine=1|true   → only current user's applications
+ *   - limit         → default 25 (1..100)
+ *   - include       → "job,organization" (adds nested objects)
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const authUser = await getCurrentUser(req);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const [me] = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(eq(users.email, authUser.email))
+      .limit(1);
+
+    if (!me) {
+      return NextResponse.json({ error: 'No DB user for email' }, { status: 401 });
+    }
+
+    const url = new URL(req.url);
+    const mineParam = (url.searchParams.get('mine') || '').toLowerCase();
+    const includeParam = url.searchParams.get('include') || '';
+    const includeSet = new Set(
+      includeParam
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+
+    const limitRaw = Number(url.searchParams.get('limit') ?? '25');
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 100)) : 25;
+
+    // Base query: applications (optionally scoped to current user)
+    const base = db
+      .select({
+        // application columns you need in UI
+        id: applications.id,
+        jobId: applications.jobId,
+        applicantUserId: applications.applicantUserId,
+        applicantEmail: applications.applicantEmail,
+        stage: applications.stage,
+        source: applications.source,
+        appliedAt: applications.createdAt, // alias for UI
+        updatedAt: applications.updatedAt,
+
+        // flattened job/org fields for UI
+        jobTitle: jobs.title,
+        locationMode: jobs.locationMode,
+        salaryRange: jobs.salaryRange,
+        organizationName: organizations.name,
+      })
+      .from(applications)
+      .leftJoin(jobs, eq(jobs.id, applications.jobId))
+      .leftJoin(organizations, eq(organizations.id, jobs.organizationId))
+      .orderBy(desc(applications.createdAt))
+      .limit(limit);
+
+    const rows =
+      mineParam === '1' || mineParam === 'true'
+        ? await base.where(eq(applications.applicantUserId, me.id))
+        : await base;
+
+    // If include=job or organization is requested, attach nested objects too.
+    const out = rows.map((r) => {
+      const withNested: any = { ...r };
+      if (includeSet.has('job')) {
+        withNested.job = r.jobId
+          ? {
+            id: r.jobId,
+            title: r.jobTitle ?? null,
+            locationMode: r.locationMode ?? null,
+            salaryRange: r.salaryRange ?? null,
+            organization: includeSet.has('organization')
+              ? { name: r.organizationName ?? null }
+              : undefined,
+          }
+          : null;
+      }
+      if (includeSet.has('organization') && !includeSet.has('job')) {
+        // allow org alone even if job isn't requested
+        withNested.organization = r.organizationName ? { name: r.organizationName } : null;
+      }
+      return withNested;
+    });
+
+    return NextResponse.json(out);
+  } catch (err) {
+    console.error('[student/applications.GET]', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+/* ----------------------------- POST (create application) ----------------------------- */
 export async function POST(req: NextRequest) {
   try {
     const authUser = await getCurrentUser(req);
@@ -101,7 +205,6 @@ export async function POST(req: NextRequest) {
       degree: raw.degree ?? edu?.degree ?? null,
       graduationYear: raw.graduationYear ?? edu?.endYear ?? null,
       gpa: raw.gpa ?? (edu?.gpa != null ? String(edu.gpa) : null),
-      // leave university/gpaScale freeform unless you decide to map
     };
 
     // Create application snapshot
@@ -145,7 +248,7 @@ export async function POST(req: NextRequest) {
         resumeMime: (raw.resumeMime ?? null) as any,
         resumeSize: (raw.resumeSize ?? null) as any,
 
-        stage: raw.stage ?? 'applied',
+        stage: raw.stage ?? 'applied', // keep as-is; UI now handles "applied"
         source: raw.source ?? 'student-portal',
         applicantUniversityId: (raw.applicantUniversityId ?? null) as any,
 
@@ -154,7 +257,7 @@ export async function POST(req: NextRequest) {
       })
       .returning({ id: applications.id });
 
-    // Backfill: upsert these fields into the student's profile so future applies auto-fill
+    // Backfill profile defaults for next time
     const backfill: Record<string, any> = {};
     const keys: (keyof AppBody)[] = [
       'whatsapp','province','cnic',
@@ -182,7 +285,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (Object.keys(backfill).length > 0) {
-      if (profile) {
+      const [profileRow] = await db.select().from(studentProfiles).where(eq(studentProfiles.userId, me.id)).limit(1);
+      if (profileRow) {
         await db.update(studentProfiles).set(backfill).where(eq(studentProfiles.userId, me.id));
       } else {
         await db.insert(studentProfiles).values({ userId: me.id, ...backfill });

@@ -33,6 +33,7 @@ dayjs.extend(relativeTime);
 
 /** ----------------------------- Types ----------------------------- */
 type Stage =
+  | "applied"         // <— add this
   | "submitted"
   | "in_review"
   | "assessment"
@@ -75,12 +76,13 @@ const STAGE_META: Record<
   Stage,
   { label: string; tone: "default" | "secondary" | "destructive" | "outline" | "success" | "warning"; icon: React.ElementType }
 > = {
+  applied:   { label: "Submitted", tone: "secondary", icon: Waypoints }, // <— add
   submitted: { label: "Submitted", tone: "secondary", icon: Waypoints },
   in_review: { label: "In Review", tone: "default", icon: BadgeCheck },
-  assessment: { label: "Assessment", tone: "warning", icon: ArrowUpDown },
+  assessment:{ label: "Assessment", tone: "warning", icon: ArrowUpDown },
   interview: { label: "Interview", tone: "success", icon: Calendar },
-  offer: { label: "Offer", tone: "success", icon: Check },
-  rejected: { label: "Rejected", tone: "destructive", icon: X },
+  offer:     { label: "Offer", tone: "success", icon: Check },
+  rejected:  { label: "Rejected", tone: "destructive", icon: X },
   withdrawn: { label: "Withdrawn", tone: "outline", icon: Circle },
 };
 
@@ -557,7 +559,7 @@ function EmptyState({ onReset }: { onReset: () => void }) {
 }
 
 function StatusBadge({ stage }: { stage?: Stage }) {
-  const meta = STAGE_META[stage ?? "submitted"];
+  const meta = (stage && STAGE_META[stage]) ? STAGE_META[stage] : STAGE_META.submitted; // <— fallback
   const Icon = meta.icon;
   const variant =
     meta.tone === "success"
