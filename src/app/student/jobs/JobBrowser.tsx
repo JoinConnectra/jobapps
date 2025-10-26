@@ -1,3 +1,4 @@
+// src/app/student/jobs/JobBrowser.tsx
 "use client";
 
 import * as React from "react";
@@ -7,7 +8,6 @@ import remarkGfm from "remark-gfm";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import ApplyDialog from "./ApplyDialog";
 
 /* ---------- Types ---------- */
 type Job = {
@@ -51,7 +51,6 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
   const [dept, setDept] = React.useState<string>("all");
   const [location, setLocation] = React.useState<string>("all");
   const [sort, setSort] = React.useState<string>("recent"); // recent | title | org
-  const [applyOpen, setApplyOpen] = React.useState(false);
   const [saved, setSaved] = React.useState<Record<string, boolean>>({});
 
   // Build filter options
@@ -111,7 +110,7 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
-  // Keyboard navigation
+  // Keyboard navigation + quick "Apply" shortcut
   const ids = React.useMemo(() => filtered.map((j) => j.id.toString()), [filtered]);
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -127,12 +126,12 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
         setSelectedId(prev);
       } else if (e.key.toLowerCase() === "a" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        if (selectedId) setApplyOpen(true);
+        if (selectedId) router.push(`/student/jobs/${selectedId}/apply`);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ids, selectedId]);
+  }, [ids, selectedId, router]);
 
   // Save (local demo)
   function toggleSave(id: string | number) {
@@ -339,7 +338,9 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                   >
                     {saved[selectedJob.id.toString()] ? "Saved" : "Save"}
                   </Button>
-                  <Button onClick={() => setApplyOpen(true)}>Apply</Button>
+                  <Button onClick={() => router.push(`/student/jobs/${selectedJob.id}/apply`)}>
+                    Apply
+                  </Button>
                 </div>
               </div>
 
@@ -362,14 +363,6 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                   <p className="text-muted-foreground">No description provided.</p>
                 )}
               </div>
-
-              {/* Apply dialog */}
-              <ApplyDialog
-                open={applyOpen}
-                onOpenChange={setApplyOpen}
-                jobId={selectedJob.id}
-                jobTitle={selectedJob.title}
-              />
 
               {/* Footer helper */}
               <div className="mt-8 pt-4 border-t text-xs text-muted-foreground">
