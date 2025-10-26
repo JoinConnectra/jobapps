@@ -10,7 +10,9 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Settings,
 } from "lucide-react";
+import SettingsModal from "@/components/SettingsModal";
 
 interface AnalyticsData {
   totalJobs: number;
@@ -31,6 +33,8 @@ export default function AnalyticsPage() {
     conversionRate: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -41,8 +45,26 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (session?.user) {
       fetchAnalytics();
+      fetchOrg();
     }
   }, [session]);
+
+  const fetchOrg = async () => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const orgResp = await fetch("/api/organizations?mine=true", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (orgResp.ok) {
+        const orgs = await orgResp.json();
+        if (Array.isArray(orgs) && orgs.length > 0) {
+          setOrg(orgs[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch org:", error);
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
@@ -114,10 +136,17 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-[#F5F1E8]">
       <nav className="bg-white border-b border-border">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-display font-bold text-foreground">
             Analytics Dashboard
           </h1>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Settings"
+          >
+            <Settings className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
       </nav>
 
@@ -270,6 +299,12 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </main>
+      
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+      />
     </div>
   );
 }

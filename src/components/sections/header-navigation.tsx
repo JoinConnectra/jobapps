@@ -19,7 +19,7 @@ const HeaderNavigation = () => {
             {/* Placeholder for the abstract white logo mark, as no asset was provided and custom SVG is disallowed. */}
           </div>
           <span className="font-display text-2xl font-semibold text-black">
-            Rapha
+            TalentFlow
           </span>
         </Link>
         

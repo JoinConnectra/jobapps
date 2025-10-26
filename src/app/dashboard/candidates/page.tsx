@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { Search, User, Clock } from "lucide-react";
+import { Search, User, Clock, Settings } from "lucide-react";
 import Link from "next/link";
+import SettingsModal from "@/components/SettingsModal";
 
 interface Application {
   id: number;
@@ -22,6 +23,8 @@ export default function CandidatesPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -32,8 +35,26 @@ export default function CandidatesPage() {
   useEffect(() => {
     if (session?.user) {
       fetchApplications();
+      fetchOrg();
     }
   }, [session]);
+
+  const fetchOrg = async () => {
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const orgResp = await fetch("/api/organizations?mine=true", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (orgResp.ok) {
+        const orgs = await orgResp.json();
+        if (Array.isArray(orgs) && orgs.length > 0) {
+          setOrg(orgs[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch org:", error);
+    }
+  };
 
   const fetchApplications = async () => {
     try {
@@ -70,10 +91,17 @@ export default function CandidatesPage() {
   return (
     <div className="min-h-screen bg-[#F5F1E8]">
       <nav className="bg-white border-b border-border">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-display font-bold text-foreground">
             All Candidates
           </h1>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Settings"
+          >
+            <Settings className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
       </nav>
 
@@ -144,6 +172,12 @@ export default function CandidatesPage() {
           </div>
         </div>
       </main>
+      
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+      />
     </div>
   );
 }

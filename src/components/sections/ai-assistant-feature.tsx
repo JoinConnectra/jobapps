@@ -27,10 +27,10 @@ const AiAssistantFeature = () => {
             </div>
             <div className="mt-8 text-left">
               <h3 className="text-2xl lg:text-[1.75rem] font-semibold text-[#6a994e] leading-tight">
-                Ask Rapha and you shall receive
+                Ask TalentFlow and you shall receive
               </h3>
               <p className="mt-4 text-muted-foreground text-base lg:text-lg">
-                Rapha can assist with job descriptions, shortlisting applicants and any other back-office task.
+                TalentFlow can assist with job descriptions, shortlisting applicants and any other back-office task.
               </p>
             </div>
           </div>
@@ -70,7 +70,7 @@ const AiAssistantFeature = () => {
                 Quick commands to move fast
               </h3>
               <p className="mt-4 text-muted-foreground text-base lg:text-lg">
-                Navigate your jobs, applicants, and all parts of Rapha without ever reaching for your mouse
+                Navigate your jobs, applicants, and all parts of TalentFlow without ever reaching for your mouse
               </p>
             </div>
           </div>

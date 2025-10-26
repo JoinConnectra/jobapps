@@ -30,7 +30,7 @@ const FinalCtaSection = () => {
           Ready to save 50 hrs per week?
         </h1>
         <p className="mt-8 mb-12 text-white/90 text-lg md:text-xl lg:text-2xl max-w-3xl leading-relaxed">
-          Connect with our team and learn how Rapha can help your team grow
+          Connect with our team and learn how TalentFlow can help your team grow
           faster and better.
         </p>
         <a
