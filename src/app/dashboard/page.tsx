@@ -41,8 +41,10 @@ import {
   Bell,
   Send,
   ListChecks, // Icon for "Assessments" entry
+  Settings,
 } from "lucide-react";
 import CommandPalette from "@/components/CommandPalette";
+import SettingsModal from "@/components/SettingsModal";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import { getRelativeTime } from "@/lib/time-utils";
 
@@ -67,6 +69,9 @@ export default function DashboardPage() {
   type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" };
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [activityFilter, setActivityFilter] = useState<"all" | "company" | "applicants">("all");
+  
+  // ---- Settings modal state ----
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   /**
    * Auth guard:
@@ -336,7 +341,16 @@ export default function DashboardPage() {
                 {session.user.name?.charAt(0)}
               </span>
             </div>
-            <div className="text-sm font-medium text-gray-900">{session.user.name}</div>
+            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              title="Settings"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </aside>
@@ -395,7 +409,15 @@ export default function DashboardPage() {
 
             {/* Activities List */}
             <div className="bg-white rounded-lg shadow-sm">
-              {feed.length === 0 ? (
+              {(() => {
+                const filteredFeed = feed.filter((item) => {
+                  if (activityFilter === "all") return true;
+                  if (activityFilter === "company") return item.kind === "company";
+                  if (activityFilter === "applicants") return item.kind === "applicants";
+                  return true;
+                });
+                return filteredFeed.length === 0;
+              })() ? (
                 // Empty state if no activity exists yet
                 <div className="text-center py-16">
                   <div className="flex items-center justify-center mb-6">
@@ -405,9 +427,15 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {activityFilter === "all" ? "No activity yet" : 
+                     activityFilter === "company" ? "No company activity" : 
+                     "No applicant activity"}
+                  </h3>
                   <p className="text-sm text-gray-500 mb-6">
-                    Once you start posting jobs and receiving applications, activity will appear here
+                    {activityFilter === "all" ? "Once you start posting jobs and receiving applications, activity will appear here" :
+                     activityFilter === "company" ? "Company activities like job creation will appear here" :
+                     "Applicant activities like job applications will appear here"}
                   </p>
                   <Button
                     onClick={() => router.push("/dashboard/jobs?create=1")}
@@ -417,9 +445,16 @@ export default function DashboardPage() {
                   </Button>
                 </div>
               ) : (
-                // Feed items
+                // Feed items - filter by activityFilter
                 <div className="divide-y divide-gray-100">
-                  {feed.map((item, idx) => (
+                  {feed
+                    .filter((item) => {
+                      if (activityFilter === "all") return true;
+                      if (activityFilter === "company") return item.kind === "company";
+                      if (activityFilter === "applicants") return item.kind === "applicants";
+                      return true;
+                    })
+                    .map((item, idx) => (
                     <div key={idx} className="p-5 hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-3">
                         {/* Icon pill by kind */}
@@ -463,6 +498,13 @@ export default function DashboardPage() {
         isOpen={isCommandPaletteOpen}
         onClose={closeCommandPalette}
         orgId={org?.id}
+      />
+
+      {/* Settings modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
       />
     </div>
   );

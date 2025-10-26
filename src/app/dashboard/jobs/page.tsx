@@ -35,6 +35,7 @@ import {
   MoreHorizontal,
   Trash2,
   Edit,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import CommandPalette from "@/components/CommandPalette";
+import SettingsModal from "@/components/SettingsModal";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 
 /** Basic Job shape returned from API */
@@ -89,6 +91,7 @@ export default function AllJobsPage() {
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft" | "archived">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // ----- Create job modal state -----
   const [creating, setCreating] = useState(false);
@@ -490,7 +493,16 @@ export default function AllJobsPage() {
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
               <span className="text-white text-sm font-medium">{session.user.name?.charAt(0)}</span>
             </div>
-            <div className="text-sm font-medium text-gray-900">{session.user.name}</div>
+            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              title="Settings"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </aside>
@@ -830,8 +842,15 @@ export default function AllJobsPage() {
         </div>
       </main>
 
-      {/* Command palette portal (global quick actions) */}
-      <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
-    </div>
-  );
-}
+        {/* Command palette portal (global quick actions) */}
+        <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
+        
+        {/* Settings modal */}
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+        />
+      </div>
+    );
+  }

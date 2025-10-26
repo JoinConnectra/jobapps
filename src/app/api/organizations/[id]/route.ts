@@ -5,15 +5,14 @@ import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params;
-    const orgId = parseInt(id);
-
+    const orgId = parseInt(params.id);
+    
     if (isNaN(orgId)) {
       return NextResponse.json(
-        { error: 'Invalid organization ID', code: 'INVALID_ID' },
+        { error: 'Invalid organization ID' },
         { status: 400 }
       );
     }
@@ -26,16 +25,16 @@ export async function GET(
 
     if (org.length === 0) {
       return NextResponse.json(
-        { error: 'Organization not found', code: 'ORG_NOT_FOUND' },
+        { error: 'Organization not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(org[0], { status: 200 });
+    return NextResponse.json(org[0]);
   } catch (error) {
     console.error('GET /api/organizations/[id] error:', error);
     return NextResponse.json(
-      { error: 'Internal server error: ' + (error as Error).message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -43,42 +42,48 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params;
-    const orgId = parseInt(id);
-    const body = await request.json();
-
+    const orgId = parseInt(params.id);
+    
     if (isNaN(orgId)) {
       return NextResponse.json(
-        { error: 'Invalid organization ID', code: 'INVALID_ID' },
+        { error: 'Invalid organization ID' },
         { status: 400 }
       );
     }
 
-    const now = new Date().toISOString();
-    const updated = await db
+    const body = await request.json();
+    const { name, link, benefits, about_company } = body;
+
+    const updateData: any = {
+      updatedAt: new Date(),
+    };
+
+    if (name !== undefined) updateData.name = name;
+    if (link !== undefined) updateData.link = link;
+    if (benefits !== undefined) updateData.benefits = benefits;
+    if (about_company !== undefined) updateData.about_company = about_company;
+
+    const updatedOrg = await db
       .update(organizations)
-      .set({
-        ...body,
-        updatedAt: now,
-      })
+      .set(updateData)
       .where(eq(organizations.id, orgId))
       .returning();
 
-    if (updated.length === 0) {
+    if (updatedOrg.length === 0) {
       return NextResponse.json(
-        { error: 'Organization not found', code: 'ORG_NOT_FOUND' },
+        { error: 'Organization not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(updated[0], { status: 200 });
+    return NextResponse.json(updatedOrg[0]);
   } catch (error) {
     console.error('PATCH /api/organizations/[id] error:', error);
     return NextResponse.json(
-      { error: 'Internal server error: ' + (error as Error).message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User,ListChecks ,Clock,BarChartIcon ,Filter, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Trash2, AlertTriangle, Check, ChevronDown, MoreVertical } from "lucide-react";
+import { ArrowLeft, User,ListChecks ,Clock,BarChartIcon ,Filter, Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Trash2, AlertTriangle, Check, ChevronDown, MoreVertical, Settings } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import CommandPalette from "@/components/CommandPalette";
+import SettingsModal from "@/components/SettingsModal";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 
 interface Application {
@@ -48,6 +49,7 @@ export default function JobApplicationsPage() {
   const [bulkActionMode, setBulkActionMode] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -354,7 +356,16 @@ export default function JobApplicationsPage() {
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
               <span className="text-white text-sm font-medium">{session.user.name?.charAt(0)}</span>
             </div>
-            <div className="text-sm font-medium text-gray-900">{session.user.name}</div>
+            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              title="Settings"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </aside>
@@ -700,6 +711,13 @@ export default function JobApplicationsPage() {
         isOpen={isCommandPaletteOpen} 
         onClose={closeCommandPalette}
         orgId={org?.id}
+      />
+      
+      {/* Settings modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
       />
     </div>
   );

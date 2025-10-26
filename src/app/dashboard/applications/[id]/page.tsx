@@ -36,9 +36,11 @@ import {
   ListChecks,
   Plus,
   Trash2,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import CommandPalette from "@/components/CommandPalette";
+import SettingsModal from "@/components/SettingsModal";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 
 interface Application {
@@ -166,6 +168,7 @@ export default function ApplicationDetailPage() {
   const [newComment, setNewComment] = useState<Record<number, string>>({});
   const [showCommentPrompt, setShowCommentPrompt] = useState<Record<number, boolean>>({});
   const [pendingReaction, setPendingReaction] = useState<Record<number, "like" | "dislike" | null>>({});
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Assign Assessment dialog state
   const [assignOpen, setAssignOpen] = useState(false);
@@ -724,7 +727,16 @@ export default function ApplicationDetailPage() {
                 {session.user.name?.charAt(0)}
               </span>
             </div>
-            <div className="text-sm font-medium text-gray-900">{session.user.name}</div>
+            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              title="Settings"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </aside>
@@ -1305,6 +1317,13 @@ export default function ApplicationDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Settings modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+      />
     </div>
   );
 }
