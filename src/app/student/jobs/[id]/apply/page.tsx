@@ -49,6 +49,13 @@ interface TextAnswerState {
   text: string;
 }
 
+// ADDED: helper to coerce date-like strings to YYYY-MM-DD for <input type="date">
+function toDateInputValue(v: any): string {
+  if (!v) return "";
+  const s = String(v);
+  return s.length >= 10 ? s.slice(0, 10) : "";
+}
+
 export default function StudentApplyPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -114,10 +121,69 @@ export default function StudentApplyPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // ADDED: one-time guard so profile prefill runs once
+  const [prefilled, setPrefilled] = useState(false);
+
   useEffect(() => {
     fetchJobData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  // ADDED: fetch student profile to prefill the form once
+  useEffect(() => {
+    (async () => {
+      if (prefilled) return;
+      try {
+        const res = await fetch("/api/student/profile", { cache: "no-store" });
+        if (!res.ok) return;
+        const p = await res.json();
+
+        // basic user
+        setApplicantName((v) => v || p?.name || "");
+        setApplicantEmail((v) => v || p?.email || ""); // email may be present in your API (add if not)
+        setPhone((v) => v || p?.phone || "");
+
+        // standard profile → defaults
+        setWhatsapp((v) => v || p?.whatsapp || "");
+        setLocation((v) => v || p?.location || ""); // freeform (your API may not set this; safe no-op)
+        setCity((v) => v || p?.locationCity || "");
+        setProvince((v) => v || p?.province || "");
+        setCnic((v) => v || p?.cnic || "");
+
+        setLinkedinUrl((v) => v || p?.linkedinUrl || "");
+        setPortfolioUrl((v) => v || p?.portfolioUrl || p?.websiteUrl || "");
+        setGithubUrl((v) => v || p?.githubUrl || "");
+
+        setWorkAuth((v) => v || p?.workAuth || "");
+        setNeedSponsorship((v) =>
+          v === null ? (p?.needSponsorship === null || p?.needSponsorship === undefined ? null : !!p.needSponsorship) : v
+        );
+        setWillingRelocate((v) =>
+          v === null ? (p?.willingRelocate === null || p?.willingRelocate === undefined ? null : !!p.willingRelocate) : v
+        );
+        setRemotePref((v) => v || p?.remotePref || "");
+        setEarliestStart((v) => v || toDateInputValue(p?.earliestStart));
+        setSalaryExpectation((v) => v || p?.salaryExpectation || "");
+        setExpectedSalaryPkr((v) =>
+          v || (p?.expectedSalaryPkr != null ? String(p.expectedSalaryPkr) : "")
+        );
+        setNoticePeriodDays((v) =>
+          v || (p?.noticePeriodDays != null ? String(p.noticePeriodDays) : "")
+        );
+        setExperienceYears((v) =>
+          v || (p?.experienceYears != null ? String(p.experienceYears) : "")
+        );
+
+        // education snapshot seed (if you want to use first education row you can extend GET to return it)
+        // we already show manual fields here; if your GET returns educations, you can seed from there on the client
+
+        setPrefilled(true);
+      } catch (e) {
+        // non-fatal
+        console.warn("Profile prefill failed", e);
+      }
+    })();
+  }, [prefilled]);
 
   const fetchJobData = async () => {
     try {
@@ -220,7 +286,7 @@ export default function StudentApplyPage() {
 
   const playAudio = (questionIndex: number) => {
     const answer = voiceAnswers[questionIndex];
-    if (!answer.audioUrl) return;
+    if (!answer?.audioUrl) return;
 
     if (audioRef.current) audioRef.current.pause();
     const audio = new Audio(answer.audioUrl);
@@ -356,7 +422,6 @@ export default function StudentApplyPage() {
       }
 
       toast.success("Application submitted successfully!");
-      // Reuse your existing success page under /apply
       router.push(`/student/jobs/${params.id}/apply/success`);
     } catch (err) {
       console.error(err);

@@ -1,4 +1,6 @@
-import { pgTable, serial, text, varchar, integer, boolean, jsonb, timestamp, date, numeric } from "drizzle-orm/pg-core";
+import {
+  pgTable, serial, integer, text, boolean, date, numeric, timestamp, jsonb, uuid, varchar
+} from "drizzle-orm/pg-core";
 import { sql } from 'drizzle-orm';
 
 // NOTE: This is a minimal Postgres schema mirroring the current SQLite schema names and columns
@@ -60,7 +62,7 @@ export const studentProfiles = pgTable('student_profiles', {
   program: text('program'),
   verified: boolean('verified').default(false),
 
-  // NEW rich profile fields
+  // Rich profile fields
   headline: text('headline'),
   about: text('about'),
   locationCity: text('location_city'),
@@ -68,16 +70,28 @@ export const studentProfiles = pgTable('student_profiles', {
   websiteUrl: text('website_url'),
   resumeUrl: text('resume_url'),
   isPublic: boolean('is_public').default(false),
-  jobPrefs: jsonb('job_prefs'),   // JSON object, e.g. { roles: [...], remote: "Hybrid", ... }
-
-  // Drizzle array for text[]
+  jobPrefs: jsonb('job_prefs'),
   skills: text('skills').array(),
 
-  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
-  // (optional) keep updatedAt if you want
-  // updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
-});
+  // Standard application fields (persisted on profile)
+  whatsapp: text('whatsapp'),
+  province: text('province'),
+  cnic: text('cnic'),
+  linkedinUrl: text('linkedin_url'),
+  portfolioUrl: text('portfolio_url'),
+  githubUrl: text('github_url'),
+  workAuth: text('work_auth'),
+  needSponsorship: boolean('need_sponsorship'),
+  willingRelocate: boolean('willing_relocate'),
+  remotePref: text('remote_pref'),
+  earliestStart: date('earliest_start'),
+  salaryExpectation: text('salary_expectation'),
+  expectedSalaryPkr: integer('expected_salary_pkr'),
+  noticePeriodDays: integer('notice_period_days'),
+  experienceYears: numeric('experience_years', { precision: 5, scale: 2 }),
 
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});
 
 export const jobs = pgTable('jobs', {
   id: serial('id').primaryKey(),
@@ -127,7 +141,7 @@ export const applications = pgTable('applications', {
   applicantUserId: integer('applicant_user_id'),
   applicantEmail: text('applicant_email').notNull(),
 
-  // NEW FIELDS (general contact)
+  // Contact + links snapshot
   applicantName: text('applicant_name'),
   phone: text('phone'),
   whatsapp: text('whatsapp'),
@@ -135,33 +149,29 @@ export const applications = pgTable('applications', {
   city: text('city'),
   province: text('province'),
   cnic: text('cnic'),
-
-  // NEW FIELDS (links)
   linkedinUrl: text('linkedin_url'),
   portfolioUrl: text('portfolio_url'),
   githubUrl: text('github_url'),
 
-  // NEW FIELDS (work preferences)
+  // Work prefs snapshot
   workAuth: text('work_auth'),
   needSponsorship: boolean('need_sponsorship'),
   willingRelocate: boolean('willing_relocate'),
   remotePref: text('remote_pref'),
   earliestStart: text('earliest_start'),
   salaryExpectation: text('salary_expectation'),
-
-  // Pakistan-focused extras
   expectedSalaryPkr: integer('expected_salary_pkr'),
   noticePeriodDays: integer('notice_period_days'),
-  experienceYears: text('experience_years'), // (you can keep numeric too; text is simplest to avoid driver issues)
+  experienceYears: text('experience_years'),
 
-  // Education
+  // Education snapshot
   university: text('university'),
   degree: text('degree'),
   graduationYear: integer('graduation_year'),
-  gpa: text('gpa'),        // store as text to avoid decimal driver quirks
+  gpa: text('gpa'),
   gpaScale: text('gpa_scale'),
 
-  // Resume on this row
+  // Resume snapshot (optional)
   resumeS3Key: text('resume_s3_key'),
   resumeFilename: text('resume_filename'),
   resumeMime: text('resume_mime'),
@@ -173,7 +183,6 @@ export const applications = pgTable('applications', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
-
 
 export const resumes = pgTable('resumes', {
   id: serial('id').primaryKey(),
@@ -440,10 +449,10 @@ export const savedJobs = pgTable('saved_jobs', {
 
 export const studentExperiences = pgTable('student_experiences', {
   id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull(),             // FK → users.id (enforce in SQL if desired)
+  userId: integer('user_id').notNull(),
   title: text('title').notNull(),
   company: text('company'),
-  startDate: date('start_date'),                    // DATE
+  startDate: date('start_date'),
   endDate: date('end_date'),
   isCurrent: boolean('is_current').default(false),
   location: text('location'),
@@ -460,7 +469,7 @@ export const studentEducations = pgTable('student_educations', {
   field: text('field'),
   startYear: integer('start_year'),
   endYear: integer('end_year'),
-  gpa: numeric('gpa', { precision: 3, scale: 2 }),  // or make this text('gpa') if you prefer
+  gpa: numeric('gpa', { precision: 3, scale: 2 }),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
@@ -468,8 +477,7 @@ export const studentEducations = pgTable('student_educations', {
 export const studentLinks = pgTable('student_links', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull(),
-  label: text('label').notNull(),   // e.g., "LinkedIn", "GitHub"
+  label: text('label').notNull(),
   url: text('url').notNull(),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
-

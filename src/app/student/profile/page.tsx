@@ -13,11 +13,21 @@ import {
   Link as LinkIcon,
   FileText,
   Phone,
+  ClipboardCheck,
 } from "lucide-react";
 
 /* ----------------------------- util helpers ----------------------------- */
 function cls(...xs: (string | false | null | undefined)[]) {
   return xs.filter(Boolean).join(" ");
+}
+
+// ADDED: safely coerce values for <input type="date">
+function toDateInputValue(v: any): string {
+  if (!v) return "";
+  // v may already be 'YYYY-MM-DD' or an ISO string
+  const s = String(v);
+  if (s.length >= 10) return s.slice(0, 10);
+  return "";
 }
 
 /* ----------------------------- main page ----------------------------- */
@@ -30,6 +40,12 @@ export default function ProfilePage() {
       try {
         const res = await fetch("/api/student/profile", { cache: "no-store" });
         const data = await res.json();
+
+        // ADDED: normalize earliestStart to date input format
+        if (data && data.earliestStart) {
+          data.earliestStart = toDateInputValue(data.earliestStart);
+        }
+
         setMe(data);
       } catch (err) {
         console.error(err);
@@ -88,7 +104,7 @@ export default function ProfilePage() {
         {/* Header card */}
         <section className="rounded-2xl bg-white border shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white text-2xl font-semibold">
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white text-2xl font-semibold">
               {(me.name || "U").slice(0, 1).toUpperCase()}
             </div>
 
@@ -137,6 +153,7 @@ export default function ProfilePage() {
             <SkillsCard initial={me.skills ?? []} />
             <ResumeCard resumeUrl={me.resumeUrl} />
             <ContactCard phone={me.phone} />
+            <ApplicationDefaultsCard initial={me} />
           </div>
         </div>
       </div>
@@ -186,6 +203,7 @@ function AboutCard({ initial }: { initial: any }) {
     locationCity: initial.locationCity ?? "",
     locationCountry: initial.locationCountry ?? "",
     websiteUrl: initial.websiteUrl ?? "",
+    phone: initial.phone ?? "",
   });
   const [pending, start] = useTransition();
 
@@ -204,6 +222,7 @@ function AboutCard({ initial }: { initial: any }) {
           <Input label="Country" value={form.locationCountry} onChange={(v) => setForm({ ...form, locationCountry: v })} />
         </div>
         <Input label="Portfolio / Website" value={form.websiteUrl} onChange={(v) => setForm({ ...form, websiteUrl: v })} placeholder="https://" />
+        <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+92 3xx xxxxxxx" />
       </div>
       <SaveButton pending={pending} onClick={() => start(async () => {
         await fetch("/api/student/profile", {
@@ -313,13 +332,13 @@ function ExperienceCard({ initial }: { initial: any[] }) {
             label="Start Date"
             value={draft.startDate}
             onChange={(v) => setDraft({ ...draft, startDate: v })}
-            placeholder="Jan 2024"
+            placeholder="2024-01-01"
           />
           <Input
             label="End Date"
             value={draft.endDate}
             onChange={(v) => setDraft({ ...draft, endDate: v })}
-            placeholder="May 2024"
+            placeholder="2024-05-31"
           />
         </div>
         <Textarea
@@ -338,7 +357,6 @@ function ExperienceCard({ initial }: { initial: any[] }) {
     </Card>
   );
 }
-
 
 /* ----------------------------- Education ----------------------------- */
 function EducationCard({ initial }: { initial: any[] }) {
@@ -540,16 +558,128 @@ function ContactCard({ phone }: { phone?: string }) {
   );
 }
 
+/* ------------------------ Application Defaults ------------------------ */
+function ApplicationDefaultsCard({ initial }: { initial: any }) {
+  const [form, setForm] = useState({
+    whatsapp: initial.whatsapp ?? "",
+    province: initial.province ?? "",
+    cnic: initial.cnic ?? "",
+    linkedinUrl: initial.linkedinUrl ?? "",
+    portfolioUrl: initial.portfolioUrl ?? initial.websiteUrl ?? "",
+    githubUrl: initial.githubUrl ?? "",
+    workAuth: initial.workAuth ?? "",
+    needSponsorship:
+      initial.needSponsorship === null || initial.needSponsorship === undefined
+        ? ""
+        : initial.needSponsorship
+        ? "yes"
+        : "no",
+    willingRelocate:
+      initial.willingRelocate === null || initial.willingRelocate === undefined
+        ? ""
+        : initial.willingRelocate
+        ? "yes"
+        : "no",
+    remotePref: initial.remotePref ?? "",
+    earliestStart: toDateInputValue(initial.earliestStart), // ADDED: normalized for date input
+    salaryExpectation: initial.salaryExpectation ?? "",
+    expectedSalaryPkr: initial.expectedSalaryPkr ?? "",
+    noticePeriodDays: initial.noticePeriodDays ?? "",
+    experienceYears: initial.experienceYears ?? "",
+  });
+  const [pending, start] = useTransition();
+
+  function toPayload() {
+    return {
+      whatsapp: form.whatsapp,
+      province: form.province,
+      cnic: form.cnic,
+      linkedinUrl: form.linkedinUrl,
+      portfolioUrl: form.portfolioUrl,
+      githubUrl: form.githubUrl,
+      workAuth: form.workAuth,
+      needSponsorship:
+        form.needSponsorship === "" ? null : form.needSponsorship === "yes",
+      willingRelocate:
+        form.willingRelocate === "" ? null : form.willingRelocate === "yes",
+      remotePref: form.remotePref,
+      earliestStart: form.earliestStart,
+      salaryExpectation: form.salaryExpectation,
+      expectedSalaryPkr: form.expectedSalaryPkr,
+      noticePeriodDays: form.noticePeriodDays,
+      experienceYears: form.experienceYears,
+    };
+  }
+
+  return (
+    <Card title="Application Defaults" icon={<ClipboardCheck size={16} />}>
+      <div className="grid gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="WhatsApp" value={form.whatsapp} onChange={(v) => setForm({ ...form, whatsapp: v })} />
+          <Input label="Province" value={form.province} onChange={(v) => setForm({ ...form, province: v })} />
+        </div>
+        <Input label="CNIC" value={form.cnic} onChange={(v) => setForm({ ...form, cnic: v })} placeholder="35101XXXXXXXXX" />
+        <div className="grid grid-cols-1 gap-3">
+          <Input label="LinkedIn" value={form.linkedinUrl} onChange={(v) => setForm({ ...form, linkedinUrl: v })} placeholder="https://www.linkedin.com/in/username" />
+          <Input label="Portfolio / Website" value={form.portfolioUrl} onChange={(v) => setForm({ ...form, portfolioUrl: v })} placeholder="https://your.site" />
+          <Input label="GitHub" value={form.githubUrl} onChange={(v) => setForm({ ...form, githubUrl: v })} placeholder="https://github.com/username" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Work Authorization" value={form.workAuth} onChange={(v) => setForm({ ...form, workAuth: v })}>
+            <option value="">Select…</option>
+            <option value="Citizen/PR">Citizen / Permanent Resident</option>
+            <option value="Authorized (no sponsorship)">Authorized (no sponsorship)</option>
+            <option value="Needs sponsorship">Needs sponsorship</option>
+            <option value="Other / Not specified">Other / Not specified</option>
+          </Select>
+          <Select label="Require Sponsorship?" value={form.needSponsorship} onChange={(v) => setForm({ ...form, needSponsorship: v })}>
+            <option value="">Select…</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Willing to Relocate?" value={form.willingRelocate} onChange={(v) => setForm({ ...form, willingRelocate: v })}>
+            <option value="">Select…</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </Select>
+          <Select label="Work Preference" value={form.remotePref} onChange={(v) => setForm({ ...form, remotePref: v })}>
+            <option value="">Select…</option>
+            <option value="Onsite">Onsite</option>
+            <option value="Hybrid">Hybrid</option>
+            <option value="Remote">Remote</option>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Earliest Start" type="date" value={form.earliestStart} onChange={(v) => setForm({ ...form, earliestStart: v })} />
+          <Input label="Salary Expectation (text)" value={form.salaryExpectation} onChange={(v) => setForm({ ...form, salaryExpectation: v })} placeholder="PKR range or text" />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Input label="Experience (years)" value={form.experienceYears} onChange={(v) => setForm({ ...form, experienceYears: v })} placeholder="e.g., 2.5" />
+          <Input label="Expected Salary (PKR)" type="number" value={form.expectedSalaryPkr} onChange={(v) => setForm({ ...form, expectedSalaryPkr: v })} />
+          <Input label="Notice Period (days)" type="number" value={form.noticePeriodDays} onChange={(v) => setForm({ ...form, noticePeriodDays: v })} />
+        </div>
+      </div>
+      <SaveButton
+        pending={pending}
+        onClick={() =>
+          start(async () => {
+            await fetch("/api/student/profile", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(toPayload()),
+            });
+            location.reload();
+          })
+        }
+      />
+    </Card>
+  );
+}
+
 /* ----------------------------- Reusable Components ----------------------------- */
-function Card({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode; }) {
   return (
     <section className="rounded-2xl border bg-white shadow-sm p-5 space-y-4">
       <div className="flex items-center justify-between">
@@ -563,13 +693,7 @@ function Card({
   );
 }
 
-function SaveButton({
-  pending,
-  onClick,
-}: {
-  pending: boolean;
-  onClick: () => void;
-}) {
+function SaveButton({ pending, onClick }: { pending: boolean; onClick: () => void; }) {
   return (
     <div className="flex justify-end mt-4">
       <button
@@ -584,19 +708,7 @@ function SaveButton({
   );
 }
 
-function Input({
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder,
-}: {
-  label?: string;
-  value: any;
-  onChange: (v: string) => void;
-  type?: string;
-  placeholder?: string;
-}) {
+function Input({ label, value, onChange, type = "text", placeholder }: { label?: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string; }) {
   return (
     <div className="grid gap-1">
       {label && <label className="text-sm text-gray-700">{label}</label>}
@@ -605,23 +717,28 @@ function Input({
         onChange={(e) => onChange(e.target.value)}
         type={type}
         placeholder={placeholder}
-        className="border border-gray-300 bg-white rounded-md px-3 py-2 text-sm text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+        className="border border-gray-300 bg-white rounded-md px-3 py-2 text-sm text-gray-900 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
       />
     </div>
   );
 }
 
-function Textarea({
-  label,
-  value,
-  onChange,
-  rows = 4,
-}: {
-  label?: string;
-  value: any;
-  onChange: (v: string) => void;
-  rows?: number;
-}) {
+function Select({ label, value, onChange, children }: { label?: string; value: any; onChange: (v: string) => void; children: React.ReactNode; }) {
+  return (
+    <div className="grid gap-1">
+      {label && <label className="text-sm text-gray-700">{label}</label>}
+      <select
+        className="border border-gray-300 bg-white rounded-md px-3 py-2 text-sm text-gray-900 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function Textarea({ label, value, onChange, rows = 4 }: { label?: string; value: any; onChange: (v: string) => void; rows?: number; }) {
   return (
     <div className="grid gap-1">
       {label && <label className="text-sm text-gray-700">{label}</label>}
@@ -629,7 +746,7 @@ function Textarea({
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="border border-gray-300 bg-white rounded-md px-3 py-2 text-sm text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+        className="border border-gray-300 bg-white rounded-md px-3 py-2 text-sm text-gray-900 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
       />
     </div>
   );

@@ -1,41 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/db";
+// Use the schema you actually use elsewhere in your app.
+// If your users table is in "schema-pg", swap the import accordingly:
+import { users } from "@/db/schema"; // or "@/db/schema-pg"
+import { eq } from "drizzle-orm";
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { email: string } }
+  _req: NextRequest,
+  ctx: { params: Promise<{ email: string }> } // Next 15 dynamic APIs: params is a Promise
 ) {
   try {
-    const email = decodeURIComponent(params.email);
-    
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      );
+    const { email } = await ctx.params; // ← await the params
+    const decoded = decodeURIComponent(email || "");
+
+    if (!decoded) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const user = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
+    const rows = await db.select().from(users).where(eq(users.email, decoded)).limit(1);
 
-    if (user.length === 0) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(user[0]);
+    // If you don’t want to leak sensitive columns, select explicit fields instead of "*".
+    return NextResponse.json(rows[0]);
   } catch (error) {
-    console.error('GET /api/users/by-email/[email] error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("GET /api/users/by-email/[email] error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
