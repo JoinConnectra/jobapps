@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, integer, boolean, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar, integer, boolean, jsonb, timestamp, date, numeric } from "drizzle-orm/pg-core";
 import { sql } from 'drizzle-orm';
 
 // NOTE: This is a minimal Postgres schema mirroring the current SQLite schema names and columns
@@ -59,8 +59,25 @@ export const studentProfiles = pgTable('student_profiles', {
   gradYear: integer('grad_year'),
   program: text('program'),
   verified: boolean('verified').default(false),
+
+  // NEW rich profile fields
+  headline: text('headline'),
+  about: text('about'),
+  locationCity: text('location_city'),
+  locationCountry: text('location_country'),
+  websiteUrl: text('website_url'),
+  resumeUrl: text('resume_url'),
+  isPublic: boolean('is_public').default(false),
+  jobPrefs: jsonb('job_prefs'),   // JSON object, e.g. { roles: [...], remote: "Hybrid", ... }
+
+  // Drizzle array for text[]
+  skills: text('skills').array(),
+
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  // (optional) keep updatedAt if you want
+  // updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
 
 export const jobs = pgTable('jobs', {
   id: serial('id').primaryKey(),
@@ -420,3 +437,39 @@ export const savedJobs = pgTable('saved_jobs', {
   jobId: integer('job_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
+export const studentExperiences = pgTable('student_experiences', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull(),             // FK → users.id (enforce in SQL if desired)
+  title: text('title').notNull(),
+  company: text('company'),
+  startDate: date('start_date'),                    // DATE
+  endDate: date('end_date'),
+  isCurrent: boolean('is_current').default(false),
+  location: text('location'),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const studentEducations = pgTable('student_educations', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  school: text('school').notNull(),
+  degree: text('degree'),
+  field: text('field'),
+  startYear: integer('start_year'),
+  endYear: integer('end_year'),
+  gpa: numeric('gpa', { precision: 3, scale: 2 }),  // or make this text('gpa') if you prefer
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const studentLinks = pgTable('student_links', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  label: text('label').notNull(),   // e.g., "LinkedIn", "GitHub"
+  url: text('url').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});
+

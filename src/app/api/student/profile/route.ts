@@ -1,11 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { studentProfiles, users } from "@/db/schema-pg";
+import { studentProfiles, users, studentExperiences, studentEducations, studentLinks } from "@/db/schema-pg";
 import { getCurrentUser } from "@/lib/auth";
 
-// Look up the numeric DB user (by email) and ensure it's an applicant
+/* ---------- auth helper ---------- */
 async function getDbUserOrThrow(req: NextRequest) {
   const authUser = await getCurrentUser(req);
   if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,98 +23,157 @@ async function getDbUserOrThrow(req: NextRequest) {
     .limit(1);
 
   if (!dbUser) return NextResponse.json({ error: "No DB user for email" }, { status: 401 });
-  if (dbUser.accountType !== "applicant")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (dbUser.accountType !== "applicant") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   return dbUser;
 }
 
-// GET: return merged view { name, phone, program, universityId, gradYear, verified }
+/* ---------- GET: merged profile ---------- */
 export async function GET(req: NextRequest) {
   const dbUserOrResp = await getDbUserOrThrow(req);
   if (dbUserOrResp instanceof NextResponse) return dbUserOrResp;
-  const dbUser = dbUserOrResp;
+  const me = dbUserOrResp;
 
-  const [profile] = await db
+  const [p] = await db
     .select({
       program: studentProfiles.program,
       universityId: studentProfiles.universityId,
       gradYear: studentProfiles.gradYear,
       verified: studentProfiles.verified,
+      headline: studentProfiles.headline,
+      about: studentProfiles.about,
+      locationCity: studentProfiles.locationCity,       // <-- camel
+    locationCountry: studentProfiles.locationCountry, // <-- camel
+    websiteUrl: studentProfiles.websiteUrl,           // <-- camel
+    resumeUrl: studentProfiles.resumeUrl,             // <-- camel
+    isPublic: studentProfiles.isPublic,               // <-- camel
+    jobPrefs: studentProfiles.jobPrefs,               // <-- camel
+    skills: studentProfiles.skills, 
     })
     .from(studentProfiles)
-    .where(eq(studentProfiles.userId, dbUser.id))
+    .where(eq(studentProfiles.userId, me.id))
     .limit(1);
 
+  // Load experiences / educations / links
+  const exp = await db
+    .select()
+    .from(studentExperiences)
+    .where(eq(studentExperiences.userId, me.id))
+    .orderBy(studentExperiences.startDate);
+
+  const edu = await db
+    .select()
+    .from(studentEducations)
+    .where(eq(studentEducations.userId, me.id))
+    .orderBy(studentEducations.startYear);
+
+  const links = await db
+    .select()
+    .from(studentLinks)
+    .where(eq(studentLinks.userId, me.id));
+
   return NextResponse.json({
-    name: dbUser.name ?? "",
-    phone: dbUser.phone ?? "",
-    program: profile?.program ?? "",
-    universityId: profile?.universityId ?? null,
-    gradYear: profile?.gradYear ?? null,
-    verified: profile?.verified ?? false,
+    // users table
+    name: me.name ?? "",
+    phone: me.phone ?? "",
+    // profiles table
+    program: p?.program ?? "",
+    universityId: p?.universityId ?? null,
+    gradYear: p?.gradYear ?? null,
+    verified: p?.verified ?? false,
+    headline: p?.headline ?? "",
+    about: p?.about ?? "",
+    locationCity: p?.locationCity ?? "",
+    locationCountry: p?.locationCountry ?? "",
+    websiteUrl: p?.websiteUrl ?? "",
+    resumeUrl: p?.resumeUrl ?? "",
+    isPublic: p?.isPublic ?? false,
+    jobPrefs: p?.jobPrefs ?? {},
+    skills: p?.skills ?? [],
+    // related
+    experiences: exp,
+    educations: edu,
+    links,
   });
 }
 
-// POST: accept form data or JSON; update users + student_profiles; redirect back to page
+/* ---------- POST: update primary profile fields ---------- */
 export async function POST(req: NextRequest) {
   const dbUserOrResp = await getDbUserOrThrow(req);
   if (dbUserOrResp instanceof NextResponse) return dbUserOrResp;
-  const dbUser = dbUserOrResp;
+  const me = dbUserOrResp;
 
   const contentType = req.headers.get("content-type") || "";
-  let name: string | null = null;
-  let phone: string | null = null;
-  let program: string | null = null;
-  let gradYear: number | null = null;
-  let universityId: number | null = null;
-
+  let body: any = {};
   if (contentType.includes("application/json")) {
-    const body = await req.json().catch(() => ({} as any));
-    name = body?.name ?? null;
-    phone = body?.phone ?? null;
-    program = body?.program ?? body?.university ?? null;
-    gradYear = body?.gradYear != null && body.gradYear !== "" ? Number(body.gradYear) : null;
-    universityId =
-      body?.universityId != null && body.universityId !== "" ? Number(body.universityId) : null;
+    body = await req.json().catch(() => ({}));
   } else {
     const form = await req.formData();
-    name = (form.get("name") as string) || null;
-    phone = (form.get("phone") as string) || null;
-    program = ((form.get("program") as string) || (form.get("university") as string)) ?? null;
-    gradYear = form.get("gradYear") ? Number(form.get("gradYear")) : null;
-    universityId = form.get("universityId") ? Number(form.get("universityId")) : null;
+    form.forEach((v, k) => (body[k] = v));
   }
 
-  // Update users (name/phone)
-  await db
-    .update(users)
-    .set({
-      name: name ?? undefined,
-      phone: phone ?? undefined,
-    })
-    .where(eq(users.id, dbUser.id));
+  const {
+    name,
+    phone,
+    program,
+    gradYear,
+    universityId,
+    headline,
+    about,
+    locationCity,
+    locationCountry,
+    websiteUrl,
+    resumeUrl,
+    isPublic,
+    skills,           // array or comma-separated
+    jobPrefs,         // object or JSON string
+  } = body;
 
-  // Upsert student_profiles (program/universityId/gradYear)
-  const [existing] = await db
-    .select({ userId: studentProfiles.userId })
-    .from(studentProfiles)
-    .where(eq(studentProfiles.userId, dbUser.id))
-    .limit(1);
+  // Upsert users
+  await db.update(users).set({
+    name: name ?? undefined,
+    phone: phone ?? undefined,
+  }).where(eq(users.id, me.id));
 
-  const payload = {
+  // Prepare profile payload
+  let parsedSkills: string[] | undefined = undefined;
+  if (Array.isArray(skills)) parsedSkills = skills.filter(Boolean).map((s: any) => String(s).trim());
+  else if (typeof skills === "string" && skills.trim()) parsedSkills = skills.split(",").map(s => s.trim()).filter(Boolean);
+
+  let parsedPrefs: any | undefined = undefined;
+  if (typeof jobPrefs === "string" && jobPrefs.trim()) {
+    try { parsedPrefs = JSON.parse(jobPrefs); } catch {}
+  } else if (jobPrefs && typeof jobPrefs === "object") {
+    parsedPrefs = jobPrefs;
+  }
+
+  const payload: any = {
     program: program ?? undefined,
-    universityId: universityId ?? undefined,
-    gradYear: gradYear ?? undefined,
+    universityId: universityId ? Number(universityId) : undefined,
+    gradYear: gradYear ? Number(gradYear) : undefined,
+    headline: headline ?? undefined,
+    about: about ?? undefined,
+    location_city: locationCity ?? undefined,
+    location_country: locationCountry ?? undefined,
+    website_url: websiteUrl ?? undefined,
+    resume_url: resumeUrl ?? undefined,
+    is_public: typeof isPublic === "string" ? isPublic === "true" : isPublic ?? undefined,
+    skills: parsedSkills ?? undefined,
+    job_prefs: parsedPrefs ?? undefined,
   };
 
-  if (existing) {
-    await db.update(studentProfiles).set(payload).where(eq(studentProfiles.userId, dbUser.id));
+  const [exists] = await db
+    .select({ userId: studentProfiles.userId })
+    .from(studentProfiles)
+    .where(eq(studentProfiles.userId, me.id))
+    .limit(1);
+
+  if (exists) {
+    await db.update(studentProfiles).set(payload).where(eq(studentProfiles.userId, me.id));
   } else {
-    await db.insert(studentProfiles).values({ userId: dbUser.id, ...payload });
+    await db.insert(studentProfiles).values({ userId: me.id, ...payload });
   }
 
-  // ✅ Redirect back to the profile page so the server component re-fetches and shows updates
   const redirectUrl = new URL("/student/profile?saved=1", req.url);
   return NextResponse.redirect(redirectUrl, { status: 303 });
 }
