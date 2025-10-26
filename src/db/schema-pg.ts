@@ -135,6 +135,29 @@ export const jobUniversities = pgTable('job_universities', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
 
+// Link between employer organizations and university organizations controlling access
+export const universityAuthorizations = pgTable('university_authorizations', {
+  id: serial('id').primaryKey(),
+  companyOrgId: integer('company_org_id').notNull(),
+  universityOrgId: integer('university_org_id').notNull(),
+  status: text('status').default('pending').notNull(), // pending | approved | rejected
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+// Universities can post events for their students/alumni
+export const universityEvents = pgTable('university_events', {
+  id: serial('id').primaryKey(),
+  universityOrgId: integer('university_org_id').notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  location: text('location'),
+  startsAt: timestamp('starts_at', { withTimezone: false }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: false }),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
 export const applications = pgTable('applications', {
   id: serial('id').primaryKey(),
   jobId: integer('job_id').notNull(),

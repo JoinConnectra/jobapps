@@ -5,13 +5,17 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
-  const [accountType, setAccountType] = useState<"applicant" | "employer" | null>(null);
+  const [accountType, setAccountType] = useState<"applicant" | "employer" | "university" | null>(null);
 
-  const handleAccountTypeSelect = (type: "applicant" | "employer") => {
+  const handleAccountTypeSelect = (type: "applicant" | "employer" | "university") => {
     setAccountType(type);
   };
 
   const handleContinue = () => {
+    if (accountType === 'university') {
+      window.location.href = `/register/university`;
+      return;
+    }
     if (accountType) {
       // Navigate to the next step
       window.location.href = `/register/step2?type=${accountType}`;
@@ -79,6 +83,18 @@ export default function RegisterPage() {
                 >
                   <div className="font-medium">Company</div>
                   <div className="text-sm text-muted-foreground">Hiring talent for your organization</div>
+                </button>
+
+                <button
+                  onClick={() => handleAccountTypeSelect('university')}
+                  className={`w-full p-4 border-2 rounded-md text-left transition-all ${
+                    accountType === 'university' 
+                      ? 'border-primary bg-primary/5 text-primary' 
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <div className="font-medium">Educational Institution</div>
+                  <div className="text-sm text-muted-foreground">University or College portal</div>
                 </button>
               </div>
             </div>
