@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { applications, jobs, organizations, activity, users } from '@/db/schema';
-import { eq, and, asc, or, like } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { eq, and, asc, or, like, isNull } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 
 // Email validation helper
@@ -12,11 +11,29 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
+/** Resolve the current DB user from session; return null if unauthenticated or not found */
+async function getDbUserFromSession(request: NextRequest) {
+  try {
+    const sessionUser = await getCurrentUser(request);
+    if (!sessionUser?.email) return null;
+
+    const [dbUser] = await db
+      .select({ id: users.id, email: users.email, name: users.name, accountType: users.accountType })
+      .from(users)
+      .where(eq(users.email, sessionUser.email))
+      .limit(1);
+
+    return dbUser ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // Required
+    // Required (original)
     const { jobId, applicantEmail } = body;
 
     // Optional (legacy)
@@ -52,33 +69,19 @@ export async function POST(request: NextRequest) {
       graduationYear,
       gpa,
       gpaScale,
-      // coverLetter, // add a DB column first if you want to store this
+      // coverLetter,
     } = body;
 
-    // Validate required fields
+    // --- NEW: derive session + DB user
+    const dbUser = await getDbUserFromSession(request);
+
+    // Validate jobId
     if (!jobId) {
       return NextResponse.json(
         { error: 'jobId is required', code: 'MISSING_JOB_ID' },
         { status: 400 }
       );
     }
-
-    if (!applicantEmail) {
-      return NextResponse.json(
-        { error: 'applicantEmail is required', code: 'MISSING_APPLICANT_EMAIL' },
-        { status: 400 }
-      );
-    }
-
-    // Validate email format
-    if (!isValidEmail(applicantEmail)) {
-      return NextResponse.json(
-        { error: 'Invalid email format', code: 'INVALID_EMAIL_FORMAT' },
-        { status: 400 }
-      );
-    }
-
-    // Validate jobId is a valid integer
     const parsedJobId = parseInt(jobId);
     if (isNaN(parsedJobId)) {
       return NextResponse.json(
@@ -87,51 +90,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if job exists
-    const job = await db.select()
+    // Decide which email to use:
+    // - Prefer body.applicantEmail if provided & valid
+    // - Else fall back to session email (if logged in)
+    let effectiveEmail: string | null = null;
+    if (applicantEmail && isValidEmail(String(applicantEmail))) {
+      effectiveEmail = String(applicantEmail).toLowerCase().trim();
+    } else if (dbUser?.email) {
+      effectiveEmail = String(dbUser.email).toLowerCase().trim();
+    }
+
+    if (!effectiveEmail) {
+      return NextResponse.json(
+        { error: 'applicantEmail is required (or sign in so we can infer it)', code: 'MISSING_APPLICANT_EMAIL' },
+        { status: 400 }
+      );
+    }
+
+    // Ensure job exists
+    const job = await db
+      .select()
       .from(jobs)
       .where(eq(jobs.id, parsedJobId))
       .limit(1);
-
     if (job.length === 0) {
       return NextResponse.json(
         { error: 'Job not found', code: 'JOB_NOT_FOUND' },
         { status: 400 }
       );
     }
+    const jobRow = job[0];
 
-    // Prepare application data
+    // Prepare application data (existing behavior, extended)
     const now = new Date();
     const applicationData: any = {
       jobId: parsedJobId,
-      applicantEmail: String(applicantEmail).toLowerCase().trim(),
+      applicantEmail: effectiveEmail,
       stage: stage || 'applied',
       createdAt: now,
       updatedAt: now,
     };
 
-    // Optional legacy
-    if (applicantUserId !== undefined && applicantUserId !== null) {
+    // --- NEW: Always attach the current DB user if available
+    // (This does NOT remove your legacy support; it only enriches the row)
+    if (dbUser?.id) {
+      applicationData.applicantUserId = dbUser.id;
+      if (!applicantName) {
+        applicationData.applicantName = dbUser.name ?? null;
+      }
+    }
+
+    // Optional legacy (kept): if caller provided applicantUserId explicitly, keep it,
+    // but do not clobber a valid session-derived userId
+    if (applicationData.applicantUserId == null && applicantUserId !== undefined && applicantUserId !== null) {
       const parsedUserId = parseInt(applicantUserId);
       if (!isNaN(parsedUserId)) {
         applicationData.applicantUserId = parsedUserId;
       }
     }
 
-    if (source) {
-      applicationData.source = String(source).trim();
-    }
+    if (source) applicationData.source = String(source).trim();
 
     if (applicantUniversityId !== undefined && applicantUniversityId !== null) {
       const uniId = parseInt(String(applicantUniversityId));
-      if (!isNaN(uniId)) {
-        applicationData.applicantUniversityId = uniId;
-      }
+      if (!isNaN(uniId)) applicationData.applicantUniversityId = uniId;
     }
 
     // Optional NEW fields — only add if provided to avoid overwriting defaults/nulls
     const setIf = (key: string, val: any) => {
-      if (val !== undefined && val !== null && val !== "") {
+      if (val !== undefined && val !== null && val !== '') {
         applicationData[key] = val;
       }
     };
@@ -159,11 +186,11 @@ export async function POST(request: NextRequest) {
     setIf('earliestStart', earliestStart?.toString());
     setIf('salaryExpectation', salaryExpectation?.toString());
 
-    if (expectedSalaryPkr !== undefined && expectedSalaryPkr !== null && expectedSalaryPkr !== "") {
+    if (expectedSalaryPkr !== undefined && expectedSalaryPkr !== null && expectedSalaryPkr !== '') {
       const n = Number(expectedSalaryPkr);
       if (!Number.isNaN(n)) applicationData.expectedSalaryPkr = n;
     }
-    if (noticePeriodDays !== undefined && noticePeriodDays !== null && noticePeriodDays !== "") {
+    if (noticePeriodDays !== undefined && noticePeriodDays !== null && noticePeriodDays !== '') {
       const n = Number(noticePeriodDays);
       if (!Number.isNaN(n)) applicationData.noticePeriodDays = n;
     }
@@ -171,36 +198,88 @@ export async function POST(request: NextRequest) {
 
     setIf('university', university?.toString().trim());
     setIf('degree', degree?.toString().trim());
-    if (graduationYear !== undefined && graduationYear !== null && graduationYear !== "") {
+    if (graduationYear !== undefined && graduationYear !== null && graduationYear !== '') {
       const n = Number(graduationYear);
       if (!Number.isNaN(n)) applicationData.graduationYear = n;
     }
     setIf('gpa', gpa?.toString());
     setIf('gpaScale', gpaScale?.toString());
 
-    // Create application
-    const newApplication = await db.insert(applications)
+    // --- NEW: Idempotency & legacy-upgrade handling
+    // 1) If this user already has an application for this job, return that instead of a new row
+    if (applicationData.applicantUserId) {
+      const [existingForUser] = await db
+        .select({ id: applications.id })
+        .from(applications)
+        .where(and(
+          eq(applications.jobId, parsedJobId),
+          eq(applications.applicantUserId, applicationData.applicantUserId)
+        ))
+        .limit(1);
+
+      if (existingForUser) {
+        return NextResponse.json({ id: existingForUser.id, ok: true, alreadyApplied: true }, { status: 200 });
+      }
+    }
+
+    // 2) If a legacy row exists for same job + email with NULL user id, "claim" it
+    const [legacy] = await db
+      .select({ id: applications.id })
+      .from(applications)
+      .where(and(
+        eq(applications.jobId, parsedJobId),
+        eq(applications.applicantEmail, effectiveEmail),
+        isNull(applications.applicantUserId)
+      ))
+      .limit(1);
+
+    if (legacy) {
+      // Attach the user id if present; update other fields provided
+      await db
+        .update(applications)
+        .set({
+          ...applicationData,
+          // ensure we don't rewrite createdAt on legacy
+          createdAt: undefined,
+          updatedAt: new Date(),
+        })
+        .where(eq(applications.id, legacy.id));
+
+      // Write activity (best-effort)
+      try {
+        let actorUserId: number | null = null;
+        if (dbUser?.id) actorUserId = dbUser.id;
+        await db.insert(activity).values({
+          orgId: jobRow.orgId,
+          actorUserId,
+          entityType: 'application',
+          entityId: legacy.id,
+          action: 'applied',
+          diffJson: {
+            applicantEmail: effectiveEmail,
+            jobId: jobRow.id,
+            jobTitle: jobRow.title,
+            upgradedLegacy: true,
+          },
+          createdAt: new Date(),
+        });
+      } catch (err) {
+        console.error('Failed to write activity for upgraded legacy application:', err);
+      }
+
+      return NextResponse.json({ id: legacy.id, ok: true, upgradedLegacy: true }, { status: 200 });
+    }
+
+    // 3) Insert a fresh application
+    const newApplication = await db
+      .insert(applications)
       .values(applicationData)
       .returning();
 
     // Write activity: applicant applied to job (org scoped)
     try {
-      const nowIso = new Date();
-      const jobRow = job[0];
-
       let actorUserId: number | null = null;
-      const sessionUser = await getCurrentUser(request);
-      if (sessionUser?.email) {
-        const appUser = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, sessionUser.email))
-          .limit(1);
-        if (appUser.length > 0) {
-          // @ts-ignore drizzle typing returns readonly
-          actorUserId = (appUser[0] as any).id as number;
-        }
-      }
+      if (dbUser?.id) actorUserId = dbUser.id;
 
       await db.insert(activity).values({
         orgId: jobRow.orgId,
@@ -213,7 +292,7 @@ export async function POST(request: NextRequest) {
           jobId: jobRow.id,
           jobTitle: jobRow.title,
         },
-        createdAt: nowIso,
+        createdAt: new Date(),
       });
     } catch (err) {
       console.error('Failed to write activity for application:', err);
@@ -236,6 +315,45 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
+    // --- NEW: my applications (student portal) without breaking existing filters
+    const mine = searchParams.get('mine'); // if "1", return current user's apps (incl. legacy email-only)
+
+    if (mine === '1') {
+      const dbUser = await getDbUserFromSession(request);
+      if (!dbUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+
+      const results = await db
+        .select({
+          id: applications.id,
+          jobId: applications.jobId,
+          applicantUserId: applications.applicantUserId,
+          applicantEmail: applications.applicantEmail,
+          stage: applications.stage,
+          source: applications.source,
+          createdAt: applications.createdAt,
+          updatedAt: applications.updatedAt,
+          jobTitle: jobs.title,
+          orgId: jobs.orgId,
+        })
+        .from(applications)
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .where(
+          or(
+            eq(applications.applicantUserId, dbUser.id),
+            and(
+              isNull(applications.applicantUserId),
+              eq(applications.applicantEmail, dbUser.email)
+            )
+          )
+        );
+
+      return NextResponse.json(results, { status: 200 });
+    }
+
+    // ---- EXISTING BEHAVIOR BELOW (kept) ----
+
     // Single application by ID
     if (id) {
       const parsedId = parseInt(id);
@@ -247,60 +365,59 @@ export async function GET(request: NextRequest) {
       }
 
       const application = await db.select({
-  id: applications.id,
-  jobId: applications.jobId,
-  applicantUserId: applications.applicantUserId,
-  applicantEmail: applications.applicantEmail,
-  stage: applications.stage,
-  source: applications.source,
-  createdAt: applications.createdAt,
-  updatedAt: applications.updatedAt,
-  jobTitle: jobs.title,
-  applicantUniversityId: applications.applicantUniversityId,
-  applicantUniversityName: organizations.name,
+        id: applications.id,
+        jobId: applications.jobId,
+        applicantUserId: applications.applicantUserId,
+        applicantEmail: applications.applicantEmail,
+        stage: applications.stage,
+        source: applications.source,
+        createdAt: applications.createdAt,
+        updatedAt: applications.updatedAt,
+        jobTitle: jobs.title,
+        applicantUniversityId: applications.applicantUniversityId,
+        applicantUniversityName: organizations.name,
 
-  // NEW applicant fields
-  applicantName: applications.applicantName,
-  phone: applications.phone,
-  whatsapp: applications.whatsapp,
-  location: applications.location,
-  city: applications.city,
-  province: applications.province,
-  cnic: applications.cnic,
+        // NEW applicant fields
+        applicantName: applications.applicantName,
+        phone: applications.phone,
+        whatsapp: applications.whatsapp,
+        location: applications.location,
+        city: applications.city,
+        province: applications.province,
+        cnic: applications.cnic,
 
-  linkedinUrl: applications.linkedinUrl,
-  portfolioUrl: applications.portfolioUrl,
-  githubUrl: applications.githubUrl,
+        linkedinUrl: applications.linkedinUrl,
+        portfolioUrl: applications.portfolioUrl,
+        githubUrl: applications.githubUrl,
 
-  workAuth: applications.workAuth,
-  needSponsorship: applications.needSponsorship,
-  willingRelocate: applications.willingRelocate,
-  remotePref: applications.remotePref,
-  earliestStart: applications.earliestStart,
-  salaryExpectation: applications.salaryExpectation,
+        workAuth: applications.workAuth,
+        needSponsorship: applications.needSponsorship,
+        willingRelocate: applications.willingRelocate,
+        remotePref: applications.remotePref,
+        earliestStart: applications.earliestStart,
+        salaryExpectation: applications.salaryExpectation,
 
-  expectedSalaryPkr: applications.expectedSalaryPkr,
-  noticePeriodDays: applications.noticePeriodDays,
-  experienceYears: applications.experienceYears,
+        expectedSalaryPkr: applications.expectedSalaryPkr,
+        noticePeriodDays: applications.noticePeriodDays,
+        experienceYears: applications.experienceYears,
 
-  university: applications.university,
-  degree: applications.degree,
-  graduationYear: applications.graduationYear,
-  gpa: applications.gpa,
-  gpaScale: applications.gpaScale,
+        university: applications.university,
+        degree: applications.degree,
+        graduationYear: applications.graduationYear,
+        gpa: applications.gpa,
+        gpaScale: applications.gpaScale,
 
-  // Resume metadata
-  resumeS3Key: applications.resumeS3Key,
-  resumeFilename: applications.resumeFilename,
-  resumeMime: applications.resumeMime,
-  resumeSize: applications.resumeSize,
-})
-  .from(applications)
-  .leftJoin(jobs, eq(applications.jobId, jobs.id))
-  .leftJoin(organizations, eq(applications.applicantUniversityId, organizations.id))
-  .where(eq(applications.id, parsedId))
-  .limit(1);
-
+        // Resume metadata
+        resumeS3Key: applications.resumeS3Key,
+        resumeFilename: applications.resumeFilename,
+        resumeMime: applications.resumeMime,
+        resumeSize: applications.resumeSize,
+      })
+        .from(applications)
+        .leftJoin(jobs, eq(applications.jobId, jobs.id))
+        .leftJoin(organizations, eq(applications.applicantUniversityId, organizations.id))
+        .where(eq(applications.id, parsedId))
+        .limit(1);
 
       if (application.length === 0) {
         return NextResponse.json(
@@ -345,7 +462,7 @@ export async function GET(request: NextRequest) {
       .innerJoin(jobs, eq(applications.jobId, jobs.id));
 
     // Apply filters
-    const conditions = [];
+    const conditions: any[] = [];
 
     if (jobId) {
       const parsedJobId = parseInt(jobId);
@@ -355,7 +472,6 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
-      // @ts-ignore
       conditions.push(eq(applications.jobId, parsedJobId));
     }
 
@@ -367,18 +483,15 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
-      // @ts-ignore
       conditions.push(eq(jobs.orgId, parsedOrgId));
     }
 
     if (stage) {
-      // @ts-ignore
       conditions.push(eq(applications.stage, stage.trim()));
     }
 
     if (search) {
       const searchTerm = `%${search.trim()}%`;
-      // @ts-ignore
       conditions.push(
         or(
           like(applications.applicantEmail, searchTerm),
@@ -389,7 +502,6 @@ export async function GET(request: NextRequest) {
       if (orgId) {
         const parsedOrgId = parseInt(orgId);
         if (!isNaN(parsedOrgId)) {
-          // @ts-ignore
           conditions.push(eq(jobs.orgId, parsedOrgId));
         }
       }
@@ -400,10 +512,7 @@ export async function GET(request: NextRequest) {
       query = query.where(and(...conditions)) as any;
     }
 
-    // Order by creation date (oldest first)
-    //commenting out for now 
-    // query = query.orderBy(asc(applications.createdAt));
-
+    // const results = await query.orderBy(asc(applications.createdAt)).limit(limit).offset(offset);
     const results = await query.limit(limit).offset(offset);
 
     return NextResponse.json(results, { status: 200 });

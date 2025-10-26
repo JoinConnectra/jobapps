@@ -1,16 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { authClient, useSession } from "@/lib/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 
+/** Helper: fetch accountType for an email (or current session if email omitted) */
+async function fetchAccountType(email?: string | null): Promise<"applicant" | "employer" | null> {
+  try {
+    const res = await fetch("/api/auth/get-user", {
+      method: email ? "POST" : "GET",
+      headers: { "Content-Type": "application/json" },
+      body: email ? JSON.stringify({ email }) : undefined,
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data?.accountType as "applicant" | "employer") ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, isPending } = useSession();
+
+  const next = useMemo(() => {
+    // honor ?next= if present and safe (same-origin path)
+    const n = searchParams.get("next");
+    return n && n.startsWith("/") ? n : null;
+  }, [searchParams]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -19,11 +43,35 @@ export default function LoginPage() {
     rememberMe: false,
   });
 
+  /** If already logged in, route based on account type (or ?next=) */
+  const routeByRole = useCallback(
+    async (emailFromSession?: string) => {
+      const target = next;
+      const accountType = await fetchAccountType(emailFromSession ?? null);
+
+      if (target) {
+        router.replace(target);
+        return;
+      }
+
+      if (accountType === "applicant") {
+  router.replace("/student");
+} else if (accountType === "employer") {
+  router.replace("/dashboard");
+} else {
+  // Fallback: if accountType not set yet, prefer student (matches your new flow)
+  router.replace("/student");
+}
+
+    },
+    [next, router]
+  );
+
   useEffect(() => {
-    if (!isPending && session?.user) {
-      router.push("/dashboard");
+    if (!isPending && session?.user?.email) {
+      void routeByRole(session.user.email);
     }
-  }, [session, isPending, router]);
+  }, [isPending, session?.user?.email, routeByRole]);
 
   useEffect(() => {
     if (searchParams.get("registered") === "true") {
@@ -37,23 +85,40 @@ export default function LoginPage() {
 
     try {
       const { error } = await authClient.signIn.email({
-        email: formData.email,
+        email: formData.email.trim(),
         password: formData.password,
         rememberMe: formData.rememberMe,
-        callbackURL: "/dashboard",
+        // We still pass a callbackURL, but we’ll immediately route by role below.
+        callbackURL: next || "/login",
       });
 
       if (error?.code) {
-        toast.error("Invalid email or password. Please make sure you have already registered an account and try again.");
+        toast.error(
+          "Invalid email or password. Please make sure you have already registered an account and try again."
+        );
         setIsLoading(false);
         return;
       }
 
       toast.success("Login successful!");
-      router.push("/dashboard");
+      // Decide the correct portal now:
+      await routeByRole(formData.email.trim());
     } catch (error) {
       toast.error("An unexpected error occurred");
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    try {
+      // After Google auth, you’ll land back on /login (or ?next=…),
+      // and the session effect above will redirect by role.
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: next || "/login",
+      });
+    } catch {
+      toast.error("Google sign-in failed. Please try again.");
     }
   };
 
@@ -68,15 +133,14 @@ export default function LoginPage() {
     );
   }
 
-  if (session?.user) {
-    return null;
-  }
+  // If session exists, we’re redirecting via effect; avoid flicker.
+  if (session?.user) return null;
 
   return (
     <div className="min-h-screen flex relative">
       {/* Back Button */}
-      <Link 
-        href="/" 
+      <Link
+        href="/"
         className="absolute top-6 left-6 z-10 flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
       >
         <ArrowLeft className="w-5 h-5" />
@@ -85,11 +149,9 @@ export default function LoginPage() {
 
       {/* Left Side - Background Image */}
       <div className="w-1/2 h-screen relative overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: "url('/login/bg-2.png')"
-          }}
+          style={{ backgroundImage: "url('/login/bg-2.png')" }}
         />
       </div>
 
@@ -178,6 +240,7 @@ export default function LoginPage() {
           <div>
             <button
               type="button"
+              onClick={handleGoogle}
               className="w-full h-10 bg-muted hover:bg-muted/80 text-foreground font-medium rounded-md transition-colors flex items-center justify-center gap-2 text-sm"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
