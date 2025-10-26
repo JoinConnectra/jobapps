@@ -29,10 +29,10 @@ async function getDbUserOrThrow(req: NextRequest) {
   return dbUser;
 }
 
-// GET: return merged view { name, phone, program, universityId, gradYear }
+// GET: return merged view { name, phone, program, universityId, gradYear, verified }
 export async function GET(req: NextRequest) {
   const dbUserOrResp = await getDbUserOrThrow(req);
-  if ("json" in dbUserOrResp) return dbUserOrResp as NextResponse;
+  if (dbUserOrResp instanceof NextResponse) return dbUserOrResp;
   const dbUser = dbUserOrResp;
 
   const [profile] = await db
@@ -56,23 +56,44 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// POST: accept form data and update users + student_profiles
+// POST: accept form data or JSON; update users + student_profiles; redirect back to page
 export async function POST(req: NextRequest) {
   const dbUserOrResp = await getDbUserOrThrow(req);
-  if ("json" in dbUserOrResp) return dbUserOrResp as NextResponse;
+  if (dbUserOrResp instanceof NextResponse) return dbUserOrResp;
   const dbUser = dbUserOrResp;
 
-  const form = await req.formData();
+  const contentType = req.headers.get("content-type") || "";
+  let name: string | null = null;
+  let phone: string | null = null;
+  let program: string | null = null;
+  let gradYear: number | null = null;
+  let universityId: number | null = null;
 
-  // From your UI: name, phone, (label “University” -> stored in program), optional gradYear/universityId
-  const name = (form.get("name") as string) || null;
-  const phone = (form.get("phone") as string) || null;
-  const program = (form.get("program") as string) || (form.get("university") as string) || null;
-  const gradYear = form.get("gradYear") ? Number(form.get("gradYear")) : null;
-  const universityId = form.get("universityId") ? Number(form.get("universityId")) : null;
+  if (contentType.includes("application/json")) {
+    const body = await req.json().catch(() => ({} as any));
+    name = body?.name ?? null;
+    phone = body?.phone ?? null;
+    program = body?.program ?? body?.university ?? null;
+    gradYear = body?.gradYear != null && body.gradYear !== "" ? Number(body.gradYear) : null;
+    universityId =
+      body?.universityId != null && body.universityId !== "" ? Number(body.universityId) : null;
+  } else {
+    const form = await req.formData();
+    name = (form.get("name") as string) || null;
+    phone = (form.get("phone") as string) || null;
+    program = ((form.get("program") as string) || (form.get("university") as string)) ?? null;
+    gradYear = form.get("gradYear") ? Number(form.get("gradYear")) : null;
+    universityId = form.get("universityId") ? Number(form.get("universityId")) : null;
+  }
 
   // Update users (name/phone)
-  await db.update(users).set({ name: name ?? undefined, phone: phone ?? undefined }).where(eq(users.id, dbUser.id));
+  await db
+    .update(users)
+    .set({
+      name: name ?? undefined,
+      phone: phone ?? undefined,
+    })
+    .where(eq(users.id, dbUser.id));
 
   // Upsert student_profiles (program/universityId/gradYear)
   const [existing] = await db
@@ -93,5 +114,7 @@ export async function POST(req: NextRequest) {
     await db.insert(studentProfiles).values({ userId: dbUser.id, ...payload });
   }
 
-  return NextResponse.json({ ok: true });
+  // ✅ Redirect back to the profile page so the server component re-fetches and shows updates
+  const redirectUrl = new URL("/student/profile?saved=1", req.url);
+  return NextResponse.redirect(redirectUrl, { status: 303 });
 }
