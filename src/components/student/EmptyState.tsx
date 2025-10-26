@@ -1,9 +1,18 @@
-export default function EmptyState({ title, subtitle, cta }:{ title:string; subtitle?:string; cta?:JSX.Element }){
+// src/components/student/EmptyState.tsx
+export default function EmptyState({
+  title,
+  hint,
+  cta,
+}: {
+  title: string;
+  hint?: string;
+  cta?: React.ReactNode;
+}) {
   return (
     <div className="rounded-lg border p-8 text-center">
       <div className="text-lg font-medium">{title}</div>
-      {subtitle && <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>}
-      {cta && <div className="mt-4">{cta}</div>}
+      {hint ? <div className="mt-1 text-sm text-muted-foreground">{hint}</div> : null}
+      {cta ? <div className="mt-4">{cta}</div> : null}
     </div>
   );
 }

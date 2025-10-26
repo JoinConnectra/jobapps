@@ -9,19 +9,36 @@ async function getJobs() {
 
 export default async function JobsPage() {
   const jobs = await getJobs();
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Jobs</h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <nav className="flex items-center gap-2 text-sm text-gray-500">
+          <a href="/student" className="hover:text-gray-700">Student</a>
+          <span>/</span>
+          <span className="text-gray-900 font-medium">Jobs</span>
+        </nav>
+        <h1 className="mt-2 text-2xl font-semibold text-gray-900">Jobs</h1>
+      </div>
+
+      {/* List */}
       <div className="grid gap-4">
+        {jobs.length === 0 && (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+            No jobs yet.
+          </div>
+        )}
+
         {jobs.map((job: any) => (
           <a
             key={job.id}
             href={`/student/jobs/${job.id}`}
-            className="rounded-lg border p-4 hover:bg-muted/30"
+            className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-[#F5F1E8]/40 transition-colors"
           >
-            <div className="font-medium">{job.title}</div>
-            <div className="text-sm text-muted-foreground">
-              {job.organization?.name} • {job.location ?? job.locationMode ?? "—"}
+            <div className="font-medium text-gray-900">{job.title}</div>
+            <div className="text-sm text-gray-500">
+              {job.organization?.name ?? "—"} • {job.location ?? job.locationMode ?? "—"}
             </div>
           </a>
         ))}
