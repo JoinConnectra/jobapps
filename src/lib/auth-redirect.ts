@@ -31,8 +31,8 @@ export async function getDashboardUrl(): Promise<string> {
       return "/university/dashboard";
     }
 
-    // Check for employer organization
-    const employerOrg = orgs.find((o: any) => o.type === 'employer');
+    // Check for employer organization (company type)
+    const employerOrg = orgs.find((o: any) => o.type === 'company' || o.type === 'employer');
     if (employerOrg) {
       console.log("Found employer organization:", employerOrg.name);
       return "/dashboard";
@@ -50,12 +50,11 @@ export async function getDashboardUrl(): Promise<string> {
       }
     }
 
-    // SECURITY: If no organization found, redirect to university dashboard as default
-    // This prevents unauthorized access to employer dashboard
-    console.log("No specific organization type found, defaulting to university dashboard for security");
-    return "/university/dashboard";
+    // Default fallback - if we can't determine the type, default to employer dashboard
+    console.log("No specific organization type found, defaulting to employer dashboard");
+    return "/dashboard";
   } catch (error) {
     console.error("Error determining dashboard URL:", error);
-    return "/university/dashboard"; // Secure fallback - default to university dashboard
+    return "/dashboard"; // Fallback to employer dashboard
   }
 }
