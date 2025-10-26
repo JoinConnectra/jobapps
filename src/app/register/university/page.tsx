@@ -7,6 +7,8 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { authClient } from '@/lib/auth-client';
+import { toast } from 'sonner';
 
 export default function UniversityRegisterPage() {
   const router = useRouter();
@@ -28,16 +30,60 @@ export default function UniversityRegisterPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('/api/university/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+      // 1. Register user with Better Auth
+      const signupResponse = await fetch("/api/auth/sign-up/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.contactEmail,
+          password: form.password,
+          name: form.adminName,
+        }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      router.push('/university/dashboard');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to register');
+
+      if (!signupResponse.ok) {
+        const errorData = await signupResponse.json();
+        throw new Error(errorData.error || "Failed to create user account");
+      }
+
+      // 2. Sign in the newly created user
+      const signInResponse = await authClient.signInWithEmail({
+        email: form.contactEmail,
+        password: form.password,
+      });
+
+      if (signInResponse.error) {
+        throw new Error(signInResponse.error.code || "Failed to sign in after registration");
+      }
+
+      // 3. Register university in our database (now that user is authenticated)
+      const universityRegisterResponse = await fetch("/api/university/register", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("bearer_token")}`,
+        },
+        body: JSON.stringify({
+          universityName: form.universityName,
+          domain: form.domain,
+          contactEmail: form.contactEmail,
+          adminName: form.adminName,
+          location: form.location,
+          type: form.type,
+          description: form.description,
+        }),
+      });
+
+      if (!universityRegisterResponse.ok) {
+        const errorData = await universityRegisterResponse.json();
+        throw new Error(errorData.error || "Failed to register university");
+      }
+
+      toast.success("University account created successfully!");
+      router.push("/university/dashboard");
+    } catch (error) {
+      console.error("University registration error:", error);
+      toast.error(error instanceof Error ? error.message : "Registration failed");
     } finally {
       setLoading(false);
     }

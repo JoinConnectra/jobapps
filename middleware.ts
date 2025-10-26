@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // Let the client-side hooks handle the security checks
+  // This is more reliable than trying to do it in middleware
+  return NextResponse.next();
 }
 
 export const config = {

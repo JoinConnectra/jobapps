@@ -16,8 +16,8 @@
  */
 
 import { useEffect, useState } from "react";
-import { useSession } from "@/lib/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEmployerAuth } from "@/hooks/use-employer-auth";
 import {
   Briefcase,
   ListChecks,
@@ -78,7 +78,7 @@ interface JobWithStats extends Job {
 
 export default function AllJobsPage() {
   // ----- Session & routing -----
-  const { data: session, isPending } = useSession();
+  const { session, isPending } = useEmployerAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } =

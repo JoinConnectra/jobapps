@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { getDashboardUrl } from "@/lib/auth-redirect";
 
 /** Helper: fetch accountType for an email (or current session if email omitted) */
 async function fetchAccountType(email?: string | null): Promise<"applicant" | "employer" | null> {
@@ -55,14 +56,13 @@ export default function LoginPage() {
       }
 
       if (accountType === "applicant") {
-  router.replace("/student");
-} else if (accountType === "employer") {
-  router.replace("/dashboard");
-} else {
-  // Fallback: if accountType not set yet, prefer student (matches your new flow)
-  router.replace("/student");
-}
-
+        router.replace("/student");
+      } else if (accountType === "employer") {
+        router.replace("/dashboard");
+      } else {
+        // Fallback: if accountType not set yet, prefer student (matches your new flow)
+        router.replace("/student");
+      }
     },
     [next, router]
   );
@@ -72,6 +72,18 @@ export default function LoginPage() {
       void routeByRole(session.user.email);
     }
   }, [isPending, session?.user?.email, routeByRole]);
+
+  const checkUserAccountTypeAndRedirect = async () => {
+    try {
+      const dashboardUrl = await getDashboardUrl();
+      console.log("Redirecting to:", dashboardUrl);
+      router.push(dashboardUrl);
+    } catch (error) {
+      console.error("Error checking account type:", error);
+      // Fallback to dashboard on error
+      router.push("/dashboard");
+    }
+  };
 
   useEffect(() => {
     if (searchParams.get("registered") === "true") {
@@ -88,7 +100,7 @@ export default function LoginPage() {
         email: formData.email.trim(),
         password: formData.password,
         rememberMe: formData.rememberMe,
-        // We still pass a callbackURL, but we’ll immediately route by role below.
+        // We still pass a callbackURL, but we'll immediately route by role below.
         callbackURL: next || "/login",
       });
 
@@ -101,8 +113,8 @@ export default function LoginPage() {
       }
 
       toast.success("Login successful!");
-      // Decide the correct portal now:
-      await routeByRole(formData.email.trim());
+      // Use our custom redirect logic that handles university, employer, and applicant users
+      await checkUserAccountTypeAndRedirect();
     } catch (error) {
       toast.error("An unexpected error occurred");
       setIsLoading(false);
@@ -111,7 +123,7 @@ export default function LoginPage() {
 
   const handleGoogle = async () => {
     try {
-      // After Google auth, you’ll land back on /login (or ?next=…),
+      // After Google auth, you'll land back on /login (or ?next=…),
       // and the session effect above will redirect by role.
       await authClient.signIn.social({
         provider: "google",
@@ -133,7 +145,7 @@ export default function LoginPage() {
     );
   }
 
-  // If session exists, we’re redirecting via effect; avoid flicker.
+  // If session exists, we're redirecting via effect; avoid flicker.
   if (session?.user) return null;
 
   return (

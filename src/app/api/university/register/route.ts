@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { users, organizations, memberships } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,25 +24,33 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
 
-    // Ensure app-level user exists
-    let existing = await db.select().from(users).where(eq(users.email, contactEmail)).limit(1);
+    // Get the current session to find the user
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized. Please sign in first.' }, { status: 401 });
+    }
+
+    // Find or create the user in our custom users table
+    let existing = await db.select().from(users).where(eq(users.email, session.user.email)).limit(1);
     if (existing.length === 0) {
-      existing = await db.insert(users).values({
-        email: contactEmail,
-        name: adminName || universityName,
+      // Create user in our custom table
+      const newUser = await db.insert(users).values({
+        email: session.user.email,
+        name: session.user.name || adminName || universityName,
         phone: null,
         locale: 'en',
-        avatarUrl: null,
+        avatarUrl: session.user.image || null,
         accountType: 'university',
         createdAt: now,
         updatedAt: now,
-      }).returning() as any;
+      }).returning();
+      existing = newUser;
     } else {
-      // Update role if needed
-      await db.update(users).set({ accountType: 'university', updatedAt: now }).where(eq(users.id, (existing[0] as any).id));
+      // Update user account type to university
+      await db.update(users).set({ accountType: 'university', updatedAt: now }).where(eq(users.id, existing[0].id));
     }
 
-    const adminUserId = (existing[0] as any).id as number;
+    const adminUserId = existing[0].id;
 
     // Create university organization
     const slug = String(universityName).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
