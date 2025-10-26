@@ -1,3 +1,4 @@
+// src/app/api/student/saved-jobs/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
@@ -47,12 +48,30 @@ export async function POST(req: NextRequest) {
   if ("json" in dbUserOrResp) return dbUserOrResp as NextResponse;
   const dbUser = dbUserOrResp;
 
-  const { jobId } = await req.json();
-  if (!jobId) return NextResponse.json({ error: "jobId required" }, { status: 400 });
+  let jobId: number | null = null;
+
+  // Support JSON or form submissions
+  const ct = req.headers.get("content-type") || "";
+  try {
+    if (ct.includes("application/json")) {
+      const body = await req.json().catch(() => ({}));
+      if (body?.jobId != null) jobId = Number(body.jobId);
+    } else {
+      const form = await req.formData();
+      const val = form.get("jobId");
+      if (val != null) jobId = Number(val);
+    }
+  } catch {
+    // fall through to validation error below
+  }
+
+  if (!jobId || Number.isNaN(jobId)) {
+    return NextResponse.json({ error: "jobId required" }, { status: 400 });
+  }
 
   await db
     .insert(savedJobs)
-    .values({ userId: dbUser.id, jobId: Number(jobId) })
+    .values({ userId: dbUser.id, jobId })
     .onConflictDoNothing?.();
 
   return NextResponse.json({ ok: true });
@@ -63,12 +82,29 @@ export async function DELETE(req: NextRequest) {
   if ("json" in dbUserOrResp) return dbUserOrResp as NextResponse;
   const dbUser = dbUserOrResp;
 
-  const jobId = new URL(req.url).searchParams.get("jobId");
-  if (!jobId) return NextResponse.json({ error: "jobId required" }, { status: 400 });
+  // Accept jobId either as query param or form body
+  const url = new URL(req.url);
+  let jobIdStr = url.searchParams.get("jobId");
+  if (!jobIdStr) {
+    const ct = req.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      const body = await req.json().catch(() => ({}));
+      if (body?.jobId != null) jobIdStr = String(body.jobId);
+    } else {
+      const form = await req.formData().catch(() => null);
+      const v = form?.get("jobId");
+      if (v != null) jobIdStr = String(v);
+    }
+  }
+
+  const jobId = jobIdStr ? Number(jobIdStr) : NaN;
+  if (!jobId || Number.isNaN(jobId)) {
+    return NextResponse.json({ error: "jobId required" }, { status: 400 });
+  }
 
   await db
     .delete(savedJobs)
-    .where(and(eq(savedJobs.userId, dbUser.id), eq(savedJobs.jobId, Number(jobId))));
+    .where(and(eq(savedJobs.userId, dbUser.id), eq(savedJobs.jobId, jobId)));
 
   return NextResponse.json({ ok: true });
 }

@@ -52,6 +52,29 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
   const [location, setLocation] = React.useState<string>("all");
   const [sort, setSort] = React.useState<string>("recent"); // recent | title | org
   const [saved, setSaved] = React.useState<Record<string, boolean>>({});
+  const [saving, setSaving] = React.useState<Record<string, boolean>>({}); // per-job spinner/lock
+
+  // Load saved jobs to hydrate map { [jobId]: true }
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/student/saved-jobs", { cache: "no-store" });
+        if (!res.ok) return;
+        const rows = await res.json();
+        // rows shape: { id, createdAt, job: { id, title, ... }, organization: { ... } }
+        const map: Record<string, boolean> = {};
+        for (const r of rows ?? []) {
+          const id = r?.job?.id ?? r?.jobId ?? r?.id;
+          if (id != null) map[String(id)] = true;
+        }
+        if (mounted) setSaved(map);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Build filter options
   const deptOptions = React.useMemo(() => {
@@ -133,10 +156,46 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [ids, selectedId, router]);
 
-  // Save (local demo)
+  // Save/Unsave with optimistic update
+  async function saveJob(jobId: string | number) {
+    const key = String(jobId);
+    setSaving((s) => ({ ...s, [key]: true }));
+    setSaved((s) => ({ ...s, [key]: true }));
+    try {
+      const res = await fetch("/api/student/saved-jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+    } catch {
+      // rollback
+      setSaved((s) => ({ ...s, [key]: false }));
+    } finally {
+      setSaving((s) => ({ ...s, [key]: false }));
+    }
+  }
+  async function unsaveJob(jobId: string | number) {
+    const key = String(jobId);
+    setSaving((s) => ({ ...s, [key]: true }));
+    setSaved((s) => ({ ...s, [key]: false }));
+    try {
+      const res = await fetch(`/api/student/saved-jobs?jobId=${encodeURIComponent(key)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to unsave");
+    } catch {
+      // rollback
+      setSaved((s) => ({ ...s, [key]: true }));
+    } finally {
+      setSaving((s) => ({ ...s, [key]: false }));
+    }
+  }
+
   function toggleSave(id: string | number) {
-    const key = id.toString();
-    setSaved((s) => ({ ...s, [key]: !s[key] }));
+    const key = String(id);
+    if (saved[key]) unsaveJob(key);
+    else saveJob(key);
   }
 
   const onSelect = (id: string | number) => setSelectedId(id.toString());
@@ -224,7 +283,10 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
               <ul className="divide-y">
                 {filtered.map((j) => {
                   const active = selectedId?.toString() === j.id?.toString();
-                  const savedFlag = !!saved[j.id.toString()];
+                  const key = j.id.toString();
+                  const savedFlag = !!saved[key];
+                  const busy = !!saving[key];
+
                   return (
                     <li key={j.id}>
                       <button
@@ -257,12 +319,13 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                                 <Button
                                   size="sm"
                                   variant={savedFlag ? "default" : "outline"}
+                                  disabled={busy}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     toggleSave(j.id);
                                   }}
                                 >
-                                  {savedFlag ? "Saved" : "Save"}
+                                  {busy ? "…" : savedFlag ? "Saved" : "Save"}
                                 </Button>
                               </div>
                             </div>
@@ -334,9 +397,14 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                 <div className="shrink-0 flex gap-2">
                   <Button
                     variant={saved[selectedJob.id.toString()] ? "default" : "outline"}
+                    disabled={!!saving[selectedJob.id.toString()]}
                     onClick={() => toggleSave(selectedJob.id)}
                   >
-                    {saved[selectedJob.id.toString()] ? "Saved" : "Save"}
+                    {saving[selectedJob.id.toString()]
+                      ? "…"
+                      : saved[selectedJob.id.toString()]
+                      ? "Saved"
+                      : "Save"}
                   </Button>
                   <Button onClick={() => router.push(`/student/jobs/${selectedJob.id}/apply`)}>
                     Apply
