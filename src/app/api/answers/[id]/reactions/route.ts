@@ -184,13 +184,14 @@ export async function DELETE(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const reactions = await db
       .select()
       .from(answerReactions)
-      .where(eq(answerReactions.answerId, parseInt(params.id)));
+      .where(eq(answerReactions.answerId, parseInt(id)));
 
     return NextResponse.json(reactions);
   } catch (error) {

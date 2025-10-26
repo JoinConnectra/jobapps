@@ -70,7 +70,7 @@ export default function HeroSection() {
 
       <div className="container relative z-20 flex flex-col items-center text-center px-6">
         <div className="bg-[#6a994e] text-white text-sm font-semibold py-2 px-5 rounded-full mb-8 leading-none">
-          Hi we're Rapha
+          Hi we're TalentFlow
         </div>
 
         <h1 className="font-display font-bold text-[#1A1A1A] text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.1] tracking-[-0.02em] max-w-5xl">
@@ -87,7 +87,7 @@ export default function HeroSection() {
           href="https://app.withrapha.com/"
           className="mt-10 inline-flex items-center justify-center gap-2 rounded-lg bg-[#1A1A1A] px-8 py-4 text-base font-semibold text-white transition-colors hover:bg-black/80"
         >
-          Try Rapha - it's free
+          Try TalentFlow - it's free
           <MoveRight className="h-5 w-5" />
         </a>
       </div>

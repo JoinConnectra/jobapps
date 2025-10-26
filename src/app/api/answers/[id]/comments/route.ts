@@ -65,7 +65,7 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const comments = await db
@@ -80,7 +80,7 @@ export async function GET(
       })
       .from(answerComments)
       .leftJoin(users, eq(answerComments.userId, users.id))
-      .where(eq(answerComments.answerId, parseInt(params.id)))
+      .where(eq(answerComments.answerId, parseInt((await params).id)))
       .orderBy(desc(answerComments.createdAt));
 
     return NextResponse.json(comments);

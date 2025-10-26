@@ -35,7 +35,7 @@ async function resolveAppUserId(req: NextRequest): Promise<number | null> {
 // ---------- GET: list assignments for application ----------
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // auth
@@ -47,7 +47,8 @@ export async function GET(
     const appUserId = await resolveAppUserId(req);
     if (!appUserId) return unauthorized();
 
-    const appId = Number(params.id);
+    const { id } = await params;
+    const appId = Number(id);
     if (!Number.isFinite(appId) || appId <= 0) return badRequest("Invalid application id");
 
     // Load application & job to discover the org
@@ -113,14 +114,15 @@ export async function GET(
  */
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const req = _req;
     const appUserId = await resolveAppUserId(req);
     if (!appUserId) return unauthorized();
 
-    const appId = Number(params.id);
+    const { id } = await params;
+    const appId = Number(id);
     if (!Number.isFinite(appId) || appId <= 0) return badRequest("Invalid application id");
 
     const body = await req.json().catch(() => null);

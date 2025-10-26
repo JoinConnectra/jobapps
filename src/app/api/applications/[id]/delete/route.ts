@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { applications, answers, answerReactions, answerComments, actions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { applications, answers, answerReactions, answerComments, actions, activity } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const applicationId = parseInt(params.id);
+    const { id } = await params;
+    const applicationId = parseInt(id);
     
     if (isNaN(applicationId)) {
       return NextResponse.json(
@@ -52,7 +53,17 @@ export async function DELETE(
       .delete(actions)
       .where(eq(actions.applicationId, applicationId));
 
-    // 5. Finally delete the application
+    // 5. Delete activity records for this application
+    await db
+      .delete(activity)
+      .where(
+        and(
+          eq(activity.entityType, 'application'),
+          eq(activity.entityId, applicationId)
+        )
+      );
+
+    // 6. Finally delete the application
     await db
       .delete(applications)
       .where(eq(applications.id, applicationId));

@@ -10,7 +10,7 @@ const Footer = () => {
             {/* As per instruction "red circular icon (48px)", using secondary theme color for the red/coral circle. */}
             <div className="h-12 w-12 rounded-full bg-secondary" />
             <span className="font-display text-[2rem] font-bold leading-none text-foreground">
-              Rapha
+              TalentFlow
             </span>
           </Link>
 

@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; commentId: string } }
+  { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
     // Get the actual database user ID from the session
@@ -36,8 +36,9 @@ export async function DELETE(
     }
 
     const dbUserId = userResult[0].id;
-    const commentId = parseInt(params.commentId);
-    const answerId = parseInt(params.id);
+    const { id, commentId: commentIdParam } = await params;
+    const commentId = parseInt(commentIdParam);
+    const answerId = parseInt(id);
 
     if (isNaN(commentId) || isNaN(answerId)) {
       return NextResponse.json(
