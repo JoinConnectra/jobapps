@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
@@ -10,35 +10,37 @@ import { ArrowLeft, Check } from "lucide-react";
 export default function RegisterStep3Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const accountType = searchParams.get('type') as "applicant" | "employer";
-  const name = searchParams.get('name') || '';
-  const email = searchParams.get('email') || '';
-  const phone = searchParams.get('phone') || '';
-  const password = searchParams.get('password') || '';
-  
+
+  const accountType = (searchParams.get("type") as "applicant" | "employer") || "applicant";
+  const name = searchParams.get("name") || "";
+  const email = searchParams.get("email") || "";
+  const phone = searchParams.get("phone") || "";
+  const password = searchParams.get("password") || "";
+  const locale = searchParams.get("locale") || "en";
+
+  // Applicant inputs
+  const [universityId, setUniversityId] = useState<string | null>(null);
+
+  // Employer inputs
+  const [companyName, setCompanyName] = useState<string>("");
+  const [companyUrl, setCompanyUrl] = useState<string>("");
+
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    companyName: "",
-    companyUrl: "",
-    universityId: "",
-    locale: "en",
-  });
 
   useEffect(() => {
-    if (!accountType || !['applicant', 'employer'].includes(accountType)) {
-      router.push('/register');
+    if (!accountType) {
+      router.replace("/register");
     }
   }, [accountType, router]);
 
   const handleSubmit = async () => {
     setIsLoading(true);
-
     try {
-      // Create the user account with Better Auth
+      // 1) Create auth user
       const { error } = await authClient.signUp.email({
-        email: email,
-        name: name,
-        password: password,
+        email,
+        name,
+        password,
       });
 
       if (error?.code) {
@@ -47,168 +49,131 @@ export default function RegisterStep3Page() {
         return;
       }
 
-      // Bootstrap profile and optional organization - EXACTLY like the original
+      // 2) Bootstrap app tables (users + studentProfile or organization+membership)
       try {
-        const response = await fetch("/api/bootstrap/register", {
+        const res = await fetch("/api/bootstrap/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: name,
-            email: email,
+            name,
+            email,
             phone: phone || null,
-            locale: formData.locale,
-            accountType: accountType,
-            companyName: accountType === 'employer' ? formData.companyName : undefined,
-            companyUrl: accountType === 'employer' ? formData.companyUrl : undefined,
-            universityId: accountType === 'applicant' ? formData.universityId || null : null,
+            locale,
+            accountType,
+            companyName: accountType === "employer" ? companyName : undefined,
+            companyUrl: accountType === "employer" ? companyUrl : undefined,
+            universityId: accountType === "applicant" ? (universityId ? Number(universityId) : null) : null,
           }),
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to bootstrap user profile');
+        if (!res.ok) {
+          console.error("Bootstrap failed:", await res.text());
+          // Non-blocking: continue to sign-in so user can proceed
         }
-      } catch (bootstrapError) {
-        console.error('Bootstrap error:', bootstrapError);
-        // Continue anyway - the auth user was created
+      } catch (e) {
+        console.error("Bootstrap error:", e);
       }
 
-      toast.success("Account created successfully! Please log in.");
-      router.push("/login?registered=true");
-    } catch (error) {
-      console.error('Registration error:', error);
+      // 3) Auto sign-in
+      const login = await authClient.signIn.email({
+        email,
+        password,
+      });
+      if (login?.error) {
+        toast.success("Account created. Please sign-in.");
+        router.replace("/login?registered=true");
+        return;
+      }
+
+      // 4) Redirect by account type
+      toast.success("Welcome!");
+      if (accountType === "applicant") {
+        router.replace("/student");
+      } else {
+        router.replace("/dashboard");
+      }
+    } catch (err) {
+      console.error("Registration error:", err);
       toast.error("An unexpected error occurred");
       setIsLoading(false);
     }
   };
 
-  if (!accountType) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen flex relative">
-      {/* Back Button */}
-      <Link 
-        href={`/register/step2?type=${accountType}`} 
-        className="absolute top-6 left-6 z-10 flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-      >
-        <ArrowLeft className="w-5 h-5" />
+    <div className="flex min-h-screen">
+      {/* Back */}
+      <Link href="/register/step2" className="absolute left-6 top-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" />
         <span className="font-medium">Back</span>
       </Link>
 
-      {/* Left Side - Background Image */}
+      {/* Left Side - BG */}
       <div className="w-1/2 h-screen relative overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: "url('/register_bg.png')"
-          }}
+          style={{ backgroundImage: "url('/register_bg.png')" }}
         />
       </div>
 
-      {/* Right Side - Specific Information Form */}
+      {/* Right Side - Form */}
       <div className="w-1/2 h-screen flex items-center justify-center bg-white">
-        <div className="w-[320px] space-y-6">
-          {/* Header */}
+        <div className="w-[420px] space-y-6">
           <div className="text-center">
-            <h1 className="text-2xl font-semibold text-foreground mb-2">
-              {accountType === 'applicant' ? 'Educational Background' : 'Company Information'}
+            <h1 className="text-2xl font-semibold mb-1">
+              {accountType === "applicant" ? "Student Details" : "Organization Details"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {accountType === 'applicant' 
-                ? 'Tell us about your education' 
-                : 'Tell us about your company'
-              }
+              {accountType === "applicant" ? "Finish setting up your student profile" : "Finish setting up your employer account"}
             </p>
           </div>
 
-          {/* Form */}
           <div className="space-y-4">
-            {/* Applicant Fields */}
-            {accountType === 'applicant' && (
+            {accountType === "applicant" ? (
               <>
-                <div className="space-y-2">
-                  <label htmlFor="universityId" className="block text-sm font-medium text-foreground">
-                    Educational institution <span className="text-muted-foreground text-xs">(optional)</span>
-                  </label>
-                  <input 
-                    id="universityId" 
-                    value={formData.universityId} 
-                    onChange={(e)=>setFormData({...formData,universityId:e.target.value})} 
-                    className="w-full h-10 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm" 
-                    placeholder="Enter university ID or leave blank" 
+                {/* University (optional for now) */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">University (optional)</label>
+                  <input
+                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                    placeholder="Enter university ID or leave blank"
+                    value={universityId ?? ""}
+                    onChange={(e) => setUniversityId(e.target.value || null)}
                   />
-                  <p className="text-xs text-muted-foreground">We'll auto-verify via email domain later.</p>
                 </div>
               </>
-            )}
-
-            {/* Company Fields */}
-            {accountType === 'employer' && (
+            ) : (
               <>
-                <div className="space-y-2">
-                  <label htmlFor="companyName" className="block text-sm font-medium text-foreground">
-                    Company name
-                  </label>
-                  <input 
-                    id="companyName" 
-                    value={formData.companyName} 
-                    onChange={(e)=>setFormData({...formData,companyName:e.target.value})} 
-                    required 
-                    className="w-full h-10 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm" 
-                    placeholder="Acme Inc." 
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Company Name</label>
+                  <input
+                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                    placeholder="e.g. Packages Ltd."
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label htmlFor="companyUrl" className="block text-sm font-medium text-foreground">
-                    Company link <span className="text-muted-foreground text-xs">(optional)</span>
-                  </label>
-                  <input 
-                    id="companyUrl" 
-                    value={formData.companyUrl} 
-                    onChange={(e)=>setFormData({...formData,companyUrl:e.target.value})} 
-                    className="w-full h-10 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm" 
-                    placeholder="https://acme.com" 
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Company URL</label>
+                  <input
+                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                    placeholder="https://example.com"
+                    value={companyUrl}
+                    onChange={(e) => setCompanyUrl(e.target.value)}
                   />
                 </div>
               </>
             )}
 
-            {/* Language - Common for both */}
-            <div className="space-y-2">
-              <label htmlFor="locale" className="block text-sm font-medium text-foreground">
-                Preferred language
-              </label>
-              <select
-                id="locale"
-                name="locale"
-                value={formData.locale}
-                onChange={(e) => setFormData({ ...formData, locale: e.target.value })}
-                className="w-full h-10 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm"
-              >
-                <option value="en">English</option>
-                <option value="ur">اردو (Urdu)</option>
-              </select>
-            </div>
-          </div>
+            <button
+              onClick={handleSubmit}
+              disabled={isLoading}
+              className="w-full h-10 inline-flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              <Check className="h-4 w-4" />
+              {isLoading ? "Creating your account..." : "Create account"}
+            </button>
 
-          {/* Submit Button */}
-          <button
-            onClick={handleSubmit}
-            disabled={isLoading || (accountType === 'employer' && !formData.companyName)}
-            className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
-          >
-            {isLoading ? "Creating account..." : "Create account"}
-            {!isLoading && <Check className="w-4 h-4" />}
-          </button>
-
-          {/* Sign In Link */}
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:text-primary/80 font-medium">
-                Sign in
-              </Link>
+            <p className="text-xs text-muted-foreground text-center">
+              By continuing, you agree to our Terms and acknowledge our Privacy Policy.
             </p>
           </div>
         </div>
