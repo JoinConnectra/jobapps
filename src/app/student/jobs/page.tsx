@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { absoluteUrl } from "@/lib/url";
 
 async function getJobs() {
@@ -15,7 +16,7 @@ export default async function JobsPage() {
       {/* Header */}
       <div>
         <nav className="flex items-center gap-2 text-sm text-gray-500">
-          <a href="/student" className="hover:text-gray-700">Student</a>
+          <Link href="/student" className="hover:text-gray-700">Student</Link>
           <span>/</span>
           <span className="text-gray-900 font-medium">Jobs</span>
         </nav>
@@ -31,16 +32,16 @@ export default async function JobsPage() {
         )}
 
         {jobs.map((job: any) => (
-          <a
+          <Link
             key={job.id}
             href={`/student/jobs/${job.id}`}
-            className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-[#F5F1E8]/40 transition-colors"
+            className="rounded-lg border border-gray-200 bg-white p-4 hover:bg-[#F5F1E8]/40 transition-colors block"
           >
-            <div className="font-medium text-gray-900">{job.title}</div>
+            <div className="font-medium text-gray-900">{job.title ?? "Untitled role"}</div>
             <div className="text-sm text-gray-500">
-              {job.organization?.name ?? "—"} • {job.location ?? job.locationMode ?? "—"}
+              {(job.organization?.name ?? "—")} • {(job.location ?? job.locationMode ?? "—")}
             </div>
-          </a>
+          </Link>
         ))}
       </div>
     </div>

@@ -11,13 +11,15 @@ async function getJob(id: string) {
 export default async function JobDetail({ params }: { params: { id: string } }) {
   const job = await getJob(params.id);
   if (!job) return notFound();
+
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">{job.title}</h1>
+      <h1 className="text-2xl font-semibold">{job.title ?? "Untitled role"}</h1>
       <div className="text-sm text-muted-foreground">
-        {job.organization?.name} • {job.location ?? job.locationMode ?? "—"}
+        {(job.organization?.name ?? "—")} • {(job.location ?? job.locationMode ?? "—")}
       </div>
 
+      {/* descriptionHtml is assumed sanitized by the API */}
       <div
         className="prose max-w-none"
         dangerouslySetInnerHTML={{ __html: job.descriptionHtml ?? "" }}

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { jobs } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { getCurrentUser } from '@/lib/auth';
+import { jobs, organizations } from '@/db/schema';
+import { eq, and, or } from 'drizzle-orm';
 
+/**
+ * GET /api/jobs/:id
+ * - For students (public access): only return if job is published and visibility is public|both
+ * - For employer/internal views you can still query /api/jobs?id=... with orgId to bypass this,
+ *   but this detail route is used by the student portal.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -11,7 +16,7 @@ export async function GET(
   try {
     const { id } = await params;
     const jobId = parseInt(id);
-    
+
     if (isNaN(jobId)) {
       return NextResponse.json({
         error: 'Valid job ID is required',
@@ -19,19 +24,56 @@ export async function GET(
       }, { status: 400 });
     }
 
-    const job = await db.select()
+    // Join organization so the student page can show org name
+    const row = await db
+      .select({
+        id: jobs.id,
+        title: jobs.title,
+        dept: jobs.dept,
+        locationMode: jobs.locationMode,
+        salaryRange: jobs.salaryRange,
+        descriptionMd: jobs.descriptionMd,
+        status: jobs.status,
+        visibility: jobs.visibility,
+        orgId: jobs.orgId,
+        orgName: organizations.name,
+      })
       .from(jobs)
+      .leftJoin(organizations, eq(organizations.id, jobs.orgId))
       .where(eq(jobs.id, jobId))
       .limit(1);
 
-    if (job.length === 0) {
+    if (row.length === 0) {
       return NextResponse.json({
         error: 'Job not found',
         code: 'JOB_NOT_FOUND'
       }, { status: 404 });
     }
 
-    return NextResponse.json(job[0], { status: 200 });
+    const j = row[0];
+
+    // Enforce public visibility for student detail
+    const isPublished = j.status === 'published';
+    const isPublic = j.visibility === 'public' || j.visibility === 'both';
+    if (!(isPublished && isPublic)) {
+      return NextResponse.json({
+        error: 'Job not found',
+        code: 'JOB_NOT_FOUND'
+      }, { status: 404 });
+    }
+
+    // If you later render markdown to HTML, plug it here. For now leave descriptionHtml null/empty.
+    return NextResponse.json(
+      {
+        id: j.id,
+        title: j.title,
+        descriptionHtml: null, // or render from j.descriptionMd
+        location: null,        // wire if you add a job.city/location column
+        locationMode: j.locationMode,
+        organization: j.orgName ? { name: j.orgName } : null,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('GET /api/jobs/[id] error:', error);
     return NextResponse.json({
@@ -40,6 +82,10 @@ export async function GET(
   }
 }
 
+/**
+ * PATCH /api/jobs/:id
+ * (unchanged except for leaving your logic as-is)
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -98,6 +144,10 @@ export async function PATCH(
   }
 }
 
+/**
+ * DELETE /api/jobs/:id
+ * (unchanged)
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -127,8 +177,7 @@ export async function DELETE(
     }
 
     // Delete the job
-    await db.delete(jobs)
-      .where(eq(jobs.id, jobId));
+    await db.delete(jobs).where(eq(jobs.id, jobId));
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
