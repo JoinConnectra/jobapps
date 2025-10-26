@@ -57,6 +57,7 @@
         "cmdk": "^1.1.1",
         "cobe": "^0.6.5",
         "date-fns": "^4.1.0",
+        "dayjs": "^1.11.18",
         "dotted-map": "^2.2.3",
         "drizzle-kit": "^0.31.5",
         "drizzle-orm": "^0.44.6",
