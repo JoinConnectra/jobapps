@@ -8,6 +8,13 @@
       "when": 1761186167238,
       "tag": "0000_wide_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1761525152507,
+      "tag": "0001_perpetual_microbe",
+      "breakpoints": true
     }
   ]
 }

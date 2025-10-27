@@ -3,6 +3,61 @@ import { db } from '@/db';
 import { jobs, organizations, jobUniversities, activity, users } from '@/db/schema';
 import { eq, like, and, desc, or, isNull } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { auth } from '@/lib/auth';
+
+/**
+ * Helper function to get user's university affiliation
+ */
+async function getUserUniversityAffiliation(request: NextRequest): Promise<number | null> {
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user?.email) return null;
+
+    // Get user from database
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, session.user.email))
+      .limit(1);
+
+    if (user.length === 0) return null;
+
+    // If user has accountType 'university', find their university organization
+    if (user[0].accountType === 'university') {
+      const universityOrg = await db
+        .select({ id: organizations.id })
+        .from(organizations)
+        .innerJoin(users, eq(users.id, user[0].id))
+        .where(and(
+          eq(organizations.type, 'university'),
+          eq(organizations.id, user[0].id) // This might need adjustment based on your schema
+        ))
+        .limit(1);
+
+      return universityOrg.length > 0 ? universityOrg[0].id : null;
+    }
+
+    // For students/applicants, try to match by email domain
+    const emailDomain = session.user.email.split('@')[1]?.toLowerCase();
+    if (!emailDomain) return null;
+
+    // Find university organization by matching email domain
+    // This assumes you have a domain field in organizations or can derive it from name
+    const universityOrg = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(and(
+        eq(organizations.type, 'university'),
+        like(organizations.name, `%${emailDomain.split('.')[0]}%`) // Simple domain matching
+      ))
+      .limit(1);
+
+    return universityOrg.length > 0 ? universityOrg[0].id : null;
+  } catch (error) {
+    console.error('Error getting user university affiliation:', error);
+    return null;
+  }
+}
 
 /**
  * Create a job (employer-side)
@@ -233,19 +288,17 @@ export async function GET(request: NextRequest) {
     }
 
     // ----------------- STUDENT/PUBLIC FEED (no orgId) -----------------
-    // Return jobs across orgs that are "published" and visible to public
-    // visibility rules: 'public' or 'both' should be shown to everyone
-    // (institutions-only will be filtered out here)
-    const publicConditions: any[] = [
-      eq(jobs.status, 'published'),
-      or(eq(jobs.visibility, 'public'), eq(jobs.visibility, 'both')),
-    ];
+    // Get user's university affiliation to filter jobs appropriately
+    const userUniversityId = await getUserUniversityAffiliation(request);
+    
+    // Base conditions for published jobs
+    const baseConditions: any[] = [eq(jobs.status, 'published')];
     if (search && search.trim() !== '') {
-      publicConditions.push(like(jobs.title, `%${search.trim()}%`));
+      baseConditions.push(like(jobs.title, `%${search.trim()}%`));
     }
 
-    // Base select with organization name for the student UI
-    const rows = await db
+    // Get all published jobs first
+    const allJobs = await db
       .select({
         id: jobs.id,
         title: jobs.title,
@@ -253,39 +306,50 @@ export async function GET(request: NextRequest) {
         locationMode: jobs.locationMode,
         salaryRange: jobs.salaryRange,
         orgId: jobs.orgId,
+        visibility: jobs.visibility,
         orgName: organizations.name,
       })
       .from(jobs)
       .leftJoin(organizations, eq(organizations.id, jobs.orgId))
-      .where(and(...publicConditions))
-      .orderBy(desc(jobs.createdAt))
-      .limit(limit)
-      .offset(offset);
+      .where(and(...baseConditions))
+      .orderBy(desc(jobs.createdAt));
 
-    // If filtering by a specific university for public feed, show only jobs that allow institutions
-    if (universityId) {
-      const uniId = parseInt(universityId);
-      if (!isNaN(uniId)) {
-        const mappings = await db.select().from(jobUniversities);
-        const filtered = rows.filter((r: any) => {
-          // We only included visibility public/both above; to enforce institution scoping for 'both', ensure mapping exists.
-          // For 'public', allow regardless; for 'both', require a mapping for this uni.
-          // To check 'both' we need access to visibility; fetch minimally.
-          return true; // keep it simple for now: public/both already allowed to all
-        });
-        return NextResponse.json(
-          filtered.map((r: any) => ({
-            id: r.id,
-            title: r.title,
-            location: null,                       // you can extend if you add a city field
-            locationMode: r.locationMode,
-            organization: r.orgName ? { name: r.orgName } : null,
-            descriptionHtml: null,                // rendered per-detail page; student list doesn't use it
-          })),
-          { status: 200 }
-        );
+    // Filter jobs based on visibility and user's university affiliation
+    let filteredJobs = allJobs.filter((job: any) => {
+      // Always show public jobs
+      if (job.visibility === 'public') return true;
+      
+      // Show 'both' jobs to everyone
+      if (job.visibility === 'both') return true;
+      
+      // For 'institutions' jobs, only show if user has university affiliation
+      if (job.visibility === 'institutions') {
+        return userUniversityId !== null;
       }
+      
+      return false;
+    });
+
+    // If user has university affiliation, also get university-specific jobs
+    if (userUniversityId) {
+      const universityJobMappings = await db
+        .select()
+        .from(jobUniversities)
+        .where(eq(jobUniversities.universityOrgId, userUniversityId));
+
+      const universityJobIds = new Set(universityJobMappings.map(m => m.jobId));
+      
+      // Add university-specific jobs that aren't already included
+      const additionalJobs = allJobs.filter((job: any) => 
+        universityJobIds.has(job.id) && 
+        !filteredJobs.some(fj => fj.id === job.id)
+      );
+      
+      filteredJobs = [...filteredJobs, ...additionalJobs];
     }
+
+    // Apply limit and offset
+    const rows = filteredJobs.slice(offset, offset + limit);
 
     // Shape to what the student UI expects
     const shaped = rows.map((r: any) => ({
@@ -294,7 +358,7 @@ export async function GET(request: NextRequest) {
       location: null,                       // if you later add jobs.location, wire it here
       locationMode: r.locationMode,
       organization: r.orgName ? { name: r.orgName } : null,
-      descriptionHtml: null,                // list page doesn’t use it
+      descriptionHtml: null,                // list page doesn't use it
     }));
 
     return NextResponse.json(shaped, { status: 200 });

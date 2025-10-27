@@ -16,6 +16,11 @@ import {
   Trash2,
   Edit,
   Save,
+  GraduationCap,
+  Plus,
+  CheckCircle,
+  Clock,
+  XCircle,
 } from "lucide-react";
 
 interface Organization {
@@ -42,6 +47,21 @@ interface Member {
   createdAt: string;
 }
 
+interface University {
+  id: number;
+  name: string;
+  approved: boolean;
+}
+
+interface UniversityAuthorization {
+  id: number;
+  universityOrgId: number;
+  companyOrgId: number;
+  status: 'pending' | 'approved' | 'rejected';
+  universityName: string;
+  createdAt: string;
+}
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -49,7 +69,7 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose, organization }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"company" | "members">("company");
+  const [activeTab, setActiveTab] = useState<"company" | "members" | "universities">("company");
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
@@ -62,6 +82,15 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
   const [companyLink, setCompanyLink] = useState("");
   const [benefits, setBenefits] = useState("");
   const [aboutCompany, setAboutCompany] = useState("");
+
+  // University access state
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [universityAuthorizations, setUniversityAuthorizations] = useState<UniversityAuthorization[]>([]);
+  const [selectedUniversities, setSelectedUniversities] = useState<number[]>([]);
+  const [isLoadingUniversities, setIsLoadingUniversities] = useState(false);
+  const [universitySearchQuery, setUniversitySearchQuery] = useState("");
+  const [showUniversityDropdown, setShowUniversityDropdown] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<UniversityAuthorization[]>([]);
 
   useEffect(() => {
     if (organization) {
@@ -76,6 +105,8 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
     if (isOpen && organization) {
       fetchMembers();
       fetchInviteLink();
+      fetchUniversities();
+      fetchUniversityAuthorizations();
     }
   }, [isOpen, organization]);
 
@@ -114,6 +145,105 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
       console.error("Failed to fetch invite link:", error);
     }
   };
+
+  const fetchUniversities = async () => {
+    if (!organization) return;
+    
+    setIsLoadingUniversities(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/employer/universities?orgId=${organization.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUniversities(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch universities:", error);
+    } finally {
+      setIsLoadingUniversities(false);
+    }
+  };
+
+  const fetchUniversityAuthorizations = async () => {
+    if (!organization) return;
+    
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/employer/universities?orgId=${organization.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Filter to show only universities with approved status
+        const approvedAuthorizations = data
+          .filter((uni: University) => uni.approved)
+          .map((uni: University) => ({
+            id: uni.id,
+            universityOrgId: uni.id,
+            companyOrgId: organization.id,
+            status: 'approved' as const,
+            universityName: uni.name,
+            createdAt: new Date().toISOString(),
+          }));
+        setUniversityAuthorizations(approvedAuthorizations);
+
+        // Fetch pending requests from the university_authorizations table
+        const pendingResponse = await fetch(`/api/university/requests?companyOrgId=${organization.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (pendingResponse.ok) {
+          const pendingData = await pendingResponse.json();
+          setPendingRequests(pendingData.filter((req: any) => req.status === 'pending'));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch university authorizations:", error);
+    }
+  };
+
+  const handleRequestUniversityAccess = async (universityId: number) => {
+    if (!organization) return;
+    
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/employer/universities/${universityId}/request`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          companyOrgId: organization.id,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Access request sent successfully");
+        fetchUniversityAuthorizations();
+        setUniversitySearchQuery("");
+        setShowUniversityDropdown(false);
+      } else {
+        toast.error("Failed to send access request");
+      }
+    } catch (error) {
+      console.error("Failed to request university access:", error);
+      toast.error("An error occurred while sending the request");
+    }
+  };
+
+  const handleUniversitySelect = (university: University) => {
+    handleRequestUniversityAccess(university.id);
+  };
+
+  const filteredUniversities = universities.filter(uni => 
+    !uni.approved && 
+    uni.name.toLowerCase().includes(universitySearchQuery.toLowerCase())
+  );
 
   const handleSaveCompany = async () => {
     if (!organization) return;
@@ -223,6 +353,18 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
               <Users className="w-4 h-4" />
               Members
             </button>
+            
+            <button
+              onClick={() => setActiveTab("universities")}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm transition-colors ${
+                activeTab === "universities" 
+                  ? "bg-[#f0f0f0] text-[#1a1a1a] border-l-2 border-[#6a994e]" 
+                  : "text-[#404040] hover:bg-[#f0f0f0]"
+              }`}
+            >
+              <GraduationCap className="w-4 h-4" />
+              Universities
+            </button>
           </nav>
           
           <div className="p-3 border-t border-[#d4d4d8]">
@@ -240,6 +382,7 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
             <h3 className="text-lg font-semibold text-[#1A1A1A]">
               {activeTab === "company" && "Company"}
               {activeTab === "members" && `Members (${members.length})`}
+              {activeTab === "universities" && "Educational Institution Access"}
             </h3>
             <button
               onClick={onClose}
@@ -305,6 +448,7 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                     </div>
                   )}
                 </div>
+
 
                 {isEditing && (
                   <div className="flex gap-2 pt-2">
@@ -432,6 +576,171 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                     Copy invite link
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {activeTab === "universities" && (
+              <div className="space-y-4">
+                {/* How it works Section */}
+                <div className="bg-gradient-to-r from-[#f7f7f7] to-[#f0f0f0] border border-[#d4d4d8] rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-[#6a994e]/10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <GraduationCap className="w-4 h-4 text-[#6a994e]" />
+                    </div>
+                    <div>
+                      <h6 className="font-semibold text-[#1A1A1A] mb-1">How it works</h6>
+                      <p className="text-sm text-[#6B7280] leading-relaxed">
+                        Request access to university networks to post targeted jobs. Once approved, 
+                        your job postings will be visible to students and alumni from those institutions, 
+                        helping you reach the right talent pool.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-green-700">{universities.filter(uni => uni.approved).length}</p>
+                        <p className="text-xs text-green-600 font-medium">Approved</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <GraduationCap className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-blue-700">{filteredUniversities.length}</p>
+                        <p className="text-xs text-blue-600 font-medium">Available</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Approved Universities Section */}
+                {universityAuthorizations.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <h5 className="text-lg font-semibold text-[#1A1A1A]">Approved Access</h5>
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {universityAuthorizations.map((auth) => (
+                        <div key={auth.id} className="group bg-white border border-green-200 rounded-xl p-4 hover:shadow-md transition-all duration-200">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                <GraduationCap className="w-5 h-5 text-green-600" />
+                              </div>
+                              <div>
+                                <h6 className="font-semibold text-[#1A1A1A]">{auth.universityName}</h6>
+                                <p className="text-xs text-[#6B7280]">Active partnership</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                                Approved
+                              </span>
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+
+                {/* Request Access Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-lg font-semibold text-[#1A1A1A]">Request Access</h5>
+                    <div className="text-sm text-[#6B7280]">
+                      {filteredUniversities.length} available
+                    </div>
+                  </div>
+                  
+                  {isLoadingUniversities ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-[#6a994e] border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm text-[#6B7280]">Loading universities...</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      {/* Search Input */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
+                        <Input
+                          type="text"
+                          placeholder="Search universities..."
+                          value={universitySearchQuery}
+                          onChange={(e) => {
+                            setUniversitySearchQuery(e.target.value);
+                            setShowUniversityDropdown(true);
+                          }}
+                          onFocus={() => setShowUniversityDropdown(true)}
+                          className="pl-10 pr-4 py-3 border-[#d4d4d8] focus:border-[#6a994e] rounded-lg"
+                        />
+                      </div>
+
+                      {/* Dropdown */}
+                      {showUniversityDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-[#d4d4d8] rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                          {filteredUniversities.length > 0 ? (
+                            filteredUniversities.map((university) => (
+                              <div
+                                key={university.id}
+                                onClick={() => handleUniversitySelect(university)}
+                                className="flex items-center justify-between p-3 hover:bg-[#f7f7f7] cursor-pointer transition-colors border-b border-[#f0f0f0] last:border-b-0"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-[#f7f7f7] rounded-lg flex items-center justify-center">
+                                    <GraduationCap className="w-4 h-4 text-[#6B7280]" />
+                                  </div>
+                                  <div>
+                                    <h6 className="font-medium text-[#1A1A1A]">{university.name}</h6>
+                                    <p className="text-xs text-[#6B7280]">Ready to connect</p>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white px-3 py-1 text-xs"
+                                >
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  Request
+                                </Button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center text-sm text-[#6B7280]">
+                              {universitySearchQuery ? 'No universities found matching your search' : 'No universities available'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Click outside to close dropdown */}
+                      {showUniversityDropdown && (
+                        <div
+                          className="fixed inset-0 z-0"
+                          onClick={() => setShowUniversityDropdown(false)}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 
