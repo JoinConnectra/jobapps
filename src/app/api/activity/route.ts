@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { activity, users } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { activity, users } from '@/db/schema-pg';
+import { eq, and, desc, gte } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
     const entityIdParam = searchParams.get('entityId');
     const limitParam = searchParams.get('limit');
     const offsetParam = searchParams.get('offset');
+    const sinceParam = searchParams.get('since');
 
     // Validate required orgId parameter
     if (!orgIdParam) {
@@ -152,6 +153,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Add time filter if provided
+    if (sinceParam) {
+      try {
+        const sinceDate = new Date(sinceParam);
+        if (!isNaN(sinceDate.getTime())) {
+          console.log('API: Adding time filter - since:', sinceDate.toISOString());
+          conditions.push(gte(activity.createdAt, sinceDate));
+        }
+      } catch (error) {
+        console.error('Invalid since parameter:', sinceParam);
+      }
+    }
+
     // Query activity logs with user join
     const results = await db.select({
       id: activity.id,
@@ -171,6 +185,11 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(activity.createdAt))
       .limit(limit)
       .offset(offset);
+
+    console.log('API: Returning', results.length, 'activities');
+    if (results.length > 0) {
+      console.log('API: Sample activity dates:', results.slice(0, 3).map(r => ({ createdAt: r.createdAt, action: r.action })));
+    }
 
     return NextResponse.json(results, { status: 200 });
   } catch (error: any) {

@@ -44,6 +44,8 @@ import {
   Send,
   ListChecks, // Icon for "Assessments" entry
   Settings,
+  Users,
+  Calendar,
 } from "lucide-react";
 import CommandPalette from "@/components/CommandPalette";
 import SettingsModal from "@/components/SettingsModal";
@@ -68,9 +70,10 @@ export default function DashboardPage() {
   const [loadingOrg, setLoadingOrg] = useState(true);
 
   // ---- Activity feed & filter state ----
-  type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" };
+  type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" | "members" };
   const [feed, setFeed] = useState<FeedItem[]>([]);
-  const [activityFilter, setActivityFilter] = useState<"all" | "company" | "applicants">("all");
+  const [activityFilter, setActivityFilter] = useState<"all" | "company" | "applicants" | "members">("all");
+  const [timeFilter, setTimeFilter] = useState<"today" | "7d" | "30d" | "90d" | "all">("today");
   
   // ---- Settings modal state ----
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -103,9 +106,9 @@ export default function DashboardPage() {
   useEffect(() => {
     const token = localStorage.getItem("bearer_token");
     if (org?.id && token) {
-      fetchActivity(org.id, token, activityFilter);
+      fetchActivity(org.id, token, activityFilter, timeFilter);
     }
-  }, [activityFilter, org?.id]);
+  }, [activityFilter, timeFilter, org?.id]);
 
   /**
    * Fetch user's organizations, select the first one as "primary",
@@ -152,7 +155,7 @@ export default function DashboardPage() {
           }
 
           // Initial activity load honors the current filter (default: "all")
-          await fetchActivity(primary.id, token, activityFilter);
+          await fetchActivity(primary.id, token, activityFilter, timeFilter);
         }
       }
     } catch (error) {
@@ -163,24 +166,44 @@ export default function DashboardPage() {
   };
 
   /**
-   * Fetch activity for an org id, filtered by entity type.
+   * Fetch activity for an org id, filtered by entity type and time range.
    * - "company"  => entityType=job
    * - "applicants" => entityType=application
+   * - "members"  => entityType=membership
    * - "all"      => no entityType filter
    */
   const fetchActivity = async (
     orgId: number,
     token: string,
-    filter: "all" | "company" | "applicants",
+    filter: "all" | "company" | "applicants" | "members",
+    timeRange: "today" | "7d" | "30d" | "90d" | "all",
   ) => {
     let url = `/api/activity?orgId=${orgId}&limit=50`;
     if (filter === "company") url += `&entityType=job`;
     if (filter === "applicants") url += `&entityType=application`;
+    if (filter === "members") url += `&entityType=membership`;
+
+    // Add time filtering
+    if (timeRange !== "all") {
+      const since = new Date();
+      if (timeRange === "today") {
+        // Set to start of today (00:00:00)
+        since.setHours(0, 0, 0, 0);
+        console.log("Today filter - since:", since.toISOString());
+      } else {
+        const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
+        since.setDate(since.getDate() - days);
+        console.log(`${timeRange} filter - since:`, since.toISOString());
+      }
+      url += `&since=${since.toISOString()}`;
+    }
 
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!resp.ok) return;
 
     const acts = await resp.json();
+    console.log("Activities returned:", acts.length, "items");
+    console.log("Sample activity dates:", acts.slice(0, 3).map(a => ({ createdAt: a.createdAt, action: a.action })));
 
     // Normalize API payload -> FeedItem[]
     const items: FeedItem[] = acts.map((a: any) => {
@@ -189,7 +212,7 @@ export default function DashboardPage() {
         const by = a.actorName || a.actorEmail || "Someone";
         return {
           at: a.createdAt,
-          title: `${by} created “${jobTitle}”`,
+          title: `${by} created "${jobTitle}"`,
           href: a.entityId ? `/dashboard/jobs/${a.entityId}` : undefined,
           kind: "company",
         };
@@ -199,9 +222,19 @@ export default function DashboardPage() {
         const jobTitle = a.diffJson?.jobTitle || "a job";
         return {
           at: a.createdAt,
-          title: `${email} applied to “${jobTitle}”`,
+          title: `${email} applied to "${jobTitle}"`,
           href: a.entityId ? `/dashboard/applications/${a.entityId}` : undefined,
           kind: "applicants",
+        };
+      }
+      if (a.entityType === "membership" && a.action === "joined") {
+        const memberName = a.diffJson?.memberName || a.actorName || "Someone";
+        const role = a.diffJson?.role || "member";
+        return {
+          at: a.createdAt,
+          title: `${memberName} joined as ${role}`,
+          href: undefined,
+          kind: "members",
         };
       }
       // Fallback for any other activity kind
@@ -385,38 +418,71 @@ export default function DashboardPage() {
               </nav>
             </div>
 
-            {/* Filter Buttons (All / Company / Applicants) */}
-            <div className="flex items-center gap-2 mb-6">
-              <button
-                onClick={() => setActivityFilter("all")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activityFilter === "all"
-                    ? "bg-[#6a994e] text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setActivityFilter("company")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activityFilter === "company"
-                    ? "bg-[#6a994e] text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                Company
-              </button>
-              <button
-                onClick={() => setActivityFilter("applicants")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activityFilter === "applicants"
-                    ? "bg-[#6a994e] text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                Applicants
-              </button>
+            {/* Filter Controls */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 justify-between">
+              {/* Activity Type Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 font-medium">Filter by:</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setActivityFilter("all")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "all"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter("company")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "company"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Company
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter("applicants")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "applicants"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Applicants
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter("members")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "members"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Members
+                  </button>
+                </div>
+              </div>
+
+              {/* Time Range Filter - Right aligned */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 font-medium">Time:</span>
+                <Select value={timeFilter} onValueChange={(value: "today" | "7d" | "30d" | "90d" | "all") => setTimeFilter(value)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="7d">Last 7 days</SelectItem>
+                    <SelectItem value="30d">Last 30 days</SelectItem>
+                    <SelectItem value="90d">Last 90 days</SelectItem>
+                    <SelectItem value="all">All time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Activities List */}
@@ -426,6 +492,7 @@ export default function DashboardPage() {
                   if (activityFilter === "all") return true;
                   if (activityFilter === "company") return item.kind === "company";
                   if (activityFilter === "applicants") return item.kind === "applicants";
+                  if (activityFilter === "members") return item.kind === "members";
                   return true;
                 });
                 return filteredFeed.length === 0;
@@ -442,12 +509,14 @@ export default function DashboardPage() {
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     {activityFilter === "all" ? "No activity yet" : 
                      activityFilter === "company" ? "No company activity" : 
-                     "No applicant activity"}
+                     activityFilter === "applicants" ? "No applicant activity" :
+                     "No member activity"}
                   </h3>
                   <p className="text-sm text-gray-500 mb-6">
                     {activityFilter === "all" ? "Once you start posting jobs and receiving applications, activity will appear here" :
                      activityFilter === "company" ? "Company activities like job creation will appear here" :
-                     "Applicant activities like job applications will appear here"}
+                     activityFilter === "applicants" ? "Applicant activities like job applications will appear here" :
+                     "Member activities like joining the company will appear here"}
                   </p>
                   <Button
                     onClick={() => router.push("/dashboard/jobs?create=1")}
@@ -464,6 +533,7 @@ export default function DashboardPage() {
                       if (activityFilter === "all") return true;
                       if (activityFilter === "company") return item.kind === "company";
                       if (activityFilter === "applicants") return item.kind === "applicants";
+                      if (activityFilter === "members") return item.kind === "members";
                       return true;
                     })
                     .map((item, idx) => (
@@ -472,11 +542,14 @@ export default function DashboardPage() {
                         {/* Icon pill by kind */}
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            item.kind === "company" ? "bg-green-100" : "bg-blue-100"
+                            item.kind === "company" ? "bg-green-100" : 
+                            item.kind === "members" ? "bg-purple-100" : "bg-blue-100"
                           }`}
                         >
                           {item.kind === "company" ? (
                             <Send className="w-4 h-4 text-green-600" />
+                          ) : item.kind === "members" ? (
+                            <Users className="w-4 h-4 text-purple-600" />
                           ) : (
                             <User className="w-4 h-4 text-blue-600" />
                           )}
