@@ -155,7 +155,9 @@ export async function POST(request: NextRequest) {
         userId: appUserId,
         orgId,
         role: "admin",
+        status: "active",
         createdAt: now,
+        updatedAt: now,
       });
     }
 

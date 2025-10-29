@@ -65,7 +65,9 @@ export async function POST(request: NextRequest) {
         userId: appUser[0].id,
         orgId: newOrg[0].id,
         role: 'admin',
+        status: 'active',
         createdAt: now,
+        updatedAt: now,
       });
     }
 

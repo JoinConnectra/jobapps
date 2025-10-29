@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 import {
   X,
   Building,
@@ -47,6 +49,15 @@ interface Member {
   createdAt: string;
 }
 
+interface PendingInvite {
+  id: string;
+  email: string | null;
+  role: string;
+  token: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
 interface University {
   id: number;
   name: string;
@@ -69,13 +80,17 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose, organization }: SettingsModalProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"company" | "members" | "universities">("company");
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [autoJoinEnabled, setAutoJoinEnabled] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
+  const [isLoadingInvites, setIsLoadingInvites] = useState(false);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
 
   // Company form state
   const [companyName, setCompanyName] = useState("");
@@ -104,7 +119,7 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
   useEffect(() => {
     if (isOpen && organization) {
       fetchMembers();
-      fetchInviteLink();
+      fetchPendingInvites();
       fetchUniversities();
       fetchUniversityAuthorizations();
     }
@@ -128,21 +143,24 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
     }
   };
 
-  const fetchInviteLink = async () => {
+  const fetchPendingInvites = async () => {
     if (!organization) return;
-    
+
+    setIsLoadingInvites(true);
     try {
       const token = localStorage.getItem("bearer_token");
-      const response = await fetch(`/api/organizations/${organization.id}/invite-link`, {
+      const response = await fetch(`/api/invite/list?orgId=${organization.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        setInviteLink(data.inviteLink);
+        setPendingInvites(data);
       }
     } catch (error) {
-      console.error("Failed to fetch invite link:", error);
+      console.error("Failed to fetch pending invites:", error);
+    } finally {
+      setIsLoadingInvites(false);
     }
   };
 
@@ -279,11 +297,37 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
   };
 
   const handleCopyInviteLink = async () => {
+    if (!organization) return;
+
+    setIsGeneratingInvite(true);
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/invite/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orgId: organization.id }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to create invite:", errorText);
+        toast.error("Failed to generate invite link");
+        return;
+      }
+
+      const data = await response.json();
+      setInviteLink(data.inviteLink);
+      await fetchPendingInvites();
+      await navigator.clipboard.writeText(data.inviteLink);
       toast.success("Invite link copied to clipboard");
     } catch (error) {
-      toast.error("Failed to copy invite link");
+      console.error("Error generating invite link:", error);
+      toast.error("Failed to generate invite link");
+    } finally {
+      setIsGeneratingInvite(false);
     }
   };
 
@@ -317,6 +361,23 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
     member.userEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
     member.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await authClient.signOut();
+      if (error?.code) {
+        toast.error(error.code);
+      } else {
+        localStorage.removeItem("bearer_token");
+        toast.success("Logged out successfully");
+        onClose(); // Close the modal
+        router.push("/"); // Redirect to home page
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("An error occurred during logout");
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -368,7 +429,10 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
           </nav>
           
           <div className="p-3 border-t border-[#d4d4d8]">
-            <button className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-red-600 hover:bg-red-50 transition-colors">
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
               <LogOut className="w-4 h-4" />
               Log out
             </button>
@@ -551,6 +615,49 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                 </div>
 
                 {/* Auto Join Section */}
+                {(isLoadingInvites || pendingInvites.length > 0) && (
+                  <div className="border border-[#d4d4d8] rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-semibold text-[#1A1A1A]">Pending invites</h5>
+                      <span className="text-xs text-[#6B7280]">
+                        {isLoadingInvites ? "Loading..." : `${pendingInvites.length} active`}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {isLoadingInvites ? (
+                        <div className="flex items-center gap-2 text-sm text-[#6B7280]">
+                          <div className="w-4 h-4 border-2 border-[#6a994e] border-t-transparent rounded-full animate-spin" />
+                          Loading invites...
+                        </div>
+                      ) : pendingInvites.length === 0 ? (
+                        <p className="text-sm text-[#6B7280]">All invites have been accepted.</p>
+                      ) : (
+                        pendingInvites.map((invite) => {
+                          const expiresOn = new Date(invite.expiresAt);
+                          return (
+                            <div
+                              key={invite.id}
+                              className="flex items-center justify-between rounded-md border border-[#e5e7eb] bg-white px-3 py-2"
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-[#1A1A1A]">
+                                  {invite.email || "Invite link"}
+                                </p>
+                                <p className="text-xs text-[#6B7280]">
+                                  Expires {expiresOn.toLocaleDateString()} at {expiresOn.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                </p>
+                              </div>
+                              <span className="text-xs uppercase tracking-wide text-[#6B7280]">
+                                {invite.role}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-[#f7f7f7] rounded border border-[#d4d4d8] p-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -570,10 +677,11 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                 <div className="flex justify-end">
                   <Button
                     onClick={handleCopyInviteLink}
-                    className="bg-[#1a1a1a] text-white hover:bg-[#3D3D3D] text-sm px-3 py-1"
+                    disabled={isGeneratingInvite}
+                    className="bg-[#1a1a1a] text-white hover:bg-[#3D3D3D] text-sm px-3 py-1 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    <Copy className="w-3 h-3 mr-1" />
-                    Copy invite link
+                    {!isGeneratingInvite && <Copy className="w-3 h-3 mr-1" />}
+                    {isGeneratingInvite ? "Generating..." : "Generate invite link"}
                   </Button>
                 </div>
               </div>

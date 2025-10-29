@@ -1,5 +1,5 @@
 import {
-  pgTable, serial, integer, text, boolean, date, numeric, timestamp, jsonb, uuid, varchar
+  pgTable, serial, integer, text, boolean, date, numeric, timestamp, jsonb, uuid, varchar, uniqueIndex
 } from "drizzle-orm/pg-core";
 import { sql } from 'drizzle-orm';
 
@@ -13,6 +13,9 @@ export const organizations = pgTable('organizations', {
   type: text('type').notNull(),
   plan: text('plan'),
   seatLimit: integer('seat_limit'),
+  link: text('link'),
+  benefits: text('benefits'),
+  aboutCompany: text('about_company'),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
@@ -42,8 +45,12 @@ export const memberships = pgTable('memberships', {
   userId: integer('user_id').notNull(),
   orgId: integer('org_id').notNull(),
   role: text('role').notNull(),
+  status: text('status').default('active'),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
-});
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  membershipUserOrgUnique: uniqueIndex('memberships_user_org_unique').on(table.userId, table.orgId)
+}));
 
 export const employerProfiles = pgTable('employer_profiles', {
   id: serial('id').primaryKey(),
@@ -504,3 +511,19 @@ export const studentLinks = pgTable('student_links', {
   url: text('url').notNull(),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
+export const organizationInvites = pgTable('organization_invites', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: integer('org_id').references(() => organizations.id).notNull(),
+  email: varchar('email', { length: 255 }),
+  role: varchar('role', { length: 50 }).default('member').notNull(),
+  token: varchar('token', { length: 255 }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: false }).default(sql`CURRENT_TIMESTAMP + interval '7 day'`).notNull(),
+  accepted: boolean('accepted').default(false).notNull(),
+  invitedBy: integer('invited_by').references(() => users.id),
+  acceptedAt: timestamp('accepted_at', { withTimezone: false }),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+}, (table) => ({
+  inviteTokenUnique: uniqueIndex('organization_invites_token_unique').on(table.token)
+}));
