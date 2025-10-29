@@ -37,6 +37,8 @@ import {
   Plus,
   Trash2,
   Settings,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import CommandPalette from "@/components/CommandPalette";
@@ -177,6 +179,7 @@ export default function ApplicationDetailPage() {
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>("");
   const [dueAt, setDueAt] = useState<string>("");
   const [assignSubmitting, setAssignSubmitting] = useState(false);
+  const [isCandidateDetailsExpanded, setIsCandidateDetailsExpanded] = useState(false);
   const orgIdForAssessments = org?.id ?? null;
 
   useEffect(() => {
@@ -865,7 +868,17 @@ export default function ApplicationDetailPage() {
             {/* Candidate Details (NEW) */}
             <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-medium text-gray-900">Candidate details</h2>
+                <button
+                  onClick={() => setIsCandidateDetailsExpanded(!isCandidateDetailsExpanded)}
+                  className="flex items-center gap-2 text-lg font-medium text-gray-900 hover:text-gray-700 transition-colors"
+                >
+                  <span>Candidate details</span>
+                  {isCandidateDetailsExpanded ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </button>
                 {application.resumeS3Key ? (
                   <Button variant="outline" size="sm" onClick={handleDownloadResume}>
                     Download Resume {application.resumeFilename ? `(${application.resumeFilename})` : ""}
@@ -873,7 +886,43 @@ export default function ApplicationDetailPage() {
                 ) : null}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Summary view when collapsed */}
+              {!isCandidateDetailsExpanded && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
+                  <div>
+                    <div className="text-xs text-gray-500">Name</div>
+                    <div className="text-sm text-gray-900">{application.applicantName || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Email</div>
+                    <div className="text-sm text-gray-900">{application.applicantEmail}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Phone</div>
+                    <div className="text-sm text-gray-900">{application.phone || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Location</div>
+                    <div className="text-sm text-gray-900">
+                      {[application.city, application.province, application.location].filter(Boolean).join(", ") || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">University</div>
+                    <div className="text-sm text-gray-900">
+                      {application.university || application.applicantUniversityName || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Experience</div>
+                    <div className="text-sm text-gray-900">{application.experienceYears || "—"}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Full details when expanded */}
+              {isCandidateDetailsExpanded && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Basics */}
                 <div>
                   <div className="text-xs text-gray-500">Name</div>
@@ -1018,7 +1067,8 @@ export default function ApplicationDetailPage() {
                     {application.gpa ? `${application.gpa}${application.gpaScale ? ` / ${application.gpaScale}` : ""}` : "—"}
                   </div>
                 </div>
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Assigned Assessments */}
