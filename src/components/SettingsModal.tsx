@@ -674,15 +674,45 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                 </div>
 
                 {/* Copy Invite Link */}
-                <div className="flex justify-end">
-                  <Button
-                    onClick={handleCopyInviteLink}
-                    disabled={isGeneratingInvite}
-                    className="bg-[#1a1a1a] text-white hover:bg-[#3D3D3D] text-sm px-3 py-1 disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    {!isGeneratingInvite && <Copy className="w-3 h-3 mr-1" />}
-                    {isGeneratingInvite ? "Generating..." : "Generate invite link"}
-                  </Button>
+                <div className="space-y-3">
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleCopyInviteLink}
+                      disabled={isGeneratingInvite}
+                      className="bg-[#1a1a1a] text-white hover:bg-[#3D3D3D] text-sm px-3 py-1 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {!isGeneratingInvite && <Copy className="w-3 h-3 mr-1" />}
+                      {isGeneratingInvite ? "Generating..." : "Generate invite link"}
+                    </Button>
+                  </div>
+
+                  {/* Generated Invite Link Display */}
+                  {inviteLink && (
+                    <div className="bg-[#f7f7f7] rounded border border-[#d4d4d8] p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-[#6B7280] mb-1">Generated invite link:</p>
+                          <p className="text-sm text-[#1A1A1A] font-mono break-all">{inviteLink}</p>
+                        </div>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(inviteLink);
+                              toast.success("Link copied to clipboard");
+                            } catch (error) {
+                              console.error("Failed to copy link:", error);
+                              toast.error("Failed to copy link");
+                            }
+                          }}
+                          size="sm"
+                          className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white text-xs px-3 py-1 flex-shrink-0"
+                        >
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
