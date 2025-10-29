@@ -259,7 +259,7 @@ export default function InvitePage() {
               className="w-full bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
             >
               {joining ? "Joining..." : "Join Organization"}
-              {!joining && <ArrowRight className="w-4 h-4 ml-2" />
+              {!joining && <ArrowRight className="w-4 h-4 ml-2" />}
             </Button>
           </form>
 

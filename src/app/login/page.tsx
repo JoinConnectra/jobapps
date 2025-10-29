@@ -75,17 +75,6 @@ export default function LoginPage() {
     }
   }, [isPending, session?.user?.email, routeByRole]);
 
-  const checkUserAccountTypeAndRedirect = async () => {
-    try {
-      const dashboardUrl = await getDashboardUrl();
-      console.log("Redirecting to:", dashboardUrl);
-      router.push(dashboardUrl);
-    } catch (error) {
-      console.error("Error checking account type:", error);
-      // Fallback to dashboard on error
-      router.push("/dashboard");
-    }
-  };
 
   useEffect(() => {
     if (searchParams.get("registered") === "true") {
@@ -115,8 +104,24 @@ export default function LoginPage() {
       }
 
       toast.success("Login successful!");
-      // Use our custom redirect logic that handles university, employer, and applicant users
-      await checkUserAccountTypeAndRedirect();
+      
+      // Wait a moment for session to be established, then redirect
+      setTimeout(async () => {
+        try {
+          const { data: sessionData } = await authClient.getSession();
+          if (sessionData?.user?.email) {
+            console.log("Session found after login, redirecting...");
+            await routeByRole(sessionData.user.email);
+          } else {
+            console.log("No session found, using fallback redirect");
+            router.push("/student");
+          }
+        } catch (error) {
+          console.error("Error checking session after login:", error);
+          router.push("/student");
+        }
+        setIsLoading(false);
+      }, 1000);
     } catch (error) {
       toast.error("An unexpected error occurred");
       setIsLoading(false);

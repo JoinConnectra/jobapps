@@ -10,17 +10,13 @@ export async function getDashboardUrl(): Promise<string> {
     
     if (userResponse.ok) {
       const user = await userResponse.json();
-      console.log("User account type:", user.accountType);
       
       // Route based on user's account type
       if (user.accountType === 'university') {
-        console.log("Redirecting university user to university dashboard");
         return "/university/dashboard";
       } else if (user.accountType === 'applicant') {
-        console.log("Redirecting student/applicant to student dashboard");
         return "/student";
       } else if (user.accountType === 'employer') {
-        console.log("Redirecting employer to employer dashboard");
         return "/dashboard";
       }
     }

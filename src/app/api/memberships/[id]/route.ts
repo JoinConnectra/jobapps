@@ -73,6 +73,7 @@ export async function PATCH(
       .update(memberships)
       .set({
         role: role,
+        updatedAt: new Date(),
       })
       .where(eq(memberships.id, membershipId))
       .returning();

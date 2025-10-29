@@ -72,7 +72,9 @@ export async function POST(request: NextRequest) {
       userId: adminUserId,
       orgId: org[0].id,
       role: 'admin',
+    status: 'active',
       createdAt: now,
+    updatedAt: now,
     });
 
     return NextResponse.json({ ok: true, orgId: org[0].id });
