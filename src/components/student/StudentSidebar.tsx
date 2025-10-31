@@ -8,8 +8,10 @@ import {
   FileText,
   GraduationCap,
   Settings,
+  MessageSquare,
   HelpCircle,
   LogOut,
+  CalendarDays, // 👈 added
 } from "lucide-react";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
@@ -88,6 +90,8 @@ export default function StudentSidebar() {
     () => [
       { href: "/student/dashboard", label: "Dashboard", icon: Home },
       { href: "/student/jobs", label: "Jobs", icon: Briefcase },
+      { href: "/student/inbox", label: "Inbox", icon: MessageSquare },
+      { href: "/student/events", label: "Events", icon: CalendarDays }, // 👈 added
       { href: "/student/applications", label: "Applications", icon: FileText },
       { href: "/student/profile", label: "Profile", icon: GraduationCap },
       { href: "/student/settings", label: "Settings", icon: Settings },
