@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -15,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, GraduationCap } from "lucide-react";
 import Link from "next/link";
 
 export default function NewJobPage() {
@@ -24,6 +25,8 @@ export default function NewJobPage() {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [generatingJD, setGeneratingJD] = useState(false);
+  const [universities, setUniversities] = useState<{id: number; name: string; approved: boolean}[]>([]);
+  const [loadingUniversities, setLoadingUniversities] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     dept: "",
@@ -34,6 +37,34 @@ export default function NewJobPage() {
     visibility: 'public' as 'public' | 'institutions' | 'both',
     universityIds: [] as number[],
   });
+
+  // Fetch approved universities for this organization
+  useEffect(() => {
+    const fetchUniversities = async () => {
+      if (!params.id) return;
+      
+      setLoadingUniversities(true);
+      try {
+        const token = localStorage.getItem("bearer_token");
+        const response = await fetch(`/api/employer/universities?orgId=${params.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Only show approved universities
+          const approvedUniversities = data.filter((uni: any) => uni.approved);
+          setUniversities(approvedUniversities);
+        }
+      } catch (error) {
+        console.error("Failed to fetch universities:", error);
+      } finally {
+        setLoadingUniversities(false);
+      }
+    };
+
+    fetchUniversities();
+  }, [params.id]);
 
   const handleGenerateJD = async () => {
     if (!formData.title) {
@@ -290,6 +321,59 @@ export default function NewJobPage() {
                 Choose who can view/apply to this job.
               </p>
             </div>
+
+            {/* University Selection - Only show when institutions or both is selected */}
+            {(formData.visibility === 'institutions' || formData.visibility === 'both') && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <GraduationCap className="w-4 h-4 text-[#6a994e]" />
+                  <Label>Select Universities</Label>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Choose which universities can see this job posting.
+                </p>
+                
+                {loadingUniversities ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Loading universities...
+                  </div>
+                ) : universities.length > 0 ? (
+                  <div className="space-y-2 max-h-40 overflow-y-auto border border-[#d4d4d8] rounded-md p-3">
+                    {universities.map((university) => (
+                      <div key={university.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`university-${university.id}`}
+                          checked={formData.universityIds.includes(university.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setFormData({
+                                ...formData,
+                                universityIds: [...formData.universityIds, university.id]
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                universityIds: formData.universityIds.filter(id => id !== university.id)
+                              });
+                            }
+                          }}
+                        />
+                        <Label
+                          htmlFor={`university-${university.id}`}
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          {university.name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-sm text-muted-foreground border border-[#d4d4d8] rounded-md">
+                    No approved universities available. Please request access to universities in your organization settings first.
+                  </div>
+                )}
+              </div>
+            )}
 
               <div className="flex gap-3 pt-4">
                 <Button

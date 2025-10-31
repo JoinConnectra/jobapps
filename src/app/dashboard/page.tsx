@@ -28,6 +28,7 @@ import { useSession, authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useEmployerAuth } from "@/hooks/use-employer-auth";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -50,7 +51,7 @@ import { getRelativeTime } from "@/lib/time-utils";
 
 export default function DashboardPage() {
   // ---- Session & routing ----
-  const { data: session, isPending } = useSession();
+  const { session, isPending } = useEmployerAuth();
   const router = useRouter();
   const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } =
     useCommandPalette();
@@ -83,6 +84,7 @@ export default function DashboardPage() {
       router.push("/login");
     }
   }, [session, isPending, router]);
+
 
   /**
    * After login:
