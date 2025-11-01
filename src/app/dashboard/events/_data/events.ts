@@ -1,4 +1,4 @@
-import { CompanyEvent } from '../_types';
+/*import { CompanyEvent } from '../_types';
 
 export const events: CompanyEvent[] = [
   {
@@ -54,3 +54,4 @@ export const events: CompanyEvent[] = [
     featured: false,
   },
 ];
+*/

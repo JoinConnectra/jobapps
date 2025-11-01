@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CalendarDays, MapPin, Users, Eye, Edit3 } from 'lucide-react';
-import { CompanyEvent } from '../_types';
+import type { CompanyEvent } from '../_types';
 
 export function CompanyEventCard({
   event,
@@ -20,7 +20,6 @@ export function CompanyEventCard({
 }) {
   return (
     <Card className="h-full overflow-hidden transition-shadow hover:shadow-md flex flex-col">
-      {/* cover */}
       <div className="relative h-28 w-full">
         <Image src="/images/skans2.png" alt="cover" fill className="object-cover" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/10 to-transparent" />

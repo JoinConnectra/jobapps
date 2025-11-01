@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger
@@ -26,17 +26,16 @@ import {
 
 import { CompanyEventCard } from './_components/CompanyEventCard';
 import { EventComposer } from './_components/EventComposer';
-import { events as ALL_EVENTS } from './_data/events';
-import { CompanyEvent, EventStatus } from './_types';
+import type { CompanyEvent, EventOut, EventStatus, Medium } from './_types';
 
 type ViewMode = 'grid' | 'list';
 type SortKey = 'startSoon' | 'createdNew' | 'mostInterest';
 
 export default function EmployerEventsPage() {
-  // ---- Auth / Org for shell ----
   const { session, isPending } = useEmployerAuth();
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
 
+  // load employer org
   useEffect(() => {
     (async () => {
       if (!session?.user) return;
@@ -57,7 +56,7 @@ export default function EmployerEventsPage() {
     localStorage.removeItem('bearer_token');
   };
 
-  // ---- Page state ----
+  // page state
   const [q, setQ] = useState('');
   const [tab, setTab] = useState<EventStatus | 'all'>('all');
   const [view, setView] = useState<ViewMode>('grid');
@@ -66,37 +65,80 @@ export default function EmployerEventsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [composerOpen, setComposerOpen] = useState(false);
 
+  const [raw, setRaw] = useState<EventOut[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    if (!org?.id) return;
+    setLoading(true);
+    try {
+      const url = new URL('/api/events', window.location.origin);
+      url.searchParams.set('orgId', String(org.id));
+      if (tab !== 'all') url.searchParams.set('status', tab);
+
+      const r = await fetch(url.toString(), { cache: 'no-store' });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error || 'Failed to fetch');
+
+      setRaw(Array.isArray(j) ? j : []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // reload when tab or org changes
+  useEffect(() => {
+    load();
+  }, [org?.id, tab]);
+
+  // ✅ FIX — safe cast + defaults
+  const ALL_EVENTS: CompanyEvent[] = useMemo(() => {
+    return raw.map((e) => ({
+      id: String(e.id),
+      title: e.title,
+      medium: (e.medium as Medium) ?? 'IN_PERSON',
+      location: e.location ?? '',
+      startDate: e.start_at,
+      endDate: e.end_at ?? undefined,
+      status: (e.status as EventStatus) ?? 'draft',
+      createdAt: e.created_at ? new Date(e.created_at).getTime() : undefined,
+      interestCount: e.reg_count ?? e.attendees_count ?? 0,
+      tags: Array.isArray(e.tags) ? e.tags : [],
+      description: e.description ?? undefined,
+      featured: e.featured ?? false,
+    }));
+  }, [raw]);
+
   const filtered: CompanyEvent[] = useMemo(() => {
     const text = q.trim().toLowerCase();
-    let list = ALL_EVENTS
-      .filter(e => (tab === 'all' ? true : e.status === tab))
-      .filter(e => {
-        if (!text) return true;
-        return (
-          e.title.toLowerCase().includes(text) ||
-          e.location.toLowerCase().includes(text) ||
-          e.tags.some(t => t.toLowerCase().includes(text))
-        );
-      });
+    let list = ALL_EVENTS.filter(e => {
+      if (!text) return true;
+      return (
+        e.title.toLowerCase().includes(text) ||
+        (e.location ?? '').toLowerCase().includes(text) ||
+        e.tags.some(t => t.toLowerCase().includes(text))
+      );
+    });
 
-    // demo sort
     if (sort === 'startSoon') {
-      list = list.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      list = list.slice().sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
     } else if (sort === 'createdNew') {
-      list = list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      list = list.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     } else if (sort === 'mostInterest') {
-      list = list.sort((a, b) => (b.interestCount || 0) - (a.interestCount || 0));
+      list = list.slice().sort((a, b) => (b.interestCount || 0) - (a.interestCount || 0));
     }
 
     return list;
-  }, [q, tab, sort]);
+  }, [ALL_EVENTS, q, sort]);
 
   const counts = useMemo(() => {
-    const drafts = ALL_EVENTS.filter(e => e.status === 'draft').length;
-    const published = ALL_EVENTS.filter(e => e.status === 'published').length;
-    const past = ALL_EVENTS.filter(e => e.status === 'past').length;
-    return { drafts, published, past, all: ALL_EVENTS.length };
-  }, []);
+    const drafts = raw.filter(e => e.status === 'draft').length;
+    const published = raw.filter(e => e.status === 'published').length;
+    const past = raw.filter(e => e.status === 'past').length;
+    return { drafts, published, past, all: raw.length };
+  }, [raw]);
 
   const toggleSelect = (id: string, checked: boolean) => {
     setSelectedIds(prev => checked ? Array.from(new Set([...prev, id])) : prev.filter(x => x !== id));
@@ -136,7 +178,7 @@ export default function EmployerEventsPage() {
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          {/* Search + sort + view */}
+          {/* Search + sort */}
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -152,7 +194,11 @@ export default function EmployerEventsPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
                   <ArrowUpDown className="mr-2 h-4 w-4" />
-                  {sort === 'startSoon' ? 'Start date' : sort === 'createdNew' ? 'Recently created' : 'Most interest'}
+                  {sort === 'startSoon'
+                    ? 'Start date'
+                    : sort === 'createdNew'
+                    ? 'Recently created'
+                    : 'Most interest'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -164,13 +210,13 @@ export default function EmployerEventsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* View buttons */}
             <div className="ml-1 flex rounded-md border">
               <Button
                 type="button"
                 variant={view === 'grid' ? 'default' : 'ghost'}
                 className="rounded-none"
                 onClick={() => setView('grid')}
-                aria-label="Grid view"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
@@ -179,7 +225,6 @@ export default function EmployerEventsPage() {
                 variant={view === 'list' ? 'default' : 'ghost'}
                 className="rounded-none"
                 onClick={() => setView('list')}
-                aria-label="List view"
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -196,7 +241,7 @@ export default function EmployerEventsPage() {
             </TabsList>
           </Tabs>
 
-          {/* Filters + Bulk */}
+          {/* Filters / Bulk */}
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => setShowFilters(v => !v)}>
               <Filter className="mr-2 h-4 w-4" />
@@ -207,22 +252,16 @@ export default function EmployerEventsPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
                   <MoreHorizontal className="mr-2 h-4 w-4" />
-                  Bulk actions ({selectedIds.length})
+                  Bulk ({selectedIds.length})
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Selected</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => {/* hook up to API later */}}>
-                  <Globe2 className="mr-2 h-4 w-4" /> Publish
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {/* hook up to API later */}}>
-                  <Archive className="mr-2 h-4 w-4" /> Archive
-                </DropdownMenuItem>
+                <DropdownMenuItem><Globe2 className="mr-2 h-4 w-4" /> Publish</DropdownMenuItem>
+                <DropdownMenuItem><Archive className="mr-2 h-4 w-4" /> Archive</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive" onClick={() => {/* hook up to API later */}}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -244,7 +283,7 @@ export default function EmployerEventsPage() {
         )}
       </Card>
 
-      {/* ====== Select all on page ====== */}
+      {/* ====== Select all ====== */}
       {filtered.length > 0 && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3">
           <Checkbox
@@ -257,7 +296,9 @@ export default function EmployerEventsPage() {
       )}
 
       {/* ====== Results ====== */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <Card className="py-12 text-center text-sm text-muted-foreground">Loading…</Card>
+      ) : filtered.length === 0 ? (
         <Empty />
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mt-2">
@@ -315,8 +356,13 @@ export default function EmployerEventsPage() {
         </Card>
       )}
 
-      {/* ====== Composer dialog ====== */}
-      <EventComposer open={composerOpen} onOpenChange={setComposerOpen} />
+      {/* Composer Dialog */}
+      <EventComposer
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
+        orgId={org?.id ?? null}
+        onCreated={load}
+      />
     </DashboardShell>
   );
 }

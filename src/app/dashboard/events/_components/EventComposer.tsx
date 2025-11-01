@@ -7,15 +7,20 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { CompanyEvent } from '../_types';
+import type { CompanyEvent, EventStatus, Medium } from '../_types';
 
 export function EventComposer({
   open,
   onOpenChange,
+  orgId,
+  onCreated, // notify parent to refresh
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  orgId: number | null;
+  onCreated: () => void;
 }) {
+  const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Partial<CompanyEvent>>({
     title: '',
     medium: 'IN_PERSON',
@@ -25,10 +30,53 @@ export function EventComposer({
     tags: [],
     status: 'draft',
     featured: false,
+    description: '',
   });
 
+  async function handleSave() {
+    if (!orgId) return onOpenChange(false);
+
+    setSaving(true);
+    try {
+      // ✅ Only send columns that actually exist in your DB table
+      const body = {
+        org_id: orgId,
+        title: draft.title || '',
+        description: (draft.description as string) || null,
+        location: draft.location || null,
+        medium: (draft.medium as Medium) || 'IN_PERSON',
+        tags: draft.tags || [],
+        start_at: draft.startDate!,
+        end_at: draft.endDate || null,
+        featured: Boolean(draft.featured),
+        is_employer_hosted: true,
+        status: (draft.status as EventStatus) || 'draft',
+        // ⛔️ created_by removed (DB doesn’t have it)
+        // ⛔️ categories removed (DB doesn’t have it)
+      };
+
+      const r = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || 'Failed to create event');
+      }
+
+      onOpenChange(false);
+      onCreated();
+    } catch (e: any) {
+      alert(e?.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create event</DialogTitle>
@@ -56,7 +104,7 @@ export function EventComposer({
                 <SelectContent>
                   <SelectItem value="IN_PERSON">In-person</SelectItem>
                   <SelectItem value="VIRTUAL">Virtual</SelectItem>
-                  <SelectItem value="HYBRID">Hybrid</SelectItem>
+                  {/* Add HYBRID later if DB supports it */}
                 </SelectContent>
               </Select>
             </div>
@@ -97,7 +145,12 @@ export function EventComposer({
             <Input
               id="tags"
               value={(draft.tags || []).join(', ')}
-              onChange={(e) => setDraft({ ...draft, tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  tags: e.target.value.split(',').map(s => s.trim()).filter(Boolean),
+                })
+              }
               placeholder="e.g., networking, guidance"
             />
           </div>
@@ -106,7 +159,7 @@ export function EventComposer({
             <Label htmlFor="desc">Description (optional)</Label>
             <Textarea
               id="desc"
-              value={draft.description || ''}
+              value={(draft.description as string) || ''}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               placeholder="What should students know about this event?"
             />
@@ -114,14 +167,9 @@ export function EventComposer({
         </div>
 
         <DialogFooter className="mt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => {
-              // TODO: submit to API; for now, just close
-              onOpenChange(false);
-            }}
-          >
-            Save draft
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save draft'}
           </Button>
         </DialogFooter>
       </DialogContent>
