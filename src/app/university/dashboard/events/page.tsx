@@ -15,6 +15,8 @@ type UEvent = {
   location: string | null;
   startsAt: string;
 };
+//test
+
 
 export default function EventsPage() {
   const router = useRouter();
