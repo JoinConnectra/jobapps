@@ -25,14 +25,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 
+import { Badge } from '@/components/ui/badge';
 import { EventCard } from './_components/EventCard';
 import { Filters, FiltersState, defaultFilters } from './_components/Filters';
-import { events as ALL_EVENTS } from './_data/events';
-import { EventItem } from './_types';
+import type { EventItem, EventCategory, EventMedium } from './_types';
 
-/** --- Small helpers --- */
+// ✅ Fetch from API
+async function fetchEvents(): Promise<EventItem[]> {
+  const r = await fetch('/api/events', { cache: 'no-store' });
+  if (!r.ok) return [];
+  return await r.json();
+}
+
+// --- Helpers used in OLD logic ---
 function isToday(d: Date) {
   const n = new Date();
   return (
@@ -60,76 +66,112 @@ export default function StudentEventsPage() {
   const [view, setView] = useState<ViewMode>('grid');
   const [sort, setSort] = useState<SortKey>('soonest');
 
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // ✅ Fetch + normalize real DB events
+  const load = async () => {
+    setLoading(true);
+    try {
+      const live = await fetchEvents();
+
+      const normalized = (Array.isArray(live) ? live : []).map((e: any) => ({
+        id: String(e.id),
+        title: e.title ?? '',
+        employer: e.employer ?? 'Unknown employer',
+        featured: Boolean(e.featured),
+        isEmployerHosted: Boolean(e.is_employer_hosted ?? true),
+        medium: (e.medium as EventMedium) ?? 'IN_PERSON',
+        startDate: e.start_at,
+        endDate: e.end_at ?? undefined,
+        location: e.location ?? '',
+        tags: Array.isArray(e.tags) ? e.tags : [],
+        categories: Array.isArray(e.categories) ? e.categories : [],
+        attendeesCount: e.reg_count ?? e.attendees_count ?? 0,
+        checkIns: e.checkins_count ?? 0,
+        isSaved: Boolean(e.isSaved),
+        isRegistered: Boolean(e.isRegistered),
+      }));
+
+      setEvents(normalized);
+    } catch (e) {
+      console.error('Failed loading events:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setQ('');
-      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as any)?.tagName)) {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    load();
   }, []);
 
-  /** Featured up top (kept separate for the strip) */
-  const featured = useMemo(
-    () =>
-      ALL_EVENTS
-        .filter(e => e.featured)
-        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-        .slice(0, 8),
-    []
-  );
+  // ✅ Counts for old top tabs
+  const counts = useMemo(() => {
+    const saved = events.filter(e => e.isSaved).length;
+    const reg = events.filter(e => e.isRegistered).length;
+    const checkins = events.filter(e => e.checkIns > 0).length;
+    return { saved, reg, checkins, all: events.length };
+  }, [events]);
 
-  /** Main filtered list */
+  // ✅ Featured strip
+  const featured = useMemo(() => {
+    return events
+      .filter(e => e.featured)
+      .sort((a, b) => +new Date(a.startDate) - +new Date(b.startDate))
+      .slice(0, 8);
+  }, [events]);
+
+  // ✅ Filtering (same as old logic)
   const filtered: EventItem[] = useMemo(() => {
     const text = q.trim().toLowerCase();
 
-    let list = ALL_EVENTS
-      .filter(ev => {
-        if (tab === 'saved' && !ev.isSaved) return false;
-        if (tab === 'registered' && !ev.isRegistered) return false;
-        if (tab === 'checkins' && ev.checkIns === 0) return false;
-        return true;
-      })
-      .filter(ev => {
-        if (
-          text &&
-          !(
-            ev.title.toLowerCase().includes(text) ||
-            ev.employer.toLowerCase().includes(text) ||
-            ev.tags.some(t => t.toLowerCase().includes(text))
-          )
-        ) return false;
+    let list = events.filter((ev) => {
+      if (tab === 'saved' && !ev.isSaved) return false;
+      if (tab === 'registered' && !ev.isRegistered) return false;
+      if (tab === 'checkins' && ev.checkIns === 0) return false;
+      return true;
+    });
 
-        if (filters.category !== 'ALL' && !ev.categories.includes(filters.category)) return false;
-        if (filters.medium !== 'ANY' && ev.medium !== filters.medium) return false;
+    list = list.filter((ev) => {
+      if (
+        text &&
+        !(
+          ev.title.toLowerCase().includes(text) ||
+          ev.employer.toLowerCase().includes(text) ||
+          ev.tags.some(t => t.toLowerCase().includes(text))
+        )
+      ) return false;
 
-        if (filters.host === 'EMPLOYER' && !ev.isEmployerHosted) return false;
-        if (filters.host === 'CAREER_CENTER' && ev.isEmployerHosted) return false;
+      if (filters.category !== 'ALL' && !ev.categories.includes(filters.category)) return false;
+      if (filters.medium !== 'ANY' && ev.medium !== filters.medium) return false;
 
-        if (filters.featuredOnly && !ev.featured) return false;
+      if (filters.host === 'EMPLOYER' && !ev.isEmployerHosted) return false;
+      if (filters.host === 'CAREER_CENTER' && ev.isEmployerHosted) return false;
 
-        if (filters.employer && ev.employer.toLowerCase() !== filters.employer.toLowerCase()) return false;
+      if (filters.featuredOnly && !ev.featured) return false;
 
-        if (filters.dateRange !== 'ANY') {
-          const now = new Date();
-          const start = new Date(ev.startDate);
-          if (filters.dateRange === 'UPCOMING' && start < now) return false;
-          if (filters.dateRange === 'THIS_WEEK' && !isWithinDays(start, 7)) return false;
-          if (filters.dateRange === 'THIS_MONTH') {
-            const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            if (!(start >= now && start < end)) return false;
-          }
+      if (filters.employer && ev.employer.toLowerCase() !== filters.employer.toLowerCase())
+        return false;
+
+      if (filters.dateRange !== 'ANY') {
+        const now = new Date();
+        const start = new Date(ev.startDate);
+        if (filters.dateRange === 'UPCOMING' && start < now) return false;
+        if (filters.dateRange === 'THIS_WEEK' && !isWithinDays(start, 7)) return false;
+        if (filters.dateRange === 'THIS_MONTH') {
+          const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          if (!(start >= now && start < end)) return false;
         }
-        return true;
-      });
+      }
 
-    // Sort
+      return true;
+    });
+
+    // ✅ Sort
     if (sort === 'soonest') {
-      list = list.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+      list = list.sort((a, b) => +new Date(a.startDate) - +new Date(b.startDate));
     } else if (sort === 'mostPopular') {
       list = list.sort((a, b) => (b.attendeesCount ?? 0) - (a.attendeesCount ?? 0));
     } else if (sort === 'featured') {
@@ -137,44 +179,9 @@ export default function StudentEventsPage() {
     }
 
     return list;
-  }, [q, filters, tab, sort]);
+  }, [q, filters, tab, sort, events]);
 
-  /** Counts */
-  const counts = useMemo(() => {
-    const saved = ALL_EVENTS.filter(e => e.isSaved).length;
-    const reg = ALL_EVENTS.filter(e => e.isRegistered).length;
-    const checkins = ALL_EVENTS.filter(e => e.checkIns > 0).length;
-    return { saved, reg, checkins, all: ALL_EVENTS.length };
-  }, []);
-
-  /** Active filter chips (for quick clearing) */
-  const activeChips = useMemo(() => {
-    const chips: { key: string; label: string; onClear: () => void }[] = [];
-    if (q.trim()) chips.push({ key: 'q', label: `Search: "${q.trim()}"`, onClear: () => setQ('') });
-    if (filters.category !== 'ALL')
-      chips.push({ key: 'cat', label: `Category: ${filters.category}`, onClear: () => setFilters({ ...filters, category: 'ALL' }) });
-    if (filters.medium !== 'ANY')
-      chips.push({ key: 'med', label: `Medium: ${filters.medium.replace('_', ' ')}`, onClear: () => setFilters({ ...filters, medium: 'ANY' }) });
-    if (filters.host !== 'ANY')
-      chips.push({
-        key: 'host',
-        label: filters.host === 'EMPLOYER' ? 'Employer hosted' : 'Career center',
-        onClear: () => setFilters({ ...filters, host: 'ANY' }),
-      });
-    if (filters.dateRange !== 'ANY')
-      chips.push({
-        key: 'date',
-        label: `Date: ${filters.dateRange.replace('_', ' ')}`,
-        onClear: () => setFilters({ ...filters, dateRange: 'ANY' }),
-      });
-    if (filters.featuredOnly)
-      chips.push({ key: 'feat', label: 'Featured only', onClear: () => setFilters({ ...filters, featuredOnly: false }) });
-    if (filters.employer)
-      chips.push({ key: 'emp', label: `Employer: ${filters.employer}`, onClear: () => setFilters({ ...filters, employer: '' }) });
-    return chips;
-  }, [q, filters]);
-
-  /** Date buckets for readability */
+  // ✅ Bucket into Today / Week / Later
   const { today, thisWeek, later } = useMemo(() => {
     const t: EventItem[] = [];
     const w: EventItem[] = [];
@@ -186,18 +193,18 @@ export default function StudentEventsPage() {
       else if (isWithinDays(d, 7)) w.push(ev);
       else l.push(ev);
     });
+
     return { today: t, thisWeek: w, later: l };
   }, [filtered]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 space-y-6">
-      {/* Header */}
+      {/* ✅ Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Events</h1>
           <p className="text-sm text-muted-foreground">
-            Discover career fairs, employer info sessions, and guidance events. Press{' '}
-            <kbd className="rounded border px-1 text-xs">/</kbd> to search.
+            Discover career fairs, employer info sessions, and guidance events.
           </p>
         </div>
 
@@ -213,7 +220,7 @@ export default function StudentEventsPage() {
         </div>
       </div>
 
-      {/* Sticky toolbar */}
+      {/* ✅ Sticky top toolbar */}
       <Card className="sticky top-2 z-10 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-medium">Browse</CardTitle>
@@ -233,9 +240,8 @@ export default function StudentEventsPage() {
               />
               {q && (
                 <button
-                  className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
                   onClick={() => setQ('')}
-                  aria-label="Clear search"
+                  className="absolute right-2 top-2.5 hover:text-foreground text-muted-foreground"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -247,7 +253,11 @@ export default function StudentEventsPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
                   <ArrowUpDown className="mr-2 h-4 w-4" />
-                  {sort === 'soonest' ? 'Soonest first' : sort === 'mostPopular' ? 'Most popular' : 'Featured first'}
+                  {sort === 'soonest'
+                    ? 'Soonest first'
+                    : sort === 'mostPopular'
+                    ? 'Most popular'
+                    : 'Featured first'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -259,32 +269,28 @@ export default function StudentEventsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* View toggle */}
+            {/* View buttons */}
             <div className="ml-1 flex rounded-md border">
               <Button
-                type="button"
                 variant={view === 'grid' ? 'default' : 'ghost'}
-                className="rounded-none"
                 onClick={() => setView('grid')}
-                aria-label="Grid view"
+                className="rounded-none"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
               <Button
-                type="button"
                 variant={view === 'list' ? 'default' : 'ghost'}
-                className="rounded-none"
                 onClick={() => setView('list')}
-                aria-label="List view"
+                className="rounded-none"
               >
                 <List className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {/* Status tabs with counts */}
-          <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full md:w-auto">
-            <TabsList className="grid w-full grid-cols-4 md:w-auto md:grid-cols-4">
+          {/* Tabs with counts */}
+          <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+            <TabsList className="grid grid-cols-4 md:grid-cols-4">
               <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
               <TabsTrigger value="saved">Saved ({counts.saved})</TabsTrigger>
               <TabsTrigger value="registered">Registered ({counts.reg})</TabsTrigger>
@@ -298,39 +304,31 @@ export default function StudentEventsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <QuickChip
               active={filters.category === 'FAIR'}
-              onClick={() =>
-                setFilters({ ...filters, category: filters.category === 'FAIR' ? 'ALL' : 'FAIR' })
-              }
+              onClick={() => setFilters({ ...filters, category: filters.category === 'FAIR' ? 'ALL' : 'FAIR' })}
               label="Career fairs"
             />
             <QuickChip
               active={filters.host === 'CAREER_CENTER'}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  host: filters.host === 'CAREER_CENTER' ? 'ANY' : 'CAREER_CENTER',
-                })
-              }
+              onClick={() => setFilters({
+                ...filters,
+                host: filters.host === 'CAREER_CENTER' ? 'ANY' : 'CAREER_CENTER',
+              })}
               label="Career center"
             />
             <QuickChip
               active={filters.host === 'EMPLOYER'}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  host: filters.host === 'EMPLOYER' ? 'ANY' : 'EMPLOYER',
-                })
-              }
+              onClick={() => setFilters({
+                ...filters,
+                host: filters.host === 'EMPLOYER' ? 'ANY' : 'EMPLOYER',
+              })}
               label="Employer hosted"
             />
             <QuickChip
               active={filters.medium === 'VIRTUAL'}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  medium: filters.medium === 'VIRTUAL' ? 'ANY' : 'VIRTUAL',
-                })
-              }
+              onClick={() => setFilters({
+                ...filters,
+                medium: filters.medium === 'VIRTUAL' ? 'ANY' : 'VIRTUAL',
+              })}
               label="Virtual"
             />
             <QuickChip
@@ -355,47 +353,22 @@ export default function StudentEventsPage() {
           <>
             <Separator />
             <CardContent>
-              <Filters value={filters} onChange={setFilters} />
+              <Filters value={filters} onChange={setFilters} allEvents={events} />
             </CardContent>
           </>
         )}
       </Card>
 
-      {/* Active filter chips */}
-      {activeChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {activeChips.map(c => (
-            <Badge key={c.key} variant="secondary" className="flex items-center gap-1">
-              {c.label}
-              <button onClick={c.onClear} className="ml-1 hover:opacity-80" aria-label="Clear">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </Badge>
-          ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setQ('');
-              setFilters(defaultFilters);
-            }}
-          >
-            Clear all
-          </Button>
-        </div>
-      )}
-
-      {/* Featured strip */}
+      {/* ✅ Featured strip */}
       {featured.length > 0 && tab === 'all' && !filters.featuredOnly && (
         <section>
           <div className="mb-2 flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-primary" />
             <h2 className="text-sm font-semibold">Featured this month</h2>
           </div>
-          <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1 snap-x">
+          <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
             {featured.map(ev => (
               <div key={ev.id} className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start">
-                {/* Ensure full height card in strip too */}
                 <EventCard event={ev} />
               </div>
             ))}
@@ -403,7 +376,7 @@ export default function StudentEventsPage() {
         </section>
       )}
 
-      {/* Results, bucketed by when */}
+      {/* ✅ Bucketed results */}
       <Tabs value={tab} className="mt-2">
         <TabsContent value="all" className="space-y-6">
           <ResultBuckets view={view} today={today} thisWeek={thisWeek} later={later} />
@@ -443,8 +416,7 @@ export default function StudentEventsPage() {
   );
 }
 
-/** --- UI Bits --- */
-
+/** --- UI helpers from old code --- */
 function QuickChip({
   active,
   label,
@@ -481,9 +453,7 @@ function ResultBuckets({
   emptyTitle?: string;
 }) {
   const hasAny = today.length + thisWeek.length + later.length > 0;
-
   if (!hasAny) return <EmptyState title={emptyTitle} />;
-
   return (
     <>
       <Bucket title="Today" items={today} view={view} />
@@ -503,15 +473,13 @@ function Bucket({
   view: ViewMode;
 }) {
   if (!items || items.length === 0) return null;
-
   return (
     <section>
       <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{title}</h3>
       <div
         className={
           view === 'grid'
-            ? // equal-height cards in grid
-              'grid grid-cols-1 gap-4 md:grid-cols-2 auto-rows-[1fr] items-stretch'
+            ? 'grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-[1fr] items-stretch'
             : 'grid grid-cols-1 gap-3'
         }
       >
@@ -525,7 +493,7 @@ function Bucket({
   );
 }
 
-function EmptyState({ title = 'No events match your filters' }: { title?: string }) {
+function EmptyState({ title }: { title: string }) {
   return (
     <div className="rounded-lg border bg-card text-card-foreground p-10 text-center">
       <p className="text-base font-semibold">{title}</p>
