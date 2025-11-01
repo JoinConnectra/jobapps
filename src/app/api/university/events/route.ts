@@ -1,42 +1,95 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { universityEvents } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase";
 
+/**
+ * GET /api/university/events?orgId=123&status=upcoming|past|all&q=...
+ * Reads from the single `events` table.
+ */
 export async function GET(request: NextRequest) {
   try {
-    const orgIdParam = request.nextUrl.searchParams.get('orgId');
-    if (!orgIdParam) return NextResponse.json({ error: 'orgId required' }, { status: 400 });
-    const orgId = parseInt(orgIdParam);
-    const rows = await db.select().from(universityEvents).where(eq(universityEvents.universityOrgId, orgId));
-    return NextResponse.json(rows);
-  } catch (e) {
-    console.error('GET university events error:', e);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const orgIdParam = request.nextUrl.searchParams.get("orgId");
+    const orgId = orgIdParam ? Number(orgIdParam) : null;
+
+    const q = (request.nextUrl.searchParams.get("q") || "").toLowerCase();
+    const status = (request.nextUrl.searchParams.get("status") || "all") as
+      | "upcoming"
+      | "past"
+      | "all";
+
+    // 1) employer-hosted, published (global feed)
+    const { data: employerRows, error: employerErr } = await supabaseAdmin
+      .from("events")
+      .select("*")
+      .eq("is_employer_hosted", true)
+      .eq("status", "published");
+
+    if (employerErr) {
+      return NextResponse.json({ error: employerErr.message }, { status: 500 });
+    }
+
+    // 2) this university’s own events (same table), optional
+    let uniRows: any[] = [];
+    if (orgId) {
+      const { data, error } = await supabaseAdmin
+        .from("events")
+        .select("*")
+        .eq("is_employer_hosted", false)
+        .eq("org_id", orgId);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      uniRows = data || [];
+    }
+
+    // Map to client shape
+    type Host = "EMPLOYER" | "UNIVERSITY";
+
+const mapRow = (e: any, host: Host) => ({
+  id: e.id,
+  title: e.title,
+  description: e.description ?? null,
+  location: e.location ?? null,
+  startsAt: e.start_at,
+  endsAt: e.end_at ?? null,
+  medium: e.medium ?? null,
+  tags: e.tags ?? null,
+  categories: e.categories ?? null,
+  featured: !!e.featured,
+  status: e.status ?? null,
+  is_employer_hosted: !!e.is_employer_hosted,
+  _host: host, // ✅ no `as const`
+});
+
+
+    let merged = [
+      ...(employerRows || []).map((e) => mapRow(e, "EMPLOYER")),
+      ...uniRows.map((e) => mapRow(e, "UNIVERSITY")),
+    ];
+
+    // status filter
+    if (status !== "all") {
+      const now = new Date();
+      merged =
+        status === "upcoming"
+          ? merged.filter((r) => new Date(r.startsAt) >= now)
+          : merged.filter((r) => new Date(r.startsAt) < now);
+    }
+
+    // q filter
+    if (q) {
+      const match = (s?: string | null) => (s || "").toLowerCase().includes(q);
+      merged = merged.filter(
+        (r) => match(r.title) || match(r.description) || match(r.location)
+      );
+    }
+
+    // sort by start time
+    merged.sort(
+      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+    );
+
+    return NextResponse.json(merged);
+  } catch (e: any) {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { universityOrgId, title, description, location, startsAt, endsAt } = body;
-    if (!universityOrgId || !title || !startsAt) return NextResponse.json({ error: 'missing fields' }, { status: 400 });
-    const now = new Date();
-    const inserted = await db.insert(universityEvents).values({
-      universityOrgId,
-      title,
-      description: description || null,
-      location: location || null,
-      startsAt: new Date(startsAt),
-      endsAt: endsAt ? new Date(endsAt) : null,
-      createdAt: now,
-      updatedAt: now,
-    }).returning();
-    return NextResponse.json(inserted[0], { status: 201 });
-  } catch (e) {
-    console.error('POST university events error:', e);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-

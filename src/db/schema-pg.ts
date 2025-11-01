@@ -527,3 +527,45 @@ export const organizationInvites = pgTable('organization_invites', {
 }, (table) => ({
   inviteTokenUnique: uniqueIndex('organization_invites_token_unique').on(table.token)
 }));
+
+// ---- Events core ----
+export const events = pgTable('events', {
+  id: serial('id').primaryKey(),
+  orgId: integer('org_id').notNull(), // FK → organizations.id (enforce via SQL migration if needed)
+  title: text('title').notNull(),
+  description: text('description'),
+  location: text('location'),
+  medium: text('medium').$type<'VIRTUAL' | 'IN_PERSON'>().default('IN_PERSON'),
+  categories: text('categories').array().notNull().default(sql`'{}'`),
+  tags: text('tags').array().notNull().default(sql`'{}'`),
+  startAt: timestamp('start_at', { withTimezone: false }).notNull(),
+  endAt: timestamp('end_at', { withTimezone: false }),
+  featured: boolean('featured').default(false).notNull(),
+  isEmployerHosted: boolean('is_employer_hosted').default(true).notNull(),
+  status: text('status').$type<'draft' | 'published' | 'past'>().default('draft').notNull(),
+  attendeesCount: integer('attendees_count').default(0).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const eventRegistrations = pgTable('event_registrations', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull(),
+  userEmail: text('user_email').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const eventSaves = pgTable('event_saves', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull(),
+  userEmail: text('user_email').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const eventCheckins = pgTable('event_checkins', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull(),
+  userEmail: text('user_email').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+});

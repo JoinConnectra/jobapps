@@ -1,3 +1,4 @@
+// src/app/student/events/_components/Filters.tsx
 'use client';
 
 import React from 'react';
@@ -25,15 +26,17 @@ export const defaultFilters: FiltersState = {
   employer: '',
 };
 
-type Props = {
+export function Filters({
+  value,
+  onChange,
+  allEvents,
+}: {
   value: FiltersState;
   onChange: (v: FiltersState) => void;
   allEvents?: EventItem[];
-};
-
-export function Filters({ value, onChange, allEvents }: Props) {
+}) {
   const employers = Array.from(
-    new Set((allEvents ?? []).map(e => e.employer).filter(Boolean))
+    new Set((allEvents ?? []).map((e) => e.employer).filter(Boolean))
   ).sort();
 
   return (
@@ -43,9 +46,13 @@ export function Filters({ value, onChange, allEvents }: Props) {
         <Label>Category</Label>
         <Select
           value={value.category}
-          onValueChange={(v) => onChange({ ...value, category: v as FiltersState['category'] })}
+          onValueChange={(v) =>
+            onChange({ ...value, category: v as FiltersState['category'] })
+          }
         >
-          <SelectTrigger><SelectValue placeholder="All categories" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="All categories" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All</SelectItem>
             <SelectItem value="GUIDANCE">Guidance</SelectItem>
@@ -63,9 +70,13 @@ export function Filters({ value, onChange, allEvents }: Props) {
         <Label>Medium</Label>
         <Select
           value={value.medium}
-          onValueChange={(v) => onChange({ ...value, medium: v as FiltersState['medium'] })}
+          onValueChange={(v) =>
+            onChange({ ...value, medium: v as FiltersState['medium'] })
+          }
         >
-          <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Any" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="ANY">Any</SelectItem>
             <SelectItem value="IN_PERSON">In-person</SelectItem>
@@ -80,13 +91,17 @@ export function Filters({ value, onChange, allEvents }: Props) {
         <Label>Host</Label>
         <Select
           value={value.host}
-          onValueChange={(v) => onChange({ ...value, host: v as FiltersState['host'] })}
+          onValueChange={(v) =>
+            onChange({ ...value, host: v as FiltersState['host'] })
+          }
         >
-          <SelectTrigger><SelectValue placeholder="Any host" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Any host" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="ANY">Any</SelectItem>
-            <SelectItem value="EMPLOYER">Events hosted by employers</SelectItem>
-            <SelectItem value="CAREER_CENTER">Career center events</SelectItem>
+            <SelectItem value="EMPLOYER">Employer hosted</SelectItem>
+            <SelectItem value="CAREER_CENTER">Career center</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -96,9 +111,13 @@ export function Filters({ value, onChange, allEvents }: Props) {
         <Label>Date</Label>
         <Select
           value={value.dateRange}
-          onValueChange={(v) => onChange({ ...value, dateRange: v as FiltersState['dateRange'] })}
+          onValueChange={(v) =>
+            onChange({ ...value, dateRange: v as FiltersState['dateRange'] })
+          }
         >
-          <SelectTrigger><SelectValue placeholder="Any date" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Any date" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="ANY">Any</SelectItem>
             <SelectItem value="UPCOMING">Upcoming</SelectItem>
@@ -108,27 +127,27 @@ export function Filters({ value, onChange, allEvents }: Props) {
         </Select>
       </div>
 
-      {/* Employer */}
+      {/* Employer Search */}
       <div className="space-y-2">
         <Label>Employer</Label>
-        {/* If you prefer a Select list, switch Input to Select using `employers` */}
         <Input
           placeholder="Exact employer name"
           value={value.employer}
-          onChange={(e) => onChange({ ...value, employer: e.target.value })}
+          onChange={(e) =>
+            onChange({ ...value, employer: e.target.value })
+          }
         />
       </div>
 
       {/* Featured only */}
-      <div className="space-y-2">
-        <Label className="flex items-center gap-2">
-          <Switch
-            checked={value.featuredOnly}
-            onCheckedChange={(checked) => onChange({ ...value, featuredOnly: checked })}
-          />
-          Featured only
-        </Label>
-        <p className="text-xs text-muted-foreground">Show only “Featured employer” events.</p>
+      <div className="space-y-2 flex items-center gap-2 mt-6">
+        <Switch
+          checked={value.featuredOnly}
+          onCheckedChange={(checked) =>
+            onChange({ ...value, featuredOnly: checked })
+          }
+        />
+        <Label>Featured only</Label>
       </div>
     </div>
   );

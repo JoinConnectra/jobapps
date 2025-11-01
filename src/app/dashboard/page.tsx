@@ -39,6 +39,7 @@ import {
   HelpCircle,
   UserPlus,
   LogOut,
+  CalendarDays,
   Bell,
   Send,
   ListChecks, // Icon for "Assessments" entry
@@ -294,7 +295,14 @@ export default function DashboardPage() {
               <ListChecks className="w-4 h-4 mr-3" />
               Assessments
             </Button>
-
+              <Button
+  variant="ghost"
+  className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
+  onClick={() => router.push("/dashboard/events")}
+>
+  <CalendarDays className="w-4 h-4 mr-3" />
+  Events
+</Button>
             <Button
   variant="ghost"
   className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
@@ -303,6 +311,8 @@ export default function DashboardPage() {
   <BarChartIcon className="w-4 h-4 mr-3" />
   KPI · Insights
 </Button>
+
+
           </nav>
         </div>
 
