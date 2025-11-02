@@ -50,6 +50,7 @@ import { authClient } from "@/lib/auth-client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import CommandPalette from "@/components/CommandPalette";
 import SettingsModal from "@/components/SettingsModal";
+import CompanySidebar from "@/components/company/CompanySidebar";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 
 /** Basic Job shape returned from API */
@@ -441,120 +442,14 @@ export default function AllJobsPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
-      {/* ------------------------------------------------------------------
-          LEFT SIDEBAR
-          Consistent with other dashboard pages: org title, quick create,
-          primary nav (Activities, Jobs, Assessments), and user tools.
-      ------------------------------------------------------------------ */}
-      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
-        <div className="p-6">
-          {/* Organization Name */}
-          <div className="flex items-center gap-2 mb-6">
-            {org?.logoUrl ? (
-              <img
-                src={org.logoUrl}
-                alt={`${org.name} logo`}
-                className="w-7 h-7 rounded object-cover flex-shrink-0"
-              />
-            ) : null}
-            <div className="text-xl font-display font-bold text-gray-900">
-              {org?.name || "forshadow"}
-            </div>
-          </div>
-
-          {/* Shortcut: Create job button */}
-          <Button
-            onClick={() => router.push("/dashboard/jobs?create=1")}
-            className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0"
-          >
-            + Create a Job
-          </Button>
-
-          {/* Primary nav */}
-          <nav className="space-y-1">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              onClick={() => router.push("/dashboard")}
-            >
-              <Bell className="w-4 h-4 mr-3" />
-              Activities
-            </Button>
-
-            {/* This page (Jobs) is active-styled */}
-            <Button className="w-full justify-start text-gray-700 bg-[#F5F1E8] text-gray-900" variant="ghost">
-              <Briefcase className="w-4 h-4 mr-3" />
-              Jobs
-            </Button>
-
-            {/* Link to org-scoped Assessments page */}
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              onClick={() => router.push(`/dashboard/organizations/${org?.id}/assessments`)}
-            >
-              <ListChecks className="w-4 h-4 mr-3" />
-              Assessments
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              onClick={() => router.push("/dashboard/kpi/insights")}
-            >
-              <BarChartIcon className="w-4 h-4 mr-3" />
-              KPI · Insights
-            </Button>
-          </nav>
-        </div>
-
-        {/* Bottom utilities (search, help, invite, logout) + user avatar */}
-        <div className="mt-auto p-6 border-t border-gray-200">
-          <div className="space-y-3">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-500 text-sm"
-              onClick={openCommandPalette}
-            >
-              <Search className="w-4 h-4 mr-3" />
-              Search
-              <span className="ml-auto text-xs">⌘K</span>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
-              <HelpCircle className="w-4 h-4 mr-3" />
-              Help & Support
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
-              <UserPlus className="w-4 h-4 mr-3" />
-              Invite people
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-500 text-sm"
-              onClick={handleSignOut}
-            >
-              <LogOut className="w-4 h-4 mr-3" />
-              Log out
-            </Button>
-          </div>
-
-          <div className="mt-6 flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-              <span className="text-white text-sm font-medium">{session.user.name?.charAt(0)}</span>
-            </div>
-            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-              title="Settings"
-              onClick={() => setIsSettingsOpen(true)}
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </aside>
+      {/* Left Sidebar - Reusable Component */}
+      <CompanySidebar
+        org={org}
+        user={session.user}
+        onSignOut={handleSignOut}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        active="jobs"
+      />
 
       {/* ------------------------------------------------------------------
           MAIN CONTENT
