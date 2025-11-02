@@ -13,6 +13,8 @@ export default function RegisterStep2Page() {
   
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -27,7 +29,53 @@ export default function RegisterStep2Page() {
     }
   }, [accountType, router]);
 
-  const handleContinue = () => {
+  const checkEmailExists = async (email: string): Promise<boolean> => {
+    if (!email || !email.includes("@")) {
+      setEmailError("");
+      return false;
+    }
+
+    setIsCheckingEmail(true);
+    setEmailError("");
+
+    try {
+      const response = await fetch(`/api/users/check-email?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+
+      if (data.exists) {
+        setEmailError("An account with this email already exists. Please sign in instead.");
+        setIsCheckingEmail(false);
+        return true;
+      } else {
+        setEmailError("");
+        setIsCheckingEmail(false);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking email:", error);
+      setIsCheckingEmail(false);
+      // Don't block registration if check fails, just log error
+      return false;
+    }
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value;
+    setFormData({ ...formData, email: newEmail });
+    
+    // Clear error when user starts typing
+    if (emailError) {
+      setEmailError("");
+    }
+  };
+
+  const handleEmailBlur = () => {
+    if (formData.email) {
+      checkEmailExists(formData.email);
+    }
+  };
+
+  const handleContinue = async () => {
     // Validate form - EXACTLY like the original registration
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       toast.error('Please fill in all required fields');
@@ -42,6 +90,19 @@ export default function RegisterStep2Page() {
     if (formData.password.length < 8) {
       toast.error('Password must be at least 8 characters long');
       return;
+    }
+
+    // Check email before continuing
+    if (emailError) {
+      toast.error('Please fix the email error before continuing');
+      return;
+    }
+
+    // Double-check email one more time before proceeding
+    const emailExists = await checkEmailExists(formData.email);
+    if (emailExists) {
+      toast.error('An account with this email already exists. Please sign in instead.');
+      return; // Don't proceed if email exists
     }
 
     // Navigate to step 3 with form data
@@ -126,10 +187,25 @@ export default function RegisterStep2Page() {
                 autoComplete="email"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full h-10 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm"
+                onChange={handleEmailChange}
+                onBlur={handleEmailBlur}
+                className={`w-full h-10 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 transition-all text-sm ${
+                  emailError
+                    ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                    : "border-border focus:ring-primary focus:border-transparent"
+                } ${isCheckingEmail ? "opacity-50" : ""}`}
                 placeholder="you@example.com"
+                disabled={isCheckingEmail}
               />
+              {emailError && (
+                <p className="text-sm text-red-600 flex items-center gap-1">
+                  <span>⚠️</span>
+                  <span>{emailError}</span>
+                </p>
+              )}
+              {isCheckingEmail && !emailError && (
+                <p className="text-xs text-muted-foreground">Checking email...</p>
+              )}
             </div>
 
             {/* Phone */}

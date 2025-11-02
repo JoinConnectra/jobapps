@@ -37,10 +37,13 @@ import {
   Plus,
   Trash2,
   Settings,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import CommandPalette from "@/components/CommandPalette";
 import SettingsModal from "@/components/SettingsModal";
+import CompanySidebar from "@/components/company/CompanySidebar";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 
 interface Application {
@@ -162,7 +165,7 @@ export default function ApplicationDetailPage() {
   const [playingAnswer, setPlayingAnswer] = useState<number | null>(null);
   const [audioElements, setAudioElements] = useState<Record<number, HTMLAudioElement>>({});
   const [currentTime, setCurrentTime] = useState<Record<number, number>>({});
-  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
   const [reactions, setReactions] = useState<Record<number, Reaction[]>>({});
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [newComment, setNewComment] = useState<Record<number, string>>({});
@@ -177,6 +180,7 @@ export default function ApplicationDetailPage() {
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>("");
   const [dueAt, setDueAt] = useState<string>("");
   const [assignSubmitting, setAssignSubmitting] = useState(false);
+  const [isCandidateDetailsExpanded, setIsCandidateDetailsExpanded] = useState(false);
   const orgIdForAssessments = org?.id ?? null;
 
   useEffect(() => {
@@ -221,12 +225,12 @@ export default function ApplicationDetailPage() {
       const orgResp = await fetch("/api/organizations?mine=true", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (orgResp.ok) {
-        const orgs = await orgResp.json();
-        if (Array.isArray(orgs) && orgs.length > 0) {
-          setOrg(orgs[0]);
+        if (orgResp.ok) {
+          const orgs = await orgResp.json();
+          if (Array.isArray(orgs) && orgs.length > 0) {
+            setOrg({ id: orgs[0].id, name: orgs[0].name, logoUrl: orgs[0].logoUrl });
+          }
         }
-      }
     } catch (error) {
       console.error("Failed to fetch org:", error);
     }
@@ -640,106 +644,14 @@ export default function ApplicationDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
-      {/* Left Sidebar */}
-      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
-        <div className="p-6">
-          <div className="text-xl font-display font-bold text-gray-900 mb-6">
-            {org?.name || "forshadow"}
-          </div>
-
-          <Button
-            onClick={() => router.push("/dashboard/jobs?create=1")}
-            className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0"
-          >
-            + Create a Job
-          </Button>
-
-          <nav className="space-y-1">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              onClick={() => router.push("/dashboard")}
-            >
-              <Bell className="w-4 h-4 mr-3" />
-              Activities
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 bg-[#F5F1E8] text-gray-900"
-              onClick={() => router.push("/dashboard/jobs")}
-            >
-              <Briefcase className="w-4 h-4 mr-3" />
-              Jobs
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              disabled={!org?.id}
-              title={!org?.id ? "Select or create an organization first" : "Assessments"}
-              onClick={() => org?.id && router.push(`/dashboard/organizations/${org.id}/assessments`)}
-            >
-              <ListChecks className="w-4 h-4 mr-3" />
-              Assessments
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              onClick={() => router.push("/dashboard/kpi/insights")}
-            >
-              <BarChartIcon className="w-4 h-4 mr-3" />
-              KPI · Insights
-            </Button>
-          </nav>
-        </div>
-
-        <div className="mt-auto p-6 border-t border-gray-200">
-          <div className="space-y-3">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-500 text-sm"
-              onClick={openCommandPalette}
-            >
-              <Search className="w-4 h-4 mr-3" />
-              Search
-              <span className="ml-auto text-xs">⌘K</span>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
-              <HelpCircle className="w-4 h-4 mr-3" />
-              Help & Support
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
-              <UserPlus className="w-4 h-4 mr-3" />
-              Invite people
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-500 text-sm"
-              onClick={handleSignOut}
-            >
-              <LogOut className="w-4 h-4 mr-3" />
-              Log out
-            </Button>
-          </div>
-
-          <div className="mt-6 flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {session.user.name?.charAt(0)}
-              </span>
-            </div>
-            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-              title="Settings"
-              onClick={() => setIsSettingsOpen(true)}
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </aside>
+      {/* Left Sidebar - Reusable Component */}
+      <CompanySidebar
+        org={org}
+        user={session.user}
+        onSignOut={handleSignOut}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        active="jobs"
+      />
 
       {/* Main Content */}
       <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
@@ -865,7 +777,17 @@ export default function ApplicationDetailPage() {
             {/* Candidate Details (NEW) */}
             <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-medium text-gray-900">Candidate details</h2>
+                <button
+                  onClick={() => setIsCandidateDetailsExpanded(!isCandidateDetailsExpanded)}
+                  className="flex items-center gap-2 text-lg font-medium text-gray-900 hover:text-gray-700 transition-colors"
+                >
+                  <span>Candidate details</span>
+                  {isCandidateDetailsExpanded ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </button>
                 {application.resumeS3Key ? (
                   <Button variant="outline" size="sm" onClick={handleDownloadResume}>
                     Download Resume {application.resumeFilename ? `(${application.resumeFilename})` : ""}
@@ -873,7 +795,43 @@ export default function ApplicationDetailPage() {
                 ) : null}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Summary view when collapsed */}
+              {!isCandidateDetailsExpanded && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
+                  <div>
+                    <div className="text-xs text-gray-500">Name</div>
+                    <div className="text-sm text-gray-900">{application.applicantName || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Email</div>
+                    <div className="text-sm text-gray-900">{application.applicantEmail}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Phone</div>
+                    <div className="text-sm text-gray-900">{application.phone || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Location</div>
+                    <div className="text-sm text-gray-900">
+                      {[application.city, application.province, application.location].filter(Boolean).join(", ") || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">University</div>
+                    <div className="text-sm text-gray-900">
+                      {application.university || application.applicantUniversityName || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Experience</div>
+                    <div className="text-sm text-gray-900">{application.experienceYears || "—"}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Full details when expanded */}
+              {isCandidateDetailsExpanded && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Basics */}
                 <div>
                   <div className="text-xs text-gray-500">Name</div>
@@ -1018,7 +976,8 @@ export default function ApplicationDetailPage() {
                     {application.gpa ? `${application.gpa}${application.gpaScale ? ` / ${application.gpaScale}` : ""}` : "—"}
                   </div>
                 </div>
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Assigned Assessments */}

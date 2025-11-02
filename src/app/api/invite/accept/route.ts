@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { organizationInvites, memberships, users, organizations } from "@/db/schema-pg";
+import { organizationInvites, memberships, users, organizations, activity } from "@/db/schema-pg";
 import { and, eq } from "drizzle-orm";
 
 interface AcceptInviteBody {
@@ -119,6 +119,21 @@ export async function POST(request: NextRequest) {
           status: "active",
           createdAt: now,
           updatedAt: now,
+        });
+
+        // Log membership join activity
+        await tx.insert(activity).values({
+          orgId: invite.orgId,
+          entityType: "membership",
+          entityId: userId,
+          action: "joined",
+          actorUserId: userId,
+          diffJson: {
+            memberName: name,
+            memberEmail: email,
+            role: invite.role ?? "member",
+          },
+          createdAt: now,
         });
       } else {
         await tx

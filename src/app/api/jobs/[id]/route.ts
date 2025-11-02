@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { jobs, organizations } from '@/db/schema';
+import { jobs, organizations } from '@/db/schema-pg';
 import { eq, and, or } from 'drizzle-orm';
 
 /**
@@ -24,7 +24,7 @@ export async function GET(
       }, { status: 400 });
     }
 
-    // Join organization so the student page can show org name
+    // Join organization so the student page can show org name and website
     const row = await db
       .select({
         id: jobs.id,
@@ -37,6 +37,7 @@ export async function GET(
         visibility: jobs.visibility,
         orgId: jobs.orgId,
         orgName: organizations.name,
+        orgWebsite: organizations.link,
       })
       .from(jobs)
       .leftJoin(organizations, eq(organizations.id, jobs.orgId))
@@ -70,7 +71,12 @@ export async function GET(
         descriptionHtml: null, // or render from j.descriptionMd
         location: null,        // wire if you add a job.city/location column
         locationMode: j.locationMode,
-        organization: j.orgName ? { name: j.orgName } : null,
+        organization: j.orgName ? { 
+          name: j.orgName,
+          website: j.orgWebsite || null 
+        } : null,
+        orgName: j.orgName,
+        orgWebsite: j.orgWebsite || null,
       },
       { status: 200 }
     );

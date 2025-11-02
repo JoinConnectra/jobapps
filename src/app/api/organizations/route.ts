@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { organizations, memberships, users } from '@/db/schema';
+import { organizations, memberships, users } from '@/db/schema-pg';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 
@@ -152,6 +152,10 @@ export async function GET(request: NextRequest) {
           type: organizations.type,
           plan: organizations.plan,
           seatLimit: organizations.seatLimit,
+          logoUrl: organizations.logoUrl,
+          link: organizations.link,
+          benefits: organizations.benefits,
+          aboutCompany: organizations.aboutCompany,
           createdAt: organizations.createdAt,
           updatedAt: organizations.updatedAt,
         })

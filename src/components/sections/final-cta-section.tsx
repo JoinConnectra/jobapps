@@ -2,43 +2,52 @@ import Image from 'next/image';
 
 const FinalCtaSection = () => {
   return (
-    <section
-      className="relative overflow-hidden bg-[#3A3A3A] rounded-t-[32px] lg:rounded-t-[40px]"
-      style={{
-        backgroundImage: 'url("https://framerusercontent.com/images/8GeUfpLeO3lE37vRKXJe7rmuHcY.svg")',
-      }}
-    >
-      <div className="absolute inset-0 z-0 pointer-events-none hidden md:block">
-        <Image
-          src="https://framerusercontent.com/images/5SGrcz3VfKYAaeGosBGakXNOQRg.png?scale-down-to=1024"
-          alt="Decorative audio question card floating"
-          width={532}
-          height={132}
-          className="absolute top-[-50px] left-[-60px] w-auto h-[132px] transform -rotate-8"
-        />
-        <Image
-          src="https://framerusercontent.com/images/tFbev406F6DwSs6fXEjhJ60PTqU.png?scale-down-to=1024"
-          alt="Decorative audio question card floating on the right"
-          width={532}
-          height={132}
-          className="absolute -top-px right-[-230px] w-auto h-[130px] transform rotate-8"
-        />
-      </div>
+    <section className="relative py-16 lg:py-20">
+      <div className="container mx-auto px-6">
+        <div className="max-w-5xl mx-auto">
+          <div
+            className="relative overflow-hidden bg-[#3A3A3A] rounded-2xl"
+            style={{
+              backgroundImage: 'url("https://framerusercontent.com/images/8GeUfpLeO3lE37vRKXJe7rmuHcY.svg")',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            }}
+          >
+            <div className="absolute inset-0 z-0 pointer-events-none hidden lg:block overflow-hidden">
+              <Image
+                src="https://framerusercontent.com/images/5SGrcz3VfKYAaeGosBGakXNOQRg.png?scale-down-to=1024"
+                alt="Decorative audio question card floating"
+                width={532}
+                height={132}
+                className="absolute top-[-30px] left-[-30px] w-auto h-[100px] transform -rotate-6 opacity-30"
+              />
+              <Image
+                src="https://framerusercontent.com/images/tFbev406F6DwSs6fXEjhJ60PTqU.png?scale-down-to=1024"
+                alt="Decorative audio question card floating on the right"
+                width={532}
+                height={132}
+                className="absolute top-[-20px] right-[-80px] w-auto h-[100px] transform rotate-6 opacity-30"
+              />
+            </div>
 
-      <div className="relative z-10 container mx-auto flex flex-col items-center text-center py-24 md:py-32 lg:py-40 px-6">
-        <h1 className="font-display font-bold text-white text-3xl md:text-4xl lg:text-5xl xl:text-6xl leading-[1.1] max-w-5xl">
-          Ready to save 50 hrs per week?
-        </h1>
-        <p className="mt-8 mb-12 text-white/90 text-lg md:text-xl lg:text-2xl max-w-3xl leading-relaxed">
-          Connect with our team and learn how TalentFlow can help your team grow
-          faster and better.
-        </p>
-        <a
-          href="https://app.withrapha.com/"
-          className="inline-block bg-[#6a994e] text-white font-semibold text-lg px-10 py-5 rounded-lg transition-transform duration-200 hover:scale-105 hover:bg-[#5a8a3e]"
-        >
-          Get started for free
-        </a>
+            <div className="relative z-10 flex flex-col items-center text-center py-16 md:py-20 lg:py-24 px-6 md:px-8">
+              <h2 className="font-display font-bold text-white text-3xl md:text-4xl lg:text-5xl leading-tight max-w-3xl">
+                Ready to save 50 hrs per week?
+              </h2>
+              <p className="mt-5 mb-8 text-white/80 text-base md:text-lg max-w-2xl leading-relaxed">
+                Connect with our team and learn how TalentFlow can help your team grow
+                faster and better.
+              </p>
+              <a
+                href="https://app.withrapha.com/"
+                className="inline-block bg-[#6a994e] text-white font-semibold text-base md:text-lg px-8 py-4 rounded-lg transition-colors hover:bg-[#5a8a3e]"
+              >
+                Get started for free
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -35,6 +35,7 @@ interface Organization {
   link?: string;
   benefits?: string;
   about_company?: string;
+  logoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -97,6 +98,9 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
   const [companyLink, setCompanyLink] = useState("");
   const [benefits, setBenefits] = useState("");
   const [aboutCompany, setAboutCompany] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // University access state
   const [universities, setUniversities] = useState<University[]>([]);
@@ -107,14 +111,50 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
   const [showUniversityDropdown, setShowUniversityDropdown] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<UniversityAuthorization[]>([]);
 
+  const refreshOrganizationData = async () => {
+    if (!organization) return;
+    
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/organizations?mine=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const orgs = await response.json();
+        const updatedOrg = orgs.find((o: any) => o.id === organization.id);
+        if (updatedOrg) {
+          setLogoUrl(updatedOrg.logoUrl || null);
+          // Update local state to match database
+          setCompanyName(updatedOrg.name || organization.name);
+          setCompanyLink(updatedOrg.link || organization.link || "");
+          setBenefits(updatedOrg.benefits || organization.benefits || "");
+          setAboutCompany(updatedOrg.aboutCompany || organization.about_company || "");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh organization data:", error);
+    }
+  };
+
   useEffect(() => {
     if (organization) {
       setCompanyName(organization.name);
       setCompanyLink(organization.link || "");
       setBenefits(organization.benefits || "");
       setAboutCompany(organization.about_company || "");
+      setLogoUrl(organization.logoUrl || null);
+      setLogoPreview(null); // Clear any preview when organization changes
     }
   }, [organization]);
+
+  // Fetch fresh organization data when modal opens
+  useEffect(() => {
+    if (isOpen && organization?.id) {
+      refreshOrganizationData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, organization?.id]);
 
   useEffect(() => {
     if (isOpen && organization) {
@@ -262,6 +302,74 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
     !uni.approved && 
     uni.name.toLowerCase().includes(universitySearchQuery.toLowerCase())
   );
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!organization || !event.target.files || !event.target.files[0]) return;
+
+    const file = event.target.files[0];
+    
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a valid image file (JPEG, PNG, GIF, or WebP)");
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    // Show immediate preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLogoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    setUploadingLogo(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const formData = new FormData();
+      formData.append("logo", file);
+
+      const response = await fetch(`/api/organizations/${organization.id}/logo`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(error.error || "Failed to upload logo");
+      }
+
+      const data = await response.json();
+      setLogoUrl(data.logoUrl);
+      setLogoPreview(null); // Clear preview, use the actual URL from server
+      toast.success("Logo uploaded successfully");
+      
+      // Update organization prop
+      if (organization) {
+        organization.logoUrl = data.logoUrl;
+      }
+
+      // Refresh organization data to ensure persistence
+      await refreshOrganizationData();
+    } catch (error) {
+      console.error("Logo upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload logo");
+      // On error, clear preview
+      setLogoPreview(null);
+    } finally {
+      setUploadingLogo(false);
+      // Reset input
+      event.target.value = "";
+    }
+  };
 
   const handleSaveCompany = async () => {
     if (!organization) return;
@@ -459,76 +567,205 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
           {/* Content */}
           <div className="flex-1 p-6 overflow-y-auto">
             {activeTab === "company" && (
-              <div className="space-y-4">
-                {/* Company Name and Link */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <h4 className="text-base font-semibold text-[#1A1A1A]">{companyName}</h4>
-                      <p className="text-sm text-[#6B7280]">{companyLink || "No website link"}</p>
+              <div className="space-y-0">
+                {/* Company Name and Link Section */}
+                <div className="pb-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="mb-1">
+                        <h4 className="text-sm font-medium text-gray-900 mb-1">Company Name</h4>
+                        {isEditing ? (
+                          <Input
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            className="mt-2 border-gray-300 focus:border-gray-400 focus:ring-gray-400 text-sm"
+                            placeholder="Enter company name"
+                          />
+                        ) : (
+                          <p className="text-base font-medium text-gray-900 mt-1">{companyName}</p>
+                        )}
+                      </div>
+                      <div className="mt-3">
+                        <h4 className="text-sm font-medium text-gray-900 mb-1">Website</h4>
+                        {isEditing ? (
+                          <Input
+                            value={companyLink}
+                            onChange={(e) => setCompanyLink(e.target.value)}
+                            className="mt-2 border-gray-300 focus:border-gray-400 focus:ring-gray-400 text-sm"
+                            placeholder="https://example.com"
+                          />
+                        ) : (
+                          <p className="text-sm text-gray-500 mt-1">{companyLink || "No website link"}</p>
+                        )}
+                      </div>
                     </div>
                     <Button
+                      variant="outline"
                       onClick={() => setIsEditing(!isEditing)}
-                      className="bg-[#1a1a1a] text-white hover:bg-[#3D3D3D] text-sm px-3 py-1"
+                      className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900 text-sm px-3 py-2 h-9 ml-4"
                     >
-                      {isEditing ? <Save className="w-3 h-3 mr-1" /> : <Edit className="w-3 h-3 mr-1" />}
-                      {isEditing ? "Save" : "Edit"}
+                      {isEditing ? (
+                        <>
+                          <X className="w-3 h-3 mr-1.5" />
+                          Cancel
+                        </>
+                      ) : (
+                        <>
+                          <Edit className="w-3 h-3 mr-1.5" />
+                          Edit
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
 
-                {/* Benefits Section */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-[#1A1A1A]">Benefits</h4>
-                  <p className="text-xs text-[#6B7280]">This will be part of your job descriptions by default</p>
-                  {isEditing ? (
-                    <Textarea
-                      value={benefits}
-                      onChange={(e) => setBenefits(e.target.value)}
-                      placeholder="Enter company benefits..."
-                      className="min-h-[80px] text-sm border-[#d4d4d8] focus:border-[#6a994e]"
-                    />
-                  ) : (
-                    <div className="p-3 bg-[#f7f7f7] rounded border border-[#d4d4d8] min-h-[80px] text-sm text-[#6B7280]">
-                      {benefits || "No benefits added yet"}
+                {/* Company Logo Section */}
+                <div className="border-t border-gray-100 pt-6">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-1">Company Logo</h4>
+                      <p className="text-xs text-gray-500">Your logo appears on job listings and in your dashboard</p>
                     </div>
-                  )}
+                    
+                    <div className="flex items-center gap-4">
+                      {/* Logo Preview Area */}
+                      <div className="relative group flex-shrink-0">
+                        {logoPreview || logoUrl ? (
+                          <div className="relative">
+                            <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm">
+                              <img
+                                src={logoPreview || logoUrl || ""}
+                                alt={`${companyName} logo`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                            {logoUrl && !logoPreview && (
+                              <button
+                                onClick={async () => {
+                                  setLogoUrl(null);
+                                  toast.info("Logo removal coming soon");
+                                }}
+                                className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                                title="Remove logo"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
+                            <Building className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Upload Controls */}
+                      <div className="flex-1 min-w-0">
+                        <input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                          onChange={handleLogoUpload}
+                          disabled={uploadingLogo}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={uploadingLogo}
+                          onClick={() => {
+                            const input = document.getElementById("logo-upload") as HTMLInputElement;
+                            input?.click();
+                          }}
+                          className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900 text-sm px-3 py-1.5 h-8 mb-1"
+                        >
+                          {uploadingLogo ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-1.5" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              {logoUrl ? "Change logo" : "Upload logo"}
+                            </>
+                          )}
+                        </Button>
+                        <p className="text-xs text-gray-400">Max 5MB • JPEG, PNG, GIF, WebP</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* About Company Section */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-[#1A1A1A]">About company</h4>
-                  <p className="text-xs text-[#6B7280]">This will be part of your job descriptions by default</p>
-                  {isEditing ? (
-                    <Textarea
-                      value={aboutCompany}
-                      onChange={(e) => setAboutCompany(e.target.value)}
-                      placeholder="Enter company description..."
-                      className="min-h-[80px] text-sm border-[#d4d4d8] focus:border-[#6a994e]"
-                    />
-                  ) : (
-                    <div className="p-3 bg-[#f7f7f7] rounded border border-[#d4d4d8] min-h-[80px] text-sm text-[#6B7280]">
-                      {aboutCompany || "No company description added yet"}
+                <div className="border-t border-gray-100 pt-6">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-1">About company</h4>
+                      <p className="text-xs text-gray-500">This will be part of your job descriptions by default</p>
                     </div>
-                  )}
+                    {isEditing ? (
+                      <Textarea
+                        value={aboutCompany}
+                        onChange={(e) => setAboutCompany(e.target.value)}
+                        placeholder="Enter company description..."
+                        className="min-h-[100px] text-sm border-gray-300 focus:border-gray-400 focus:ring-gray-400 resize-none"
+                      />
+                    ) : (
+                      <div className="min-h-[100px] p-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-600">
+                        {aboutCompany || <span className="text-gray-400">No company description added yet</span>}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
+                {/* Benefits Section */}
+                <div className="border-t border-gray-100 pt-6">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-1">Benefits</h4>
+                      <p className="text-xs text-gray-500">This will be part of your job descriptions by default</p>
+                    </div>
+                    {isEditing ? (
+                      <Textarea
+                        value={benefits}
+                        onChange={(e) => setBenefits(e.target.value)}
+                        placeholder="Enter company benefits..."
+                        className="min-h-[100px] text-sm border-gray-300 focus:border-gray-400 focus:ring-gray-400 resize-none"
+                      />
+                    ) : (
+                      <div className="min-h-[100px] p-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-600">
+                        {benefits || <span className="text-gray-400">No benefits added yet</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
+                {/* Save Button */}
                 {isEditing && (
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      onClick={handleSaveCompany}
-                      disabled={loading}
-                      className="bg-[#6a994e] hover:bg-[#5a8a3e] text-sm px-3 py-1"
-                    >
-                      {loading ? "Saving..." : "Save Changes"}
-                    </Button>
+                  <div className="border-t border-gray-100 pt-6 flex items-center justify-end gap-3">
                     <Button
                       variant="outline"
                       onClick={() => setIsEditing(false)}
-                      className="text-sm px-3 py-1 border-[#d4d4d8] text-[#404040] hover:bg-[#f0f0f0]"
+                      className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900 text-sm px-4 py-2 h-9"
                     >
                       Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSaveCompany}
+                      disabled={loading}
+                      className="bg-gray-900 text-white hover:bg-gray-800 text-sm px-4 py-2 h-9"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save changes"
+                      )}
                     </Button>
                   </div>
                 )}

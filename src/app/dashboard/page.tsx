@@ -44,9 +44,12 @@ import {
   Send,
   ListChecks, // Icon for "Assessments" entry
   Settings,
+  Users,
+  Calendar,
 } from "lucide-react";
 import CommandPalette from "@/components/CommandPalette";
 import SettingsModal from "@/components/SettingsModal";
+import CompanySidebar from "@/components/company/CompanySidebar";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import { getRelativeTime } from "@/lib/time-utils";
 
@@ -64,13 +67,20 @@ export default function DashboardPage() {
   });
 
   // ---- Organization selection (first org) ----
-  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
 
+  // Debug: Log when org changes
+  useEffect(() => {
+    console.log("Dashboard: Org state changed:", org);
+    console.log("Dashboard: Org logoUrl:", org?.logoUrl);
+  }, [org]);
+
   // ---- Activity feed & filter state ----
-  type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" };
+  type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" | "members" };
   const [feed, setFeed] = useState<FeedItem[]>([]);
-  const [activityFilter, setActivityFilter] = useState<"all" | "company" | "applicants">("all");
+  const [activityFilter, setActivityFilter] = useState<"all" | "company" | "applicants" | "members">("all");
+  const [timeFilter, setTimeFilter] = useState<"today" | "7d" | "30d" | "90d" | "all">("today");
   
   // ---- Settings modal state ----
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -103,9 +113,9 @@ export default function DashboardPage() {
   useEffect(() => {
     const token = localStorage.getItem("bearer_token");
     if (org?.id && token) {
-      fetchActivity(org.id, token, activityFilter);
+      fetchActivity(org.id, token, activityFilter, timeFilter);
     }
-  }, [activityFilter, org?.id]);
+  }, [activityFilter, timeFilter, org?.id]);
 
   /**
    * Fetch user's organizations, select the first one as "primary",
@@ -124,7 +134,10 @@ export default function DashboardPage() {
         const orgs = await orgsResponse.json();
         const primary = Array.isArray(orgs) && orgs.length > 0 ? orgs[0] : null;
 
-        setOrg(primary ? { id: primary.id, name: primary.name } : null);
+        const orgData = primary ? { id: primary.id, name: primary.name, logoUrl: primary.logoUrl } : null;
+        console.log("Dashboard: Setting org data:", orgData);
+        console.log("Dashboard: Primary logoUrl:", primary?.logoUrl);
+        setOrg(orgData);
         setLoadingOrg(false);
 
         // 2) If we have a primary org, load counts and initial feed
@@ -152,7 +165,7 @@ export default function DashboardPage() {
           }
 
           // Initial activity load honors the current filter (default: "all")
-          await fetchActivity(primary.id, token, activityFilter);
+          await fetchActivity(primary.id, token, activityFilter, timeFilter);
         }
       }
     } catch (error) {
@@ -163,24 +176,44 @@ export default function DashboardPage() {
   };
 
   /**
-   * Fetch activity for an org id, filtered by entity type.
+   * Fetch activity for an org id, filtered by entity type and time range.
    * - "company"  => entityType=job
    * - "applicants" => entityType=application
+   * - "members"  => entityType=membership
    * - "all"      => no entityType filter
    */
   const fetchActivity = async (
     orgId: number,
     token: string,
-    filter: "all" | "company" | "applicants",
+    filter: "all" | "company" | "applicants" | "members",
+    timeRange: "today" | "7d" | "30d" | "90d" | "all",
   ) => {
     let url = `/api/activity?orgId=${orgId}&limit=50`;
     if (filter === "company") url += `&entityType=job`;
     if (filter === "applicants") url += `&entityType=application`;
+    if (filter === "members") url += `&entityType=membership`;
+
+    // Add time filtering
+    if (timeRange !== "all") {
+      const since = new Date();
+      if (timeRange === "today") {
+        // Set to start of today (00:00:00)
+        since.setHours(0, 0, 0, 0);
+        console.log("Today filter - since:", since.toISOString());
+      } else {
+        const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
+        since.setDate(since.getDate() - days);
+        console.log(`${timeRange} filter - since:`, since.toISOString());
+      }
+      url += `&since=${since.toISOString()}`;
+    }
 
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!resp.ok) return;
 
     const acts = await resp.json();
+    console.log("Activities returned:", acts.length, "items");
+    console.log("Sample activity dates:", acts.slice(0, 3).map(a => ({ createdAt: a.createdAt, action: a.action })));
 
     // Normalize API payload -> FeedItem[]
     const items: FeedItem[] = acts.map((a: any) => {
@@ -189,7 +222,7 @@ export default function DashboardPage() {
         const by = a.actorName || a.actorEmail || "Someone";
         return {
           at: a.createdAt,
-          title: `${by} created “${jobTitle}”`,
+          title: `${by} created "${jobTitle}"`,
           href: a.entityId ? `/dashboard/jobs/${a.entityId}` : undefined,
           kind: "company",
         };
@@ -199,9 +232,19 @@ export default function DashboardPage() {
         const jobTitle = a.diffJson?.jobTitle || "a job";
         return {
           at: a.createdAt,
-          title: `${email} applied to “${jobTitle}”`,
+          title: `${email} applied to "${jobTitle}"`,
           href: a.entityId ? `/dashboard/applications/${a.entityId}` : undefined,
           kind: "applicants",
+        };
+      }
+      if (a.entityType === "membership" && a.action === "joined") {
+        const memberName = a.diffJson?.memberName || a.actorName || "Someone";
+        const role = a.diffJson?.role || "member";
+        return {
+          at: a.createdAt,
+          title: `${memberName} joined as ${role}`,
+          href: undefined,
+          kind: "members",
         };
       }
       // Fallback for any other activity kind
@@ -247,125 +290,14 @@ export default function DashboardPage() {
   // ----- Layout -----
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
-      {/* Left Sidebar (shared style with Jobs pages) */}
-      <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
-        <div className="p-6">
-          <div className="text-xl font-display font-bold text-gray-900 mb-6">
-            {org?.name || "forshadow"}
-          </div>
-
-          {/* CTA to create a job (navigates to Jobs surface with ?create=1) */}
-          <Button
-            onClick={() => router.push("/dashboard/jobs?create=1")}
-            className="w-full mb-6 bg-[#F5F1E8] text-gray-900 hover:bg-[#E8E0D5] border-0"
-          >
-            + Create a Job
-          </Button>
-
-          {/* Primary navigation */}
-          <nav className="space-y-1">
-            {/* Current section highlight intentionally omitted for "Activities" */}
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-            >
-              <Bell className="w-4 h-4 mr-3" />
-              Activities
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              onClick={() => router.push("/dashboard/jobs")}
-            >
-              <Briefcase className="w-4 h-4 mr-3" />
-              Jobs
-            </Button>
-
-            {/* Assessments (org scoped). Disabled until org id is known. */}
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-              disabled={!org?.id}
-              title={!org?.id ? "Select or create an organization first" : "Assessments"}
-              onClick={() =>
-                org?.id && router.push(`/dashboard/organizations/${org.id}/assessments`)
-              }
-            >
-              <ListChecks className="w-4 h-4 mr-3" />
-              Assessments
-            </Button>
-              <Button
-  variant="ghost"
-  className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-  onClick={() => router.push("/dashboard/events")}
->
-  <CalendarDays className="w-4 h-4 mr-3" />
-  Events
-</Button>
-            <Button
-  variant="ghost"
-  className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-  onClick={() => router.push("/dashboard/kpi/insights")}
->
-  <BarChartIcon className="w-4 h-4 mr-3" />
-  KPI · Insights
-</Button>
-
-
-          </nav>
-        </div>
-
-        {/* Footer actions: search/shortcuts/help/invite/logout */}
-        <div className="mt-auto p-6 border-t border-gray-200">
-          <div className="space-y-3">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-500 text-sm"
-              onClick={openCommandPalette}
-            >
-              <Search className="w-4 h-4 mr-3" />
-              Search
-              <span className="ml-auto text-xs">⌘K</span>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
-              <HelpCircle className="w-4 h-4 mr-3" />
-              Help & Support
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
-              <UserPlus className="w-4 h-4 mr-3" />
-              Invite people
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-500 text-sm"
-              onClick={handleSignOut}
-            >
-              <LogOut className="w-4 h-4 mr-3" />
-              Log out
-            </Button>
-          </div>
-
-          {/* Current user pill */}
-          <div className="mt-6 flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {session.user.name?.charAt(0)}
-              </span>
-            </div>
-            <div className="flex-1 text-sm font-medium text-gray-900">{session.user.name}</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-              title="Settings"
-              onClick={() => setIsSettingsOpen(true)}
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </aside>
+      {/* Left Sidebar - Reusable Component */}
+      <CompanySidebar
+        org={org}
+        user={session.user}
+        onSignOut={handleSignOut}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        active="activities"
+      />
 
       {/* Main Content: breadcrumbs, filters, and activities feed */}
       <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
@@ -385,38 +317,71 @@ export default function DashboardPage() {
               </nav>
             </div>
 
-            {/* Filter Buttons (All / Company / Applicants) */}
-            <div className="flex items-center gap-2 mb-6">
-              <button
-                onClick={() => setActivityFilter("all")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activityFilter === "all"
-                    ? "bg-[#6a994e] text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setActivityFilter("company")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activityFilter === "company"
-                    ? "bg-[#6a994e] text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                Company
-              </button>
-              <button
-                onClick={() => setActivityFilter("applicants")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activityFilter === "applicants"
-                    ? "bg-[#6a994e] text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                Applicants
-              </button>
+            {/* Filter Controls */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 justify-between">
+              {/* Activity Type Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 font-medium">Filter by:</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setActivityFilter("all")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "all"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter("company")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "company"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Company
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter("applicants")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "applicants"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Applicants
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter("members")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activityFilter === "members"
+                        ? "bg-[#6a994e] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Members
+                  </button>
+                </div>
+              </div>
+
+              {/* Time Range Filter - Right aligned */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 font-medium">Time:</span>
+                <Select value={timeFilter} onValueChange={(value: "today" | "7d" | "30d" | "90d" | "all") => setTimeFilter(value)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="7d">Last 7 days</SelectItem>
+                    <SelectItem value="30d">Last 30 days</SelectItem>
+                    <SelectItem value="90d">Last 90 days</SelectItem>
+                    <SelectItem value="all">All time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Activities List */}
@@ -426,6 +391,7 @@ export default function DashboardPage() {
                   if (activityFilter === "all") return true;
                   if (activityFilter === "company") return item.kind === "company";
                   if (activityFilter === "applicants") return item.kind === "applicants";
+                  if (activityFilter === "members") return item.kind === "members";
                   return true;
                 });
                 return filteredFeed.length === 0;
@@ -442,12 +408,14 @@ export default function DashboardPage() {
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     {activityFilter === "all" ? "No activity yet" : 
                      activityFilter === "company" ? "No company activity" : 
-                     "No applicant activity"}
+                     activityFilter === "applicants" ? "No applicant activity" :
+                     "No member activity"}
                   </h3>
                   <p className="text-sm text-gray-500 mb-6">
                     {activityFilter === "all" ? "Once you start posting jobs and receiving applications, activity will appear here" :
                      activityFilter === "company" ? "Company activities like job creation will appear here" :
-                     "Applicant activities like job applications will appear here"}
+                     activityFilter === "applicants" ? "Applicant activities like job applications will appear here" :
+                     "Member activities like joining the company will appear here"}
                   </p>
                   <Button
                     onClick={() => router.push("/dashboard/jobs?create=1")}
@@ -464,6 +432,7 @@ export default function DashboardPage() {
                       if (activityFilter === "all") return true;
                       if (activityFilter === "company") return item.kind === "company";
                       if (activityFilter === "applicants") return item.kind === "applicants";
+                      if (activityFilter === "members") return item.kind === "members";
                       return true;
                     })
                     .map((item, idx) => (
@@ -472,11 +441,14 @@ export default function DashboardPage() {
                         {/* Icon pill by kind */}
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            item.kind === "company" ? "bg-green-100" : "bg-blue-100"
+                            item.kind === "company" ? "bg-green-100" : 
+                            item.kind === "members" ? "bg-purple-100" : "bg-blue-100"
                           }`}
                         >
                           {item.kind === "company" ? (
                             <Send className="w-4 h-4 text-green-600" />
+                          ) : item.kind === "members" ? (
+                            <Users className="w-4 h-4 text-purple-600" />
                           ) : (
                             <User className="w-4 h-4 text-blue-600" />
                           )}
@@ -515,8 +487,44 @@ export default function DashboardPage() {
       {/* Settings modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+        onClose={async () => {
+          setIsSettingsOpen(false);
+          // Refresh org data when modal closes (in case logo was uploaded)
+          if (session?.user) {
+            console.log("Dashboard: Refreshing org data after settings modal close");
+            // Force a fresh fetch
+            try {
+              const token = localStorage.getItem("bearer_token");
+              const orgsResponse = await fetch("/api/organizations?mine=true", {
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store', // Force fresh fetch
+              });
+
+              if (orgsResponse.ok) {
+                const orgs = await orgsResponse.json();
+                const primary = Array.isArray(orgs) && orgs.length > 0 ? orgs[0] : null;
+                console.log("Dashboard: Refreshed org data:", primary);
+                console.log("Dashboard: Refreshed logoUrl:", primary?.logoUrl);
+                if (primary) {
+                  setOrg({ id: primary.id, name: primary.name, logoUrl: primary.logoUrl });
+                }
+              }
+            } catch (error) {
+              console.error("Dashboard: Failed to refresh org:", error);
+            }
+          }
+        }}
+        organization={org ? { 
+          id: org.id, 
+          name: org.name, 
+          slug: '', 
+          type: 'company', 
+          plan: 'free', 
+          seatLimit: 5, 
+          logoUrl: org.logoUrl,
+          createdAt: '', 
+          updatedAt: '' 
+        } : null}
       />
     </div>
   );
