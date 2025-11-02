@@ -13,6 +13,8 @@ import { toast } from 'sonner';
 export default function UniversityRegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [form, setForm] = useState({
     universityName: '',
     domain: '',
@@ -24,10 +26,66 @@ export default function UniversityRegisterPage() {
     description: '',
   });
 
-  const update = (k: string, v: string) => setForm(s => ({ ...s, [k]: v }));
+  const update = (k: string, v: string) => {
+    setForm(s => ({ ...s, [k]: v }));
+    
+    // Clear email error when user changes email
+    if (k === 'contactEmail' && emailError) {
+      setEmailError("");
+    }
+  };
+
+  const checkEmailExists = async (email: string): Promise<boolean> => {
+    if (!email || !email.includes("@")) {
+      setEmailError("");
+      return false;
+    }
+
+    setIsCheckingEmail(true);
+    setEmailError("");
+
+    try {
+      const response = await fetch(`/api/users/check-email?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+
+      if (data.exists) {
+        setEmailError("An account with this email already exists. Please sign in instead.");
+        setIsCheckingEmail(false);
+        return true;
+      } else {
+        setEmailError("");
+        setIsCheckingEmail(false);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking email:", error);
+      setIsCheckingEmail(false);
+      return false;
+    }
+  };
+
+  const handleEmailBlur = () => {
+    if (form.contactEmail) {
+      checkEmailExists(form.contactEmail);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check email before submitting
+    if (emailError) {
+      toast.error('Please fix the email error before submitting');
+      return;
+    }
+
+    // Double-check email one more time before proceeding
+    const emailExists = await checkEmailExists(form.contactEmail);
+    if (emailExists) {
+      toast.error('An account with this email already exists. Please sign in instead.');
+      return;
+    }
+
     setLoading(true);
     try {
       // 1. Register user with Better Auth
@@ -133,7 +191,24 @@ export default function UniversityRegisterPage() {
               </div>
               <div className="space-y-2">
                 <Label>Contact email</Label>
-                <Input type="email" value={form.contactEmail} onChange={e => update('contactEmail', e.target.value)} required />
+                <Input 
+                  type="email" 
+                  value={form.contactEmail} 
+                  onChange={e => update('contactEmail', e.target.value)} 
+                  onBlur={handleEmailBlur}
+                  className={emailError ? "border-red-500 focus:ring-red-500" : ""}
+                  disabled={isCheckingEmail}
+                  required 
+                />
+                {emailError && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span>⚠️</span>
+                    <span>{emailError}</span>
+                  </p>
+                )}
+                {isCheckingEmail && !emailError && (
+                  <p className="text-xs text-muted-foreground">Checking email...</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

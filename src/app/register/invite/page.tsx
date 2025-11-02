@@ -31,6 +31,8 @@ export default function InviteRegistrationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -66,10 +68,55 @@ export default function InviteRegistrationPage() {
     }
   };
 
+  const checkEmailExists = async (email: string): Promise<boolean> => {
+    // Don't check if email is from invite (read-only)
+    if (invite?.email) {
+      return false;
+    }
+
+    if (!email || !email.includes("@")) {
+      setEmailError("");
+      return false;
+    }
+
+    setIsCheckingEmail(true);
+    setEmailError("");
+
+    try {
+      const response = await fetch(`/api/users/check-email?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+
+      if (data.exists) {
+        setEmailError("An account with this email already exists. Please sign in instead.");
+        setIsCheckingEmail(false);
+        return true;
+      } else {
+        setEmailError("");
+        setIsCheckingEmail(false);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking email:", error);
+      setIsCheckingEmail(false);
+      return false;
+    }
+  };
+
   const handleChange = (field: "name" | "email" | "password" | "confirmPassword") =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setFormData((prev) => ({ ...prev, [field]: event.target.value }));
+      
+      // Clear email error when user changes email
+      if (field === "email" && emailError) {
+        setEmailError("");
+      }
     };
+
+  const handleEmailBlur = () => {
+    if (formData.email && !invite?.email) {
+      checkEmailExists(formData.email);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -92,6 +139,21 @@ export default function InviteRegistrationPage() {
     if (formData.password.length < 8) {
       toast.error("Password must be at least 8 characters.");
       return;
+    }
+
+    // Check email before submitting (only if email is not from invite)
+    if (!invite.email && emailError) {
+      toast.error('Please fix the email error before submitting');
+      return;
+    }
+
+    // Double-check email one more time before proceeding (only if email is not from invite)
+    if (!invite.email) {
+      const emailExists = await checkEmailExists(formData.email);
+      if (emailExists) {
+        toast.error('An account with this email already exists. Please sign in instead.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -240,11 +302,22 @@ export default function InviteRegistrationPage() {
                   placeholder="name@company.com"
                   value={formData.email}
                   onChange={handleChange("email")}
-                  className="pl-10"
+                  onBlur={handleEmailBlur}
+                  className={`pl-10 ${emailError ? "border-red-500 focus:ring-red-500" : ""} ${isCheckingEmail ? "opacity-50" : ""}`}
                   required
                   readOnly={Boolean(invite.email)}
+                  disabled={isCheckingEmail}
                 />
               </div>
+              {emailError && (
+                <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                  <span>⚠️</span>
+                  <span>{emailError}</span>
+                </p>
+              )}
+              {isCheckingEmail && !emailError && !invite.email && (
+                <p className="mt-1 text-xs text-gray-500">Checking email...</p>
+              )}
               {invite.email && (
                 <p className="mt-1 text-xs text-gray-500">Invite is restricted to {invite.email}</p>
               )}
