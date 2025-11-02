@@ -106,7 +106,8 @@ export default function CompanySidebar({
             Assessments
           </Button>
 
-          <Button
+          {/* Events - Commented out for now */}
+          {/* <Button
             variant="ghost"
             className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
               active === 'events' ? 'bg-[#F5F1E8] text-gray-900' : ''
@@ -115,7 +116,7 @@ export default function CompanySidebar({
           >
             <CalendarDays className="w-4 h-4 mr-3" />
             Events
-          </Button>
+          </Button> */}
 
           <Button
             variant="ghost"
