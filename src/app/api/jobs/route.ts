@@ -302,11 +302,13 @@ export async function GET(request: NextRequest) {
       .select({
         id: jobs.id,
         title: jobs.title,
+        dept: jobs.dept,
         descriptionMd: jobs.descriptionMd,
         locationMode: jobs.locationMode,
         salaryRange: jobs.salaryRange,
         orgId: jobs.orgId,
         visibility: jobs.visibility,
+        createdAt: jobs.createdAt,
         orgName: organizations.name,
       })
       .from(jobs)
@@ -358,7 +360,13 @@ export async function GET(request: NextRequest) {
       location: null,                       // if you later add jobs.location, wire it here
       locationMode: r.locationMode,
       organization: r.orgName ? { name: r.orgName } : null,
+      descriptionMd: r.descriptionMd,      // Include description for JobBrowser
       descriptionHtml: null,                // list page doesn't use it
+      salaryRange: r.salaryRange,
+      dept: r.dept,                         // Include department
+      organizationName: r.orgName,
+      postedAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+      tags: [],                             // JobBrowser expects tags array
     }));
 
     return NextResponse.json(shaped, { status: 200 });
