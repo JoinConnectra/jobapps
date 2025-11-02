@@ -1,6 +1,7 @@
 // src/app/student/jobs/[id]/page.tsx
 import { notFound } from "next/navigation";
 import { absoluteUrl } from "@/lib/url";
+import { ExternalLink } from "lucide-react";
 
 async function getJob(id: string) {
   const url = await absoluteUrl(`/api/jobs/${id}`);
@@ -13,6 +14,8 @@ export default async function JobDetail({ params }: { params: { id: string } }) 
   const job = await getJob(params.id);
   if (!job) return notFound();
 
+  const website = job.orgWebsite ?? job.organization?.website ?? null;
+
   return (
     <div className="h-[100dvh] max-w-full overflow-hidden overflow-x-clip">
       <div className="h-full w-full max-w-full overflow-y-auto px-6 py-6">
@@ -20,6 +23,19 @@ export default async function JobDetail({ params }: { params: { id: string } }) 
         <div className="mt-1 text-sm text-muted-foreground">
           {(job.orgName ?? job.organization?.name ?? "—")} • {(job.location ?? job.locationMode ?? "—")}
         </div>
+        {website && (
+          <div className="mt-2">
+            <a
+              href={website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Visit company website
+            </a>
+          </div>
+        )}
 
         <div
           className="

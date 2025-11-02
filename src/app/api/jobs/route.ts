@@ -353,18 +353,24 @@ export async function GET(request: NextRequest) {
     // Apply limit and offset
     const rows = filteredJobs.slice(offset, offset + limit);
 
-    // Get organization logos for the jobs
+    // Get organization logos and website URLs for the jobs
     const orgIds = [...new Set(rows.map((r: any) => r.orgId))];
     const orgLogos: Record<number, string | null> = {};
+    const orgWebsites: Record<number, string | null> = {};
     
     if (orgIds.length > 0) {
       const orgRows = await db
-        .select({ id: organizations.id, logoUrl: organizations.logoUrl })
+        .select({ 
+          id: organizations.id, 
+          logoUrl: organizations.logoUrl,
+          link: organizations.link 
+        })
         .from(organizations)
         .where(inArray(organizations.id, orgIds));
       
       orgRows.forEach((org) => {
         orgLogos[org.id] = org.logoUrl || null;
+        orgWebsites[org.id] = org.link || null;
       });
     }
 
@@ -374,13 +380,18 @@ export async function GET(request: NextRequest) {
       title: r.title,
       location: null,                       // if you later add jobs.location, wire it here
       locationMode: r.locationMode,
-      organization: r.orgName ? { name: r.orgName, logoUrl: orgLogos[r.orgId] || null } : null,
+      organization: r.orgName ? { 
+        name: r.orgName, 
+        logoUrl: orgLogos[r.orgId] || null,
+        website: orgWebsites[r.orgId] || null 
+      } : null,
       descriptionMd: r.descriptionMd,      // Include description for JobBrowser
       descriptionHtml: null,                // list page doesn't use it
       salaryRange: r.salaryRange,
       dept: r.dept,                         // Include department
       organizationName: r.orgName,
       organizationLogoUrl: orgLogos[r.orgId] || null, // Add logo URL for JobBrowser
+      organizationWebsite: orgWebsites[r.orgId] || null, // Add website URL for JobBrowser
       postedAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
       tags: [],                             // JobBrowser expects tags array
     }));

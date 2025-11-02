@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ExternalLink } from "lucide-react";
 
 /* ---------- Types ---------- */
 type Job = {
@@ -15,6 +16,7 @@ type Job = {
   orgId?: number | string;
   organizationName?: string | null;
   organizationLogoUrl?: string | null;
+  organizationWebsite?: string | null;
   title: string;
   dept?: string | null;
   locationMode?: "onsite" | "remote" | "hybrid" | string | null;
@@ -395,7 +397,7 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                       {selectedJob.dept ? ` • ${selectedJob.dept}` : ""}
                       {selectedJob.locationMode ? ` • ${selectedJob.locationMode}` : ""}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {selectedJob.salaryRange ? (
                         <span className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground">
                           {selectedJob.salaryRange}
@@ -405,6 +407,17 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                         <span className="text-[11px] px-2 py-1 rounded-md bg-muted text-muted-foreground">
                           Posted {timeAgo(selectedJob.postedAt)}
                         </span>
+                      ) : null}
+                      {selectedJob.organizationWebsite ? (
+                        <a
+                          href={selectedJob.organizationWebsite}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Visit website
+                        </a>
                       ) : null}
                     </div>
                   </div>

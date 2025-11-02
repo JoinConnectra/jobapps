@@ -15,6 +15,7 @@ import {
   Upload,
   CheckCircle2,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 
 interface Job {
@@ -25,6 +26,7 @@ interface Job {
   salaryRange: string | null;
   descriptionMd: string | null;
   orgName?: string | null;
+  orgWebsite?: string | null;
 }
 
 interface Question {
@@ -199,6 +201,7 @@ export default function StudentApplyPage() {
           salaryRange: jobData.salaryRange ?? null,
           descriptionMd: jobData.descriptionMd ?? null,
           orgName: jobData.orgName ?? null,
+          orgWebsite: jobData.orgWebsite ?? jobData.organization?.website ?? null,
         });
       }
 
@@ -459,6 +462,19 @@ export default function StudentApplyPage() {
             {(job.orgName ? job.orgName + " • " : "")}
             {job.dept ?? "—"} • {job.locationMode ?? "—"} • {job.salaryRange ?? "—"}
           </p>
+          {job.orgWebsite && (
+            <div className="mt-2">
+              <a
+                href={job.orgWebsite}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Visit company website
+              </a>
+            </div>
+          )}
         </div>
       </header>
 
