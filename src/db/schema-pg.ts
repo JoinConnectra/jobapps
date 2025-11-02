@@ -16,6 +16,7 @@ export const organizations = pgTable('organizations', {
   link: text('link'),
   benefits: text('benefits'),
   aboutCompany: text('about_company'),
+  logoUrl: text('logo_url'),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });

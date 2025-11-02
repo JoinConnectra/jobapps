@@ -66,8 +66,14 @@ export default function DashboardPage() {
   });
 
   // ---- Organization selection (first org) ----
-  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
+
+  // Debug: Log when org changes
+  useEffect(() => {
+    console.log("Dashboard: Org state changed:", org);
+    console.log("Dashboard: Org logoUrl:", org?.logoUrl);
+  }, [org]);
 
   // ---- Activity feed & filter state ----
   type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" | "members" };
@@ -127,7 +133,10 @@ export default function DashboardPage() {
         const orgs = await orgsResponse.json();
         const primary = Array.isArray(orgs) && orgs.length > 0 ? orgs[0] : null;
 
-        setOrg(primary ? { id: primary.id, name: primary.name } : null);
+        const orgData = primary ? { id: primary.id, name: primary.name, logoUrl: primary.logoUrl } : null;
+        console.log("Dashboard: Setting org data:", orgData);
+        console.log("Dashboard: Primary logoUrl:", primary?.logoUrl);
+        setOrg(orgData);
         setLoadingOrg(false);
 
         // 2) If we have a primary org, load counts and initial feed
@@ -283,8 +292,24 @@ export default function DashboardPage() {
       {/* Left Sidebar (shared style with Jobs pages) */}
       <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
         <div className="p-6">
-          <div className="text-xl font-display font-bold text-gray-900 mb-6">
-            {org?.name || "forshadow"}
+          <div className="flex items-center gap-2 mb-6">
+            {org?.logoUrl ? (
+              <img
+                src={org.logoUrl}
+                alt={`${org.name} logo`}
+                className="w-7 h-7 rounded object-cover flex-shrink-0"
+                onError={(e) => {
+                  console.error("Dashboard: Failed to load logo image:", org.logoUrl);
+                  e.currentTarget.style.display = 'none';
+                }}
+                onLoad={() => {
+                  console.log("Dashboard: Logo image loaded successfully:", org.logoUrl);
+                }}
+              />
+            ) : null}
+            <div className="text-xl font-display font-bold text-gray-900">
+              {org?.name || "forshadow"}
+            </div>
           </div>
 
           {/* CTA to create a job (navigates to Jobs surface with ?create=1) */}
@@ -588,8 +613,44 @@ export default function DashboardPage() {
       {/* Settings modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+        onClose={async () => {
+          setIsSettingsOpen(false);
+          // Refresh org data when modal closes (in case logo was uploaded)
+          if (session?.user) {
+            console.log("Dashboard: Refreshing org data after settings modal close");
+            // Force a fresh fetch
+            try {
+              const token = localStorage.getItem("bearer_token");
+              const orgsResponse = await fetch("/api/organizations?mine=true", {
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store', // Force fresh fetch
+              });
+
+              if (orgsResponse.ok) {
+                const orgs = await orgsResponse.json();
+                const primary = Array.isArray(orgs) && orgs.length > 0 ? orgs[0] : null;
+                console.log("Dashboard: Refreshed org data:", primary);
+                console.log("Dashboard: Refreshed logoUrl:", primary?.logoUrl);
+                if (primary) {
+                  setOrg({ id: primary.id, name: primary.name, logoUrl: primary.logoUrl });
+                }
+              }
+            } catch (error) {
+              console.error("Dashboard: Failed to refresh org:", error);
+            }
+          }
+        }}
+        organization={org ? { 
+          id: org.id, 
+          name: org.name, 
+          slug: '', 
+          type: 'company', 
+          plan: 'free', 
+          seatLimit: 5, 
+          logoUrl: org.logoUrl,
+          createdAt: '', 
+          updatedAt: '' 
+        } : null}
       />
     </div>
   );

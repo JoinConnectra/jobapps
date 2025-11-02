@@ -35,6 +35,7 @@ interface Organization {
   link?: string;
   benefits?: string;
   about_company?: string;
+  logoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -97,6 +98,9 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
   const [companyLink, setCompanyLink] = useState("");
   const [benefits, setBenefits] = useState("");
   const [aboutCompany, setAboutCompany] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // University access state
   const [universities, setUniversities] = useState<University[]>([]);
@@ -107,14 +111,50 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
   const [showUniversityDropdown, setShowUniversityDropdown] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<UniversityAuthorization[]>([]);
 
+  const refreshOrganizationData = async () => {
+    if (!organization) return;
+    
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const response = await fetch(`/api/organizations?mine=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const orgs = await response.json();
+        const updatedOrg = orgs.find((o: any) => o.id === organization.id);
+        if (updatedOrg) {
+          setLogoUrl(updatedOrg.logoUrl || null);
+          // Update local state to match database
+          setCompanyName(updatedOrg.name || organization.name);
+          setCompanyLink(updatedOrg.link || organization.link || "");
+          setBenefits(updatedOrg.benefits || organization.benefits || "");
+          setAboutCompany(updatedOrg.aboutCompany || organization.about_company || "");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh organization data:", error);
+    }
+  };
+
   useEffect(() => {
     if (organization) {
       setCompanyName(organization.name);
       setCompanyLink(organization.link || "");
       setBenefits(organization.benefits || "");
       setAboutCompany(organization.about_company || "");
+      setLogoUrl(organization.logoUrl || null);
+      setLogoPreview(null); // Clear any preview when organization changes
     }
   }, [organization]);
+
+  // Fetch fresh organization data when modal opens
+  useEffect(() => {
+    if (isOpen && organization?.id) {
+      refreshOrganizationData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, organization?.id]);
 
   useEffect(() => {
     if (isOpen && organization) {
@@ -262,6 +302,74 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
     !uni.approved && 
     uni.name.toLowerCase().includes(universitySearchQuery.toLowerCase())
   );
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!organization || !event.target.files || !event.target.files[0]) return;
+
+    const file = event.target.files[0];
+    
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a valid image file (JPEG, PNG, GIF, or WebP)");
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    // Show immediate preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLogoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    setUploadingLogo(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const formData = new FormData();
+      formData.append("logo", file);
+
+      const response = await fetch(`/api/organizations/${organization.id}/logo`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(error.error || "Failed to upload logo");
+      }
+
+      const data = await response.json();
+      setLogoUrl(data.logoUrl);
+      setLogoPreview(null); // Clear preview, use the actual URL from server
+      toast.success("Logo uploaded successfully");
+      
+      // Update organization prop
+      if (organization) {
+        organization.logoUrl = data.logoUrl;
+      }
+
+      // Refresh organization data to ensure persistence
+      await refreshOrganizationData();
+    } catch (error) {
+      console.error("Logo upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload logo");
+      // On error, clear preview
+      setLogoPreview(null);
+    } finally {
+      setUploadingLogo(false);
+      // Reset input
+      event.target.value = "";
+    }
+  };
 
   const handleSaveCompany = async () => {
     if (!organization) return;
@@ -474,6 +582,66 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                       {isEditing ? <Save className="w-3 h-3 mr-1" /> : <Edit className="w-3 h-3 mr-1" />}
                       {isEditing ? "Save" : "Edit"}
                     </Button>
+                  </div>
+                </div>
+
+                {/* Company Logo Section */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-[#1A1A1A]">Company Logo</h4>
+                  <p className="text-xs text-[#6B7280]">Upload your company logo. This will appear in job listings and your dashboard.</p>
+                  <div className="flex items-center gap-4">
+                    {logoPreview || logoUrl ? (
+                      <div className="relative">
+                        <img
+                          src={logoPreview || logoUrl || ""}
+                          alt={`${companyName} logo`}
+                          className="w-20 h-20 rounded-lg object-cover border-2 border-[#d4d4d8]"
+                          onError={(e) => {
+                            // If image fails to load, show placeholder
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                        {logoUrl && !logoPreview && (
+                          <button
+                            onClick={async () => {
+                              // TODO: Add API endpoint to remove logo
+                              setLogoUrl(null);
+                              toast.info("Logo removal coming soon");
+                            }}
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                            title="Remove logo"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 rounded-lg border-2 border-dashed border-[#d4d4d8] flex items-center justify-center bg-[#f7f7f7]">
+                        <Building className="w-8 h-8 text-[#9CA3AF]" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        onChange={handleLogoUpload}
+                        disabled={uploadingLogo}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        disabled={uploadingLogo}
+                        onClick={() => {
+                          const input = document.getElementById("logo-upload") as HTMLInputElement;
+                          input?.click();
+                        }}
+                        className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white text-sm px-4 py-2"
+                      >
+                        {uploadingLogo ? "Uploading..." : logoUrl ? "Change Logo" : "Upload Logo"}
+                      </Button>
+                      <p className="text-xs text-[#6B7280] mt-1">Max size: 5MB. Supported formats: JPEG, PNG, GIF, WebP</p>
+                    </div>
                   </div>
                 </div>
 

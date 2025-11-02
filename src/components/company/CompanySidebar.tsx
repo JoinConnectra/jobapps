@@ -15,7 +15,7 @@ export default function CompanySidebar({
   onSignOut,
   active = '',
 }: {
-  org: { id: number; name: string } | null;
+  org: { id: number; name: string; logoUrl?: string | null } | null;
   user: { name?: string | null };
   onSignOut: () => void;
   active?: 'activities' | 'jobs' | 'assessments' | 'events' | 'kpi';
@@ -40,8 +40,17 @@ export default function CompanySidebar({
   return (
     <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
       <div className="p-6">
-        <div className="text-xl font-display font-bold text-gray-900 mb-6">
-          {org?.name || 'forshadow'}
+        <div className="flex items-center gap-2 mb-6">
+          {org?.logoUrl ? (
+            <img
+              src={org.logoUrl}
+              alt={`${org.name} logo`}
+              className="w-7 h-7 rounded object-cover flex-shrink-0"
+            />
+          ) : null}
+          <div className="text-xl font-display font-bold text-gray-900">
+            {org?.name || 'forshadow'}
+          </div>
         </div>
 
         <Button

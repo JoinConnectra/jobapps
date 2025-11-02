@@ -90,7 +90,7 @@ export default function AllJobsPage() {
   const [jobs, setJobs] = useState<JobWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [orgId, setOrgId] = useState<number | null>(null);
-  const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
+  const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft" | "archived">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -449,8 +449,17 @@ export default function AllJobsPage() {
       <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
         <div className="p-6">
           {/* Organization Name */}
-          <div className="text-xl font-display font-bold text-gray-900 mb-6">
-            {org?.name || "forshadow"}
+          <div className="flex items-center gap-2 mb-6">
+            {org?.logoUrl ? (
+              <img
+                src={org.logoUrl}
+                alt={`${org.name} logo`}
+                className="w-7 h-7 rounded object-cover flex-shrink-0"
+              />
+            ) : null}
+            <div className="text-xl font-display font-bold text-gray-900">
+              {org?.name || "forshadow"}
+            </div>
           </div>
 
           {/* Shortcut: Create job button */}
@@ -941,8 +950,37 @@ export default function AllJobsPage() {
         {/* Settings modal */}
         <SettingsModal
           isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+          onClose={async () => {
+            setIsSettingsOpen(false);
+            // Refresh org data when modal closes (in case logo was uploaded)
+            if (session?.user) {
+              try {
+                const token = localStorage.getItem("bearer_token");
+                const orgResp = await fetch("/api/organizations?mine=true", {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (orgResp.ok) {
+                  const orgs = await orgResp.json();
+                  if (Array.isArray(orgs) && orgs.length > 0) {
+                    setOrg(orgs[0]);
+                  }
+                }
+              } catch (error) {
+                console.error("Failed to refresh org data:", error);
+              }
+            }
+          }}
+          organization={org ? { 
+            id: org.id, 
+            name: org.name, 
+            slug: '', 
+            type: 'company', 
+            plan: 'free', 
+            seatLimit: 5, 
+            logoUrl: org.logoUrl,
+            createdAt: '', 
+            updatedAt: '' 
+          } : null}
         />
       </div>
     );
