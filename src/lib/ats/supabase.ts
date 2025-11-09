@@ -1,16 +1,13 @@
-// src/lib/supabase.ts
 import { createClient } from "@supabase/supabase-js";
 
-/** Public/browser client (anon) — safe for client components */
 export const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { persistSession: true } } // client: persist session
+  { auth: { persistSession: false } }
 );
 
-/** Admin/server client (service role) — server-only API routes */
 export const supabaseService = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, // server env only
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,   // server only
   { auth: { persistSession: false } }
 );

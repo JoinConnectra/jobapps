@@ -78,6 +78,11 @@ interface Job {
   descriptionMd: string | null;
   status: string;     // draft | published | closed (archived)
   orgId: number;
+
+  // NEW optional fields shown in UI
+  location?: string | null;
+  seniority?: "junior" | "mid" | "senior" | null;
+  skillsCsv?: string | null;
 }
 
 export default function JobDetailPage() {
@@ -112,6 +117,11 @@ export default function JobDetailPage() {
     salaryRange: "",
     descriptionMd: "",
     status: "",
+
+    // NEW fields mirrored for inline edit
+    location: "",
+    seniority: "" as "" | "junior" | "mid" | "senior",
+    skillsCsv: "",
   });
 
   /**
@@ -167,7 +177,7 @@ export default function JobDetailPage() {
       });
 
       if (jobResponse.ok) {
-        const jobData = await jobResponse.json();
+        const jobData: Job = await jobResponse.json();
         setJob(jobData);
         setEditData({
           title: jobData.title || "",
@@ -176,6 +186,11 @@ export default function JobDetailPage() {
           salaryRange: jobData.salaryRange || "",
           descriptionMd: jobData.descriptionMd || "",
           status: jobData.status || "",
+
+          // seed NEW fields
+          location: jobData.location || "",
+          seniority: (jobData.seniority as "junior" | "mid" | "senior") || "",
+          skillsCsv: jobData.skillsCsv || "",
         });
       }
 
@@ -275,6 +290,10 @@ export default function JobDetailPage() {
         salaryRange: job.salaryRange || "",
         descriptionMd: job.descriptionMd || "",
         status: job.status || "",
+
+        location: job.location || "",
+        seniority: (job.seniority as "junior" | "mid" | "senior") || "",
+        skillsCsv: job.skillsCsv || "",
       });
     }
   };
@@ -292,7 +311,7 @@ export default function JobDetailPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editData),
+        body: JSON.stringify(editData), // includes new fields
       });
 
       if (response.ok) {
@@ -406,14 +425,14 @@ export default function JobDetailPage() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs text-gray-500 mb-1 block">Location</Label>
+                          <Label className="text-xs text-gray-500 mb-1 block">Location Mode</Label>
                           <Input
                             value={editData.locationMode}
                             onChange={(e) =>
                               setEditData({ ...editData, locationMode: e.target.value })
                             }
                             className="text-sm"
-                            placeholder="e.g. Remote, NYC"
+                            placeholder="e.g. Remote, Hybrid, On-site"
                           />
                         </div>
                         <div>
@@ -424,9 +443,55 @@ export default function JobDetailPage() {
                               setEditData({ ...editData, salaryRange: e.target.value })
                             }
                             className="text-sm"
-                            placeholder="e.g. $80k-120k"
+                            placeholder="e.g. PKR 150,000 - 250,000/month"
                           />
                         </div>
+                      </div>
+
+                      {/* NEW row: Work Location + Seniority */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="col-span-2">
+                          <Label className="text-xs text-gray-500 mb-1 block">Work Location (City/Office)</Label>
+                          <Input
+                            value={editData.location}
+                            onChange={(e) =>
+                              setEditData({ ...editData, location: e.target.value })
+                            }
+                            className="text-sm"
+                            placeholder="e.g. Lahore, PK or DHA Phase 5 Office"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-500 mb-1 block">Seniority</Label>
+                          <Select
+                            value={editData.seniority || ""}
+                            onValueChange={(v) =>
+                              setEditData({ ...editData, seniority: v as "junior" | "mid" | "senior" })
+                            }
+                          >
+                            <SelectTrigger className="text-sm">
+                              <SelectValue placeholder="Select level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="junior">Junior</SelectItem>
+                              <SelectItem value="mid">Mid</SelectItem>
+                              <SelectItem value="senior">Senior</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* NEW: Skills CSV */}
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-1 block">Required Skills (comma-separated)</Label>
+                        <Input
+                          value={editData.skillsCsv}
+                          onChange={(e) =>
+                            setEditData({ ...editData, skillsCsv: e.target.value })
+                          }
+                          className="text-sm"
+                          placeholder="e.g. React, TypeScript, Node, Postgres"
+                        />
                       </div>
 
                       <div>
@@ -445,8 +510,26 @@ export default function JobDetailPage() {
                     <div>
                       <h2 className="text-lg font-medium text-gray-900 mb-1">{job.title}</h2>
                       <p className="text-sm text-gray-500">
-                        {job.dept} • {job.locationMode} • {job.salaryRange}
+                        {job.dept || "—"} • {job.locationMode || "—"} • {job.salaryRange || "—"}
                       </p>
+
+                      {/* NEW: quick meta row */}
+                      <div className="mt-1 text-xs text-gray-500">
+                        <span className="mr-3">
+                          <strong className="text-gray-700">Work location:</strong>{" "}
+                          {job.location || "—"}
+                        </span>
+                        <span className="mr-3">
+                          <strong className="text-gray-700">Seniority:</strong>{" "}
+                          {job.seniority || "—"}
+                        </span>
+                        {job.skillsCsv ? (
+                          <span>
+                            <strong className="text-gray-700">Skills:</strong> {job.skillsCsv}
+                          </span>
+                        ) : null}
+                      </div>
+
                       {job.descriptionMd && (
                         <div className="mt-2 text-sm text-gray-600 max-w-2xl">
                           {job.descriptionMd}

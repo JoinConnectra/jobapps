@@ -63,6 +63,11 @@ interface Job {
   createdAt: string;
   locationMode?: string | null;
   salaryRange?: string | null;
+
+  // NEW optional UI fields
+  location?: string | null;
+  seniority?: "junior" | "mid" | "senior" | null;
+  skillsCsv?: string | null;
 }
 
 /** Job + computed stats for UI display */
@@ -110,6 +115,11 @@ export default function AllJobsPage() {
     status: "draft" as "draft" | "published" | "closed",
     visibility: "public" as "public" | "institutions" | "both",
     universityIds: [] as number[],
+
+    // NEW fields mirrored in create UI
+    location: "",
+    seniority: "" as "" | "junior" | "mid" | "senior",
+    skillsCsv: "",
   });
 
   /**
@@ -311,6 +321,11 @@ export default function AllJobsPage() {
           locationMode: form.locationMode,
           salaryRange: form.salaryRange,
           status: "draft",
+
+          // include NEW fields so JD can tailor
+          location: form.location || undefined,
+          seniority: form.seniority || undefined,
+          skillsCsv: form.skillsCsv || undefined,
         }),
       });
       if (!createResp.ok) throw new Error();
@@ -319,7 +334,13 @@ export default function AllJobsPage() {
       // Ask AI to generate description
       const prompt = `Create a comprehensive job description for a ${form.title} position${
         form.dept ? ` in the ${form.dept} department` : ""
-      }. Location: ${form.locationMode}${
+      }. Location mode: ${form.locationMode}${
+        form.location ? `; Work location: ${form.location}` : ""
+      }${
+        form.seniority ? `; Seniority: ${form.seniority}` : ""
+      }${
+        form.skillsCsv ? `; Required skills: ${form.skillsCsv}` : ""
+      }${
         form.salaryRange ? `. Salary: ${form.salaryRange}` : ""
       }. Make it suitable for the Pakistan job market with both English and Urdu context.`;
 
@@ -511,6 +532,46 @@ export default function AllJobsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+
+                  {/* NEW: Work Location + Seniority */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <Label htmlFor="location">Work Location (City/Office)</Label>
+                      <Input
+                        id="location"
+                        value={form.location}
+                        onChange={(e) => setForm({ ...form, location: e.target.value })}
+                        placeholder="e.g., Lahore, PK or DHA Phase 5 Office"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="seniority">Seniority</Label>
+                      <Select
+                        value={form.seniority}
+                        onValueChange={(v) => setForm({ ...form, seniority: v as "junior" | "mid" | "senior" })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="junior">Junior</SelectItem>
+                          <SelectItem value="mid">Mid</SelectItem>
+                          <SelectItem value="senior">Senior</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* NEW: Skills CSV */}
+                  <div>
+                    <Label htmlFor="skillsCsv">Required Skills (comma-separated)</Label>
+                    <Input
+                      id="skillsCsv"
+                      value={form.skillsCsv}
+                      onChange={(e) => setForm({ ...form, skillsCsv: e.target.value })}
+                      placeholder="e.g., React, TypeScript, Node, Postgres"
+                    />
                   </div>
 
                   <div>
@@ -751,6 +812,15 @@ export default function AllJobsPage() {
                             {job.totalCandidates} candidates • {job.createdBy} •{" "}
                             {new Date(job.createdAt).toLocaleDateString()}
                           </div>
+
+                          {/* NEW quick meta (non-intrusive) */}
+                          {(job.location || job.seniority || job.skillsCsv) && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              {job.location ? <span className="mr-3">📍 {job.location}</span> : null}
+                              {job.seniority ? <span className="mr-3">🎯 {job.seniority}</span> : null}
+                              {job.skillsCsv ? <span>🛠️ {job.skillsCsv}</span> : null}
+                            </div>
+                          )}
                         </Link>
 
                         {/* Status badge + row actions */}
