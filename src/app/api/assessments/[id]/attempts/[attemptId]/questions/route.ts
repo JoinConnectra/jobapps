@@ -37,7 +37,23 @@ async function uuidV5FromString(
   ].join("-");
 }
 
-/** Try to resolve column name variants safely (duration/title). */
+/** Parse "30 min", "1 hour", "90 minutes" → seconds. */
+function parseDurationToSeconds(s?: string | null): number | null {
+  if (!s) return null;
+  const str = String(s).toLowerCase();
+  const h = str.match(/(\d+)\s*(hour|hours|hr|hrs)/i);
+  const m = str.match(/(\d+)\s*(min|mins|minute|minutes)/i);
+  let sec = 0;
+  if (h) sec += Number(h[1]) * 3600;
+  if (m) sec += Number(m[1]) * 60;
+  if (!h && !m) {
+    const num = Number(str.match(/(\d+)/)?.[1]);
+    if (Number.isFinite(num)) sec += num * 60; // bare number => minutes
+  }
+  return sec || null;
+}
+
+/** Keep your old helper, though we won't use it for selecting missing columns. */
 function resolveDurationCol() {
   const any = assessments as any;
   return any.durationSec ?? any.duration_sec ?? any.duration ?? null;
@@ -66,7 +82,7 @@ export async function GET(
     });
 
     // must exist and belong to this user, and match assessment id
-    if (!attempt || Number(attempt.assessmentId) !== aid) {
+    if (!attempt || Number((attempt as any).assessmentId) !== aid) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const attemptCandidateId =
@@ -80,50 +96,68 @@ export async function GET(
       return NextResponse.json({ error: "Attempt already submitted" }, { status: 403 });
     }
 
-    // Load questions
+    // Load questions (same as your old logic)
     const qRows = await db
       .select()
       .from(assessmentQuestions)
       .where(eq(assessmentQuestions.assessmentId, aid))
       .orderBy(assessmentQuestions.orderIndex);
 
-    // Optional: meta (title + duration)
-    const durCol: any = resolveDurationCol();
+    // 🔧 Meta (title + duration): select only columns that EXIST for sure.
+    // Your table shows: title (text), duration (text like "30 min")
     const { rows: metaRows } = await db.execute(sql/* sql */`
-      select ${assessments.title} as title,
-             ${durCol ? durCol : sql`null`} as duration_sec
-      from ${assessments}
-      where ${assessments.id} = ${aid}
+      select "title", "duration"
+      from "assessments"
+      where "id" = ${aid}
       limit 1
     `);
-    const meta = metaRows?.[0] || {};
-    const durationSec = meta?.duration_sec != null ? Number(meta.duration_sec) : null;
-    const title = meta?.title ?? "Assessment";
+    const meta = metaRows?.[0] ?? {};
+    const title: string = meta?.title ?? "Assessment";
+    const durationSec: number | null = parseDurationToSeconds(meta?.duration ?? null);
 
-    const questions = qRows.map((q: any) => ({
-      id: Number(q.id),
-      prompt: q.prompt,
-      kind: (q.kind || "short") as "mcq" | "short" | "coding" | "case",
-      optionsJson: q.optionsJson ?? q.options_json ?? null,
-      correctAnswer: q.correctAnswer ?? q.correct_answer ?? null,
-      orderIndex:
-        q.orderIndex != null
-          ? Number(q.orderIndex)
-          : q.order_index != null
-          ? Number(q.order_index)
-          : null,
-    }));
+    // ✅ startedAt for the client-side timer
+    const rawStarted =
+      (attempt as any).startedAt ??
+      (attempt as any).started_at ??
+      null;
+    const startedAt = rawStarted ? new Date(rawStarted).toISOString() : null;
+
+    // Normalize options JSON
+    const questions = qRows.map((q: any) => {
+      let optionsJson = q.optionsJson ?? q.options_json ?? null;
+      if (optionsJson && typeof optionsJson === "string") {
+        try { optionsJson = JSON.parse(optionsJson); } catch {}
+      }
+      return {
+        id: Number(q.id),
+        prompt: q.prompt,
+        kind: (q.kind || "short") as "mcq" | "short" | "coding" | "case",
+        optionsJson,
+        correctAnswer: q.correctAnswer ?? q.correct_answer ?? null,
+        orderIndex:
+          q.orderIndex != null
+            ? Number(q.orderIndex)
+            : q.order_index != null
+            ? Number(q.order_index)
+            : null,
+      };
+    });
 
     return NextResponse.json(
       {
         questions,
-        meta: { title, durationSec, attemptStatus: (attempt as any).status ?? "in_progress" },
+        meta: {
+          title,
+          durationSec,                    // number (seconds)
+          startedAt,                      // ISO string
+          attemptStatus: (attempt as any).status ?? "in_progress",
+        },
       },
       { status: 200 }
     );
   } catch (err) {
     console.error(
-      "GET /api/assessments/[id]/attempts/[attemptId]/questions error:",
+      'GET /api/assessments/[id]/attempts/[attemptId]/questions error:',
       (err as any)?.message || err
     );
     return NextResponse.json({ error: "Server error" }, { status: 500 });

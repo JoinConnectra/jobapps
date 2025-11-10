@@ -10,6 +10,26 @@ import {
 } from "@/db/schema-pg";
 import { getCurrentUser } from "@/lib/auth";
 
+function parseDurationToSeconds(s?: string | null): number | null {
+  if (!s) return null;
+  const str = String(s).toLowerCase();
+  // supports: "30 min", "45 mins", "1 hour", "2 hr", "90 minutes"
+  const hourMatch = str.match(/(\d+)\s*(hour|hours|hr|hrs)/i);
+  const minMatch  = str.match(/(\d+)\s*(min|mins|minute|minutes)/i);
+
+  let seconds = 0;
+  if (hourMatch) seconds += Number(hourMatch[1]) * 3600;
+  if (minMatch)  seconds += Number(minMatch[1]) * 60;
+
+  // fallback: bare number means minutes
+  if (!hourMatch && !minMatch) {
+    const num = Number(str.match(/(\d+)/)?.[1]);
+    if (Number.isFinite(num)) seconds += num * 60;
+  }
+  return seconds || null;
+}
+
+
 /** Resolve the org id column name across schema variants */
 function resolveOrgCol() {
   const aAny = assessments as any;
@@ -76,15 +96,16 @@ export async function GET(req: NextRequest) {
 
     // 1) application_assessments for MY applications
     const aa = await db
-      .select({
-        aaId: applicationAssessments.id,
-        applicationId: applicationAssessments.applicationId,
-        assessmentId: applicationAssessments.assessmentId,
-        status: applicationAssessments.status,
-        startedAt: applicationAssessments.startedAt,
-        submittedAt: applicationAssessments.submittedAt,
-        score: applicationAssessments.score,
-      })
+  .select({
+    aaId: applicationAssessments.id,
+    applicationId: applicationAssessments.applicationId,
+    assessmentId: applicationAssessments.assessmentId,
+    status: applicationAssessments.status,
+    startedAt: applicationAssessments.startedAt,
+    submittedAt: applicationAssessments.submittedAt,
+    dueAt: applicationAssessments.dueAt,
+    score: applicationAssessments.score,
+  })
       .from(applicationAssessments)
       .innerJoin(applications, eq(applicationAssessments.applicationId, applications.id))
       .where(eq(applications.applicantUserId, meId));
@@ -96,11 +117,12 @@ export async function GET(req: NextRequest) {
     const orgCol: any = resolveOrgCol();
 
     const assn = await db
-      .select({
-        id: assessments.id,
-        title: assessments.title,
-        orgId: orgCol,
-      })
+  .select({
+    id: assessments.id,
+    title: assessments.title,
+    orgId: orgCol,
+    duration: assessments.duration, // e.g. "30 min"
+  })
       .from(assessments)
       .where(inArray(assessments.id, assessmentIds));
 
@@ -158,12 +180,15 @@ export async function GET(req: NextRequest) {
           : "assigned";
 
       return {
-        id: r.assessmentId,
-        title: a?.title ?? `Assessment #${r.assessmentId}`,
-        orgName: org?.name ?? null,
-        status: normalizedStatus as "assigned" | "in_progress" | "completed",
-        attemptId: latestAttemptByAssessment.get(r.assessmentId) ?? null,
-      };
+  id: r.assessmentId,
+  title: a?.title ?? `Assessment #${r.assessmentId}`,
+  orgName: org?.name ?? null,
+  status: normalizedStatus as "assigned" | "in_progress" | "completed",
+  attemptId: latestAttemptByAssessment.get(r.assessmentId) ?? null,
+  dueAt: r.dueAt ? String(r.dueAt) : null,
+  durationSec: parseDurationToSeconds(a?.duration ?? null),
+};
+
     });
 
     return NextResponse.json(list, { status: 200 });

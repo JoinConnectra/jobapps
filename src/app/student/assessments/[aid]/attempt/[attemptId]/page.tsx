@@ -1,3 +1,4 @@
+// src/app/student/assessments/[aid]/attempt/[attemptId]/page.tsx
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
@@ -17,7 +18,12 @@ type Question = {
 
 type ServerLoadResponse = {
   questions: Question[];
-  meta?: { title?: string; durationSec?: number; attemptStatus?: string };
+  meta?: {
+    title?: string;
+    durationSec?: number;
+    attemptStatus?: string;
+    startedAt?: string | null;
+  };
 };
 
 export default function AttemptRunner() {
@@ -29,6 +35,8 @@ export default function AttemptRunner() {
 
   const [title, setTitle] = useState<string>("Assessment");
   const [durationSec, setDurationSec] = useState<number | null>(null);
+  const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [remainingSec, setRemainingSec] = useState<number | null>(null);
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<number, any>>({});
@@ -42,6 +50,7 @@ export default function AttemptRunner() {
   // debounce state
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirtyRef = useRef<boolean>(false);
+  const autoSubmittedRef = useRef<boolean>(false);
 
   // ✅ Always return a stable HeadersInit (Record<string,string>)
   const authHeaders = (): Record<string, string> => {
@@ -75,10 +84,25 @@ export default function AttemptRunner() {
       const json: ServerLoadResponse = await resp.json();
       setQuestions(Array.isArray(json?.questions) ? json.questions : []);
       setTitle(json?.meta?.title || "Assessment");
-      setDurationSec(
-        Number.isFinite(json?.meta?.durationSec as any) ? (json.meta!.durationSec as number) : null
-      );
+
+      const dSec = Number.isFinite(json?.meta?.durationSec as any)
+        ? (json.meta!.durationSec as number)
+        : null;
+      setDurationSec(dSec);
       setAttemptStatus(json?.meta?.attemptStatus || "in_progress");
+
+      const sAt = json?.meta?.startedAt ?? null;
+      setStartedAt(sAt);
+
+      // initialize countdown
+      if (dSec && sAt) {
+        const endMs = new Date(sAt).getTime() + dSec * 1000;
+        const nowMs = Date.now();
+        setRemainingSec(Math.max(0, Math.floor((endMs - nowMs) / 1000)));
+      } else {
+        setRemainingSec(null);
+      }
+
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,6 +201,59 @@ export default function AttemptRunner() {
     }
   };
 
+  // ---------- countdown ----------
+  useEffect(() => {
+    if (!durationSec || !startedAt || locked) return;
+
+    const tick = () => {
+      const endMs = new Date(startedAt).getTime() + durationSec * 1000;
+      const nowMs = Date.now();
+      const rem = Math.max(0, Math.floor((endMs - nowMs) / 1000));
+      setRemainingSec(rem);
+
+      if (rem <= 0 && !autoSubmittedRef.current) {
+        autoSubmittedRef.current = true;
+        onSubmit();
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [durationSec, startedAt, locked]);
+
+  // ---------- UI helpers ----------
+  const mmss = (s: number) =>
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  const renderAllottedUnderTitle = () => {
+    if (!Number.isFinite(durationSec) || durationSec === null) return null;
+    const allotted = Math.floor(durationSec / 60);
+    return (
+      <p className="text-sm text-muted-foreground">
+        Time allotted: {allotted} min
+      </p>
+    );
+  };
+
+  const TimerPill = () => {
+    if (typeof remainingSec !== "number") return null;
+    const urgent = remainingSec <= 30;
+    return (
+      <div
+        className={`px-3 py-1 rounded-full text-xs font-medium border ${
+          urgent ? "border-red-600 text-red-700" : "border-gray-300 text-gray-700"
+        }`}
+        aria-live="polite"
+        aria-atomic="true"
+        title="Time remaining"
+      >
+        ⏱ {mmss(remainingSec)}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="p-6 max-w-3xl mx-auto text-sm text-muted-foreground">Loading…</div>
@@ -189,9 +266,7 @@ export default function AttemptRunner() {
       <div className="mb-6 flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {Number.isFinite(durationSec) && durationSec !== null && (
-            <p className="text-sm text-muted-foreground">Time: {durationSec}s</p>
-          )}
+          {renderAllottedUnderTitle()}
           {saving && !submitting && (
             <p className="text-xs text-muted-foreground">Saving…</p>
           )}
@@ -199,7 +274,9 @@ export default function AttemptRunner() {
             <p className="text-xs text-red-600">This attempt has been submitted and is locked.</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* ⏱ Timer to the LEFT of Back */}
+          {typeof remainingSec === "number" ? <TimerPill /> : null}
           <Button variant="outline" onClick={() => history.back()} disabled={locked}>
             Back
           </Button>
