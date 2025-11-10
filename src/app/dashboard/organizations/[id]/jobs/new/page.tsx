@@ -27,6 +27,8 @@ export default function NewJobPage() {
   const [generatingJD, setGeneratingJD] = useState(false);
   const [universities, setUniversities] = useState<{id: number; name: string; approved: boolean}[]>([]);
   const [loadingUniversities, setLoadingUniversities] = useState(false);
+
+  // ✅ Added: location, seniority, skillsCsv
   const [formData, setFormData] = useState({
     title: "",
     dept: "",
@@ -34,8 +36,11 @@ export default function NewJobPage() {
     salaryRange: "",
     descriptionMd: "",
     status: "draft",
-    visibility: 'public' as 'public' | 'institutions' | 'both',
+    visibility: "public" as "public" | "institutions" | "both",
     universityIds: [] as number[],
+    location: "",                          // NEW
+    seniority: "junior" as "junior" | "mid" | "senior", // NEW
+    skillsCsv: "",                         // NEW (UI-only; server will split)
   });
 
   // Fetch approved universities for this organization
@@ -76,7 +81,7 @@ export default function NewJobPage() {
     try {
       const token = localStorage.getItem("bearer_token");
       
-      // First create the job
+      // First create the job (draft shell)
       const createResponse = await fetch("/api/jobs", {
         method: "POST",
         headers: {
@@ -90,6 +95,10 @@ export default function NewJobPage() {
           locationMode: formData.locationMode,
           salaryRange: formData.salaryRange,
           status: "draft",
+          // Pass along new fields (server may ignore or persist depending on handler)
+          location: formData.location,
+          seniority: formData.seniority,
+          skillsCsv: formData.skillsCsv,
         }),
       });
 
@@ -102,9 +111,15 @@ export default function NewJobPage() {
       // Generate JD with AI
       const prompt = `Create a comprehensive job description for a ${formData.title} position${
         formData.dept ? ` in the ${formData.dept} department` : ""
-      }. Location: ${formData.locationMode}${
+      }. Location mode: ${formData.locationMode}${
+        formData.location ? `, Work location: ${formData.location}` : ""
+      }${
+        formData.seniority ? `. Seniority: ${formData.seniority}` : ""
+      }${
+        formData.skillsCsv ? `. Required skills: ${formData.skillsCsv}` : ""
+      }${
         formData.salaryRange ? `. Salary: ${formData.salaryRange}` : ""
-      }. Make it suitable for the Pakistan job market with both English and Urdu context.`;
+      }. Make it suitable for the Pakistan job market with both English and Urdu context. Provide clear responsibilities and qualifications, and a short application CTA.`;
 
       const jdResponse = await fetch("/api/ai/generate-jd", {
         method: "POST",
@@ -145,7 +160,7 @@ export default function NewJobPage() {
         body: JSON.stringify({
           // Redirect new job creation to main dashboard flow; use first org and push to /dashboard/jobs
           orgId: params.id,
-          ...formData,
+          ...formData, // includes location, seniority, skillsCsv
         }),
       });
 
@@ -202,6 +217,7 @@ export default function NewJobPage() {
                 />
               </div>
 
+              {/* Dept + Location Mode */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="dept">Department</Label>
@@ -235,6 +251,40 @@ export default function NewJobPage() {
                 </div>
               </div>
 
+              {/* NEW: Work Location + Seniority */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="location">Work Location (City/Office)</Label>
+                  <Input
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) =>
+                      setFormData({ ...formData, location: e.target.value })
+                    }
+                    placeholder="e.g., Lahore, PK or DHA Phase 5 Office"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="seniority">Seniority</Label>
+                  <Select
+                    value={formData.seniority}
+                    onValueChange={(value: "junior" | "mid" | "senior") =>
+                      setFormData({ ...formData, seniority: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="junior">Junior</SelectItem>
+                      <SelectItem value="mid">Mid</SelectItem>
+                      <SelectItem value="senior">Senior</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div>
                 <Label htmlFor="salaryRange">Salary Range</Label>
                 <Input
@@ -245,6 +295,22 @@ export default function NewJobPage() {
                   }
                   placeholder="e.g., PKR 150,000 - 250,000/month"
                 />
+              </div>
+
+              {/* NEW: Skills CSV */}
+              <div>
+                <Label htmlFor="skillsCsv">Required Skills (comma-separated)</Label>
+                <Input
+                  id="skillsCsv"
+                  value={formData.skillsCsv}
+                  onChange={(e) =>
+                    setFormData({ ...formData, skillsCsv: e.target.value })
+                  }
+                  placeholder="e.g., React, TypeScript, Node, Postgres"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  We’ll turn this into a skills list on the server.
+                </p>
               </div>
 
               <div>
@@ -288,7 +354,7 @@ export default function NewJobPage() {
                 <Select
                   value={formData.status}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, status: value })
+                    setFormData({ ...formData, status: value as any })
                   }
                 >
                   <SelectTrigger>
@@ -302,78 +368,78 @@ export default function NewJobPage() {
                 </Select>
               </div>
 
-            <div>
-              <Label>Visibility</Label>
-              <Select
-                value={formData.visibility}
-                onValueChange={(value) => setFormData({ ...formData, visibility: value as any })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="public">Public</SelectItem>
-                  <SelectItem value="institutions">Selected Institutions Only</SelectItem>
-                  <SelectItem value="both">Institutions + Public</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Choose who can view/apply to this job.
-              </p>
-            </div>
-
-            {/* University Selection - Only show when institutions or both is selected */}
-            {(formData.visibility === 'institutions' || formData.visibility === 'both') && (
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <GraduationCap className="w-4 h-4 text-[#6a994e]" />
-                  <Label>Select Universities</Label>
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Choose which universities can see this job posting.
+                <Label>Visibility</Label>
+                <Select
+                  value={formData.visibility}
+                  onValueChange={(value) => setFormData({ ...formData, visibility: value as any })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="public">Public</SelectItem>
+                    <SelectItem value="institutions">Selected Institutions Only</SelectItem>
+                    <SelectItem value="both">Institutions + Public</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Choose who can view/apply to this job.
                 </p>
-                
-                {loadingUniversities ? (
-                  <div className="p-4 text-center text-sm text-muted-foreground">
-                    Loading universities...
-                  </div>
-                ) : universities.length > 0 ? (
-                  <div className="space-y-2 max-h-40 overflow-y-auto border border-[#d4d4d8] rounded-md p-3">
-                    {universities.map((university) => (
-                      <div key={university.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`university-${university.id}`}
-                          checked={formData.universityIds.includes(university.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setFormData({
-                                ...formData,
-                                universityIds: [...formData.universityIds, university.id]
-                              });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                universityIds: formData.universityIds.filter(id => id !== university.id)
-                              });
-                            }
-                          }}
-                        />
-                        <Label
-                          htmlFor={`university-${university.id}`}
-                          className="text-sm font-normal cursor-pointer"
-                        >
-                          {university.name}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-sm text-muted-foreground border border-[#d4d4d8] rounded-md">
-                    No approved universities available. Please request access to universities in your organization settings first.
-                  </div>
-                )}
               </div>
-            )}
+
+              {/* University Selection - Only show when institutions or both is selected */}
+              {(formData.visibility === 'institutions' || formData.visibility === 'both') && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <GraduationCap className="w-4 h-4 text-[#6a994e]" />
+                    <Label>Select Universities</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Choose which universities can see this job posting.
+                  </p>
+                  
+                  {loadingUniversities ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      Loading universities...
+                    </div>
+                  ) : universities.length > 0 ? (
+                    <div className="space-y-2 max-h-40 overflow-y-auto border border-[#d4d4d8] rounded-md p-3">
+                      {universities.map((university) => (
+                        <div key={university.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`university-${university.id}`}
+                            checked={formData.universityIds.includes(university.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  universityIds: [...formData.universityIds, university.id]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  universityIds: formData.universityIds.filter(id => id !== university.id)
+                                });
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor={`university-${university.id}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {university.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-sm text-muted-foreground border border-[#d4d4d8] rounded-md">
+                      No approved universities available. Please request access to universities in your organization settings first.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <Button

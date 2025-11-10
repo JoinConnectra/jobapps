@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { jobs, organizations } from '@/db/schema-pg';
-import { eq, and, or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/jobs/:id
@@ -38,6 +38,11 @@ export async function GET(
         orgId: jobs.orgId,
         orgName: organizations.name,
         orgWebsite: organizations.link,
+
+        /** NEW fields */
+        location: jobs.location,
+        seniority: jobs.seniority,
+        skillsCsv: jobs.skillsCsv,
       })
       .from(jobs)
       .leftJoin(organizations, eq(organizations.id, jobs.orgId))
@@ -63,18 +68,22 @@ export async function GET(
       }, { status: 404 });
     }
 
-    // If you later render markdown to HTML, plug it here. For now leave descriptionHtml null/empty.
     return NextResponse.json(
       {
         id: j.id,
         title: j.title,
-        descriptionHtml: null, // or render from j.descriptionMd
-        location: null,        // wire if you add a job.city/location column
+        descriptionHtml: null, // (you can render from descriptionMd later)
+        location: j.location || null,  // NEW: wire through
         locationMode: j.locationMode,
-        organization: j.orgName ? { 
+        seniority: j.seniority || null,
+        skillsCsv: j.skillsCsv || null,
+
+        organization: j.orgName ? {
           name: j.orgName,
-          website: j.orgWebsite || null 
+          website: j.orgWebsite || null
         } : null,
+
+        // keep extras you were exposing
         orgName: j.orgName,
         orgWebsite: j.orgWebsite || null,
       },
@@ -90,7 +99,7 @@ export async function GET(
 
 /**
  * PATCH /api/jobs/:id
- * (unchanged except for leaving your logic as-is)
+ * (keeps your logic; enables updates for new fields)
  */
 export async function PATCH(
   request: NextRequest,
@@ -99,7 +108,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const jobId = parseInt(id);
-    
+
     if (isNaN(jobId)) {
       return NextResponse.json({
         error: 'Valid job ID is required',
@@ -108,7 +117,20 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { title, dept, locationMode, salaryRange, descriptionMd, status, visibility } = body;
+    const {
+      title,
+      dept,
+      locationMode,
+      salaryRange,
+      descriptionMd,
+      status,
+      visibility,
+
+      /** NEW optional updatable fields */
+      location,
+      seniority,
+      skillsCsv,
+    } = body;
 
     // Check if job exists
     const existingJob = await db.select()
@@ -128,13 +150,18 @@ export async function PATCH(
       updatedAt: new Date(),
     };
 
-    if (title !== undefined) updateData.title = title.trim();
+    if (title !== undefined) updateData.title = title?.trim();
     if (dept !== undefined) updateData.dept = dept?.trim() || null;
     if (locationMode !== undefined) updateData.locationMode = locationMode?.trim() || null;
     if (salaryRange !== undefined) updateData.salaryRange = salaryRange?.trim() || null;
     if (descriptionMd !== undefined) updateData.descriptionMd = descriptionMd?.trim() || null;
     if (status !== undefined) updateData.status = status;
     if (visibility !== undefined) updateData.visibility = visibility;
+
+    /** NEW fields */
+    if (location !== undefined) updateData.location = location?.trim() || null;
+    if (seniority !== undefined) updateData.seniority = seniority?.trim() || null;
+    if (skillsCsv !== undefined) updateData.skillsCsv = skillsCsv?.trim() || null;
 
     const updatedJob = await db.update(jobs)
       .set(updateData)
@@ -161,7 +188,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const jobId = parseInt(id);
-    
+
     if (isNaN(jobId)) {
       return NextResponse.json({
         error: 'Valid job ID is required',
@@ -169,7 +196,6 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Check if job exists
     const existingJob = await db.select()
       .from(jobs)
       .where(eq(jobs.id, jobId))
@@ -182,7 +208,6 @@ export async function DELETE(
       }, { status: 404 });
     }
 
-    // Delete the job
     await db.delete(jobs).where(eq(jobs.id, jobId));
 
     return NextResponse.json({ success: true }, { status: 200 });

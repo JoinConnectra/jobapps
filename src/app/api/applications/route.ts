@@ -266,6 +266,16 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error('Failed to write activity for upgraded legacy application:', err);
       }
+      try {
+  const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+
+  fetch(`${base}/api/ats/applications/${legacy.id}/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  }).catch(() => {});
+} catch (_) {}
+
+
 
       return NextResponse.json({ id: legacy.id, ok: true, upgradedLegacy: true }, { status: 200 });
     }
@@ -275,6 +285,17 @@ export async function POST(request: NextRequest) {
       .insert(applications)
       .values(applicationData)
       .returning();
+
+    try {
+  const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+
+  fetch(`${base}/api/ats/applications/${newApplication[0].id}/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  }).catch(() => {});
+} catch (_) {}
+
+
 
     // Write activity: applicant applied to job (org scoped)
     try {

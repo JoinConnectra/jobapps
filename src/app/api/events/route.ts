@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseService } from '@/lib/supabase';
 
 // GET /api/events
-// Optional query params: orgId, status ('draft'|'published'|'past'|'all'), q (search term)
 export async function GET(req: NextRequest) {
   try {
     const orgId = req.nextUrl.searchParams.get('orgId');
-    const status = req.nextUrl.searchParams.get('status'); // 'draft' | 'published' | 'past' | 'all'
+    const status = req.nextUrl.searchParams.get('status');
     const q = (req.nextUrl.searchParams.get('q') || '').toLowerCase();
 
-    let query = supabaseAdmin
+    let query = supabaseService
       .from('event_aggregates')
       .select('*')
       .order('start_at', { ascending: true });
@@ -32,13 +31,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/events
-// Body: { org_id,title,description,location,medium,tags,start_at,end_at,featured,is_employer_hosted,status }
 export async function POST(req: NextRequest) {
   try {
     const b = await req.json();
 
-    // ✅ Whitelist only columns that exist in your Supabase `events` table
     const body = {
       org_id: Number(b.org_id),
       title: String(b.title ?? ''),
@@ -46,15 +42,14 @@ export async function POST(req: NextRequest) {
       location: b.location ?? null,
       medium: b.medium ?? 'IN_PERSON',
       tags: Array.isArray(b.tags) ? b.tags : [],
-      start_at: b.start_at,                  // expect ISO string
-      end_at: b.end_at ?? null,              // ISO or null
+      start_at: b.start_at,
+      end_at: b.end_at ?? null,
       featured: Boolean(b.featured),
       is_employer_hosted: b.is_employer_hosted ?? true,
       status: b.status ?? 'draft',
-      // ⛔️ Do NOT pass `created_by` or `categories` unless you add those columns in DB
     };
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseService
       .from('events')
       .insert(body)
       .select('*')

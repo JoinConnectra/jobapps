@@ -111,6 +111,15 @@ export const jobs = pgTable('jobs', {
   descriptionMd: text('description_md'),
   status: text('status').default('draft'),
   visibility: text('visibility').default('public'),
+
+  /** NEW FIELDS (added; non-breaking) */
+  location: text('location'),              // e.g., "Lahore, PK" or office address
+  seniority: text('seniority'),            // "junior" | "mid" | "senior"
+  skillsCsv: text('skills_csv'),
+  skillsRequired: text('skills_required').array().default(sql`'{}'::text[]`),
+atsUuid: uuid('ats_uuid'),
+  // "React, TypeScript, Node"
+
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
@@ -220,6 +229,8 @@ export const resumes = pgTable('resumes', {
   applicationId: integer('application_id').notNull(),
   s3Key: text('s3_key').notNull(),
   parsedJson: jsonb('parsed_json'),
+  rawText: text('raw_text'), // extracted resume text for ranking
+atsFormatScore: numeric('ats_format_score', { precision: 3, scale: 2 }), // 0.00–1.10 supported
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
 
@@ -570,3 +581,25 @@ export const eventCheckins = pgTable('event_checkins', {
   userEmail: text('user_email').notNull(),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
+export const skillsTaxonomyAts = pgTable('skills_taxonomy_ats', {
+  slug: text('slug').primaryKey(),                                  // e.g., "react", "python"
+  aliases: text('aliases').array().notNull().default(sql`'{}'::text[]`),
+  kind: text('kind'),                                               // 'skill' | 'tool' | 'platform' | 'cert' | 'soft'
+  weight: numeric('weight', { precision: 5, scale: 2 }),            // optional; defaults to 1.0 in code
+  localeAliases: text('locale_aliases').array().default(sql`'{}'::text[]`),
+
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+
+export const resumeSkillsAts = pgTable('resume_skills_ats', {
+  id: serial('id').primaryKey(),
+  resumeId: integer('resume_id').notNull().references(() => resumes.id),
+  skillSlug: text('skill_slug').notNull().references(() => skillsTaxonomyAts.slug),
+  confidence: numeric('confidence', { precision: 3, scale: 2 }), // 0.00–1.00
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+}, (t) => ({
+  resumeSkillUnique: uniqueIndex('resume_skills_ats_resume_skill_unique').on(t.resumeId, t.skillSlug),
+}));

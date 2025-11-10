@@ -30,7 +30,7 @@ async function getUserUniversityAffiliation(request: NextRequest): Promise<numbe
         .innerJoin(users, eq(users.id, user[0].id))
         .where(and(
           eq(organizations.type, 'university'),
-          eq(organizations.id, user[0].id) // This might need adjustment based on your schema
+          eq(organizations.id, user[0].id) // (kept as-is; adjust if org-user mapping differs)
         ))
         .limit(1);
 
@@ -41,14 +41,13 @@ async function getUserUniversityAffiliation(request: NextRequest): Promise<numbe
     const emailDomain = session.user.email.split('@')[1]?.toLowerCase();
     if (!emailDomain) return null;
 
-    // Find university organization by matching email domain
-    // This assumes you have a domain field in organizations or can derive it from name
+    // Find university organization by matching email domain (simple heuristic)
     const universityOrg = await db
       .select({ id: organizations.id })
       .from(organizations)
       .where(and(
         eq(organizations.type, 'university'),
-        like(organizations.name, `%${emailDomain.split('.')[0]}%`) // Simple domain matching
+        like(organizations.name, `%${emailDomain.split('.')[0]}%`)
       ))
       .limit(1);
 
@@ -61,12 +60,27 @@ async function getUserUniversityAffiliation(request: NextRequest): Promise<numbe
 
 /**
  * Create a job (employer-side)
- * (unchanged except for keeping your exact logic)
+ * (keeps your logic; adds optional new fields)
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orgId, title, dept, locationMode, salaryRange, descriptionMd, status, visibility, universityIds } = body;
+    const {
+      orgId,
+      title,
+      dept,
+      locationMode,
+      salaryRange,
+      descriptionMd,
+      status,
+      visibility,
+      universityIds,
+
+      /** NEW optional fields */
+      location,
+      seniority,
+      skillsCsv,
+    } = body;
 
     // Validate required fields
     if (!orgId) {
@@ -115,8 +129,13 @@ export async function POST(request: NextRequest) {
         locationMode: locationMode?.trim() || null,
         salaryRange: salaryRange?.trim() || null,
         descriptionMd: descriptionMd?.trim() || null,
-        status: status?.trim() || 'draft',              // keeps your status model
-        visibility: visibility?.trim() || 'public',     // keeps your visibility model: public|institutions|both
+        status: status?.trim() || 'draft',
+        visibility: visibility?.trim() || 'public',
+        /** NEW fields */
+        location: location?.trim() || null,
+        seniority: seniority?.trim() || null,
+        skillsCsv: skillsCsv?.trim() || null,
+
         createdAt: now,
         updatedAt: now,
       })
@@ -200,7 +219,6 @@ export async function GET(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Optional org check remains the same
       const conditions: any[] = [eq(jobs.id, jobId)];
       if (orgId) {
         const orgIdInt = parseInt(orgId);
@@ -221,7 +239,7 @@ export async function GET(request: NextRequest) {
         }, { status: 404 });
       }
 
-      // Return raw job row (your existing detail page can still call /api/jobs/:id which now enriches)
+      // raw row
       return NextResponse.json(row[0], { status: 200 });
     }
 
@@ -235,7 +253,6 @@ export async function GET(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // employer-scoped conditions
       const conditions: any[] = [eq(jobs.orgId, orgIdInt)];
       if (status) {
         conditions.push(eq(jobs.status, status));
@@ -245,7 +262,7 @@ export async function GET(request: NextRequest) {
       }
       const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0];
 
-      // base listing for employer
+      // include NEW fields in employer list
       let baseQuery = db
         .select({
           id: jobs.id,
@@ -259,6 +276,11 @@ export async function GET(request: NextRequest) {
           visibility: jobs.visibility,
           createdAt: jobs.createdAt,
           updatedAt: jobs.updatedAt,
+
+          /** NEW fields */
+          location: jobs.location,
+          seniority: jobs.seniority,
+          skillsCsv: jobs.skillsCsv,
         })
         .from(jobs)
         .where(whereCondition)
@@ -269,7 +291,6 @@ export async function GET(request: NextRequest) {
       if (universityId) {
         const uniId = parseInt(universityId);
         if (!isNaN(uniId)) {
-          // keep your MVP filtering for employer with university visibility:
           const temp = await db.select().from(jobs).where(whereCondition).orderBy(desc(jobs.createdAt));
           const mappings = await db.select().from(jobUniversities);
           const results = temp
@@ -288,16 +309,13 @@ export async function GET(request: NextRequest) {
     }
 
     // ----------------- STUDENT/PUBLIC FEED (no orgId) -----------------
-    // Get user's university affiliation to filter jobs appropriately
     const userUniversityId = await getUserUniversityAffiliation(request);
-    
-    // Base conditions for published jobs
+
     const baseConditions: any[] = [eq(jobs.status, 'published')];
     if (search && search.trim() !== '') {
       baseConditions.push(like(jobs.title, `%${search.trim()}%`));
     }
 
-    // Get all published jobs first
     const allJobs = await db
       .select({
         id: jobs.id,
@@ -310,29 +328,26 @@ export async function GET(request: NextRequest) {
         visibility: jobs.visibility,
         createdAt: jobs.createdAt,
         orgName: organizations.name,
+
+        /** NEW fields */
+        location: jobs.location,
+        seniority: jobs.seniority,
+        skillsCsv: jobs.skillsCsv,
       })
       .from(jobs)
       .leftJoin(organizations, eq(organizations.id, jobs.orgId))
       .where(and(...baseConditions))
       .orderBy(desc(jobs.createdAt));
 
-    // Filter jobs based on visibility and user's university affiliation
     let filteredJobs = allJobs.filter((job: any) => {
-      // Always show public jobs
       if (job.visibility === 'public') return true;
-      
-      // Show 'both' jobs to everyone
       if (job.visibility === 'both') return true;
-      
-      // For 'institutions' jobs, only show if user has university affiliation
       if (job.visibility === 'institutions') {
         return userUniversityId !== null;
       }
-      
       return false;
     });
 
-    // If user has university affiliation, also get university-specific jobs
     if (userUniversityId) {
       const universityJobMappings = await db
         .select()
@@ -340,60 +355,62 @@ export async function GET(request: NextRequest) {
         .where(eq(jobUniversities.universityOrgId, userUniversityId));
 
       const universityJobIds = new Set(universityJobMappings.map(m => m.jobId));
-      
-      // Add university-specific jobs that aren't already included
-      const additionalJobs = allJobs.filter((job: any) => 
-        universityJobIds.has(job.id) && 
+
+      const additionalJobs = allJobs.filter((job: any) =>
+        universityJobIds.has(job.id) &&
         !filteredJobs.some(fj => fj.id === job.id)
       );
-      
+
       filteredJobs = [...filteredJobs, ...additionalJobs];
     }
 
-    // Apply limit and offset
     const rows = filteredJobs.slice(offset, offset + limit);
 
-    // Get organization logos and website URLs for the jobs
+    // org logos + websites
     const orgIds = [...new Set(rows.map((r: any) => r.orgId))];
     const orgLogos: Record<number, string | null> = {};
     const orgWebsites: Record<number, string | null> = {};
-    
+
     if (orgIds.length > 0) {
       const orgRows = await db
-        .select({ 
-          id: organizations.id, 
+        .select({
+          id: organizations.id,
           logoUrl: organizations.logoUrl,
-          link: organizations.link 
+          link: organizations.link
         })
         .from(organizations)
         .where(inArray(organizations.id, orgIds));
-      
+
       orgRows.forEach((org) => {
         orgLogos[org.id] = org.logoUrl || null;
         orgWebsites[org.id] = org.link || null;
       });
     }
 
-    // Shape to what the student UI expects
     const shaped = rows.map((r: any) => ({
       id: r.id,
       title: r.title,
-      location: null,                       // if you later add jobs.location, wire it here
+      /** NEW: surface extra fields for student UI consumers */
+      location: r.location || null,
       locationMode: r.locationMode,
-      organization: r.orgName ? { 
-        name: r.orgName, 
+      seniority: r.seniority || null,
+      skillsCsv: r.skillsCsv || null,
+
+      organization: r.orgName ? {
+        name: r.orgName,
         logoUrl: orgLogos[r.orgId] || null,
-        website: orgWebsites[r.orgId] || null 
+        website: orgWebsites[r.orgId] || null
       } : null,
-      descriptionMd: r.descriptionMd,      // Include description for JobBrowser
-      descriptionHtml: null,                // list page doesn't use it
+
+      descriptionMd: r.descriptionMd,
+      descriptionHtml: null,
       salaryRange: r.salaryRange,
-      dept: r.dept,                         // Include department
+      dept: r.dept,
       organizationName: r.orgName,
-      organizationLogoUrl: orgLogos[r.orgId] || null, // Add logo URL for JobBrowser
-      organizationWebsite: orgWebsites[r.orgId] || null, // Add website URL for JobBrowser
+      organizationLogoUrl: orgLogos[r.orgId] || null,
+      organizationWebsite: orgWebsites[r.orgId] || null,
       postedAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
-      tags: [],                             // JobBrowser expects tags array
+      tags: [],
     }));
 
     return NextResponse.json(shaped, { status: 200 });

@@ -93,7 +93,7 @@ export default function EmployerEventsPage() {
     load();
   }, [org?.id, tab]);
 
-  // ✅ FIX — safe cast + defaults
+  // map data
   const ALL_EVENTS: CompanyEvent[] = useMemo(() => {
     return raw.map((e) => ({
       id: String(e.id),
@@ -160,98 +160,119 @@ export default function EmployerEventsPage() {
       title="Events"
       actions={
         <div className="flex gap-2">
-          <Button onClick={() => setComposerOpen(true)}>
+          <Button size="sm" onClick={() => setComposerOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             New Event
           </Button>
-          <Button variant="outline">
+          <Button size="sm" variant="outline">
             <Upload className="mr-2 h-4 w-4" />
             Bulk import
           </Button>
         </div>
       }
     >
-      {/* ====== Toolbar ====== */}
+      {/* ====== Toolbar (compact; tabs on the right) ====== */}
       <Card className="sticky top-2 z-10 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium">Browse</CardTitle>
+        {/* Remove space between Browse and the toolbar */}
+        <CardHeader className="py-1">
+          <CardTitle className="text-sm font-medium leading-none">Browse</CardTitle>
         </CardHeader>
 
-        <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          {/* Search + sort */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={q}
-                onChange={e => setQ(e.target.value)}
-                placeholder="Search by title, location, or tag…"
-                className="w-[320px] pl-8"
-              />
+        {/* First row: left (search/sort/view) — right (tabs) */}
+        <CardContent className="py-2">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 justify-between">
+            {/* Left cluster */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={q}
+                  onChange={e => setQ(e.target.value)}
+                  placeholder="Search title, location, tag…"
+                  className="h-8 w-[240px] pl-7 text-sm"
+                />
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-8">
+                    <ArrowUpDown className="mr-2 h-3.5 w-3.5" />
+                    {sort === 'startSoon'
+                      ? 'Start date'
+                      : sort === 'createdNew'
+                      ? 'Recently created'
+                      : 'Most interest'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setSort('startSoon')}>Start date</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSort('createdNew')}>Recently created</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSort('mostInterest')}>Most interest</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <div className="flex rounded-md border">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={view === 'grid' ? 'default' : 'ghost'}
+                  className="rounded-none h-8"
+                  onClick={() => setView('grid')}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={view === 'list' ? 'default' : 'ghost'}
+                  className="rounded-none h-8"
+                  onClick={() => setView('list')}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <ArrowUpDown className="mr-2 h-4 w-4" />
-                  {sort === 'startSoon'
-                    ? 'Start date'
-                    : sort === 'createdNew'
-                    ? 'Recently created'
-                    : 'Most interest'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setSort('startSoon')}>Start date</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSort('createdNew')}>Recently created</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSort('mostInterest')}>Most interest</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* View buttons */}
-            <div className="ml-1 flex rounded-md border">
-              <Button
-                type="button"
-                variant={view === 'grid' ? 'default' : 'ghost'}
-                className="rounded-none"
-                onClick={() => setView('grid')}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant={view === 'list' ? 'default' : 'ghost'}
-                className="rounded-none"
-                onClick={() => setView('list')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
+            {/* Right cluster (Tabs) */}
+            <div className="shrink-0 w-full md:w-auto">
+              <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+                <div className="w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <TabsList className="inline-flex min-w-max gap-1 p-1 h-9">
+                    <TabsTrigger value="all" className="h-8 px-2 text-xs whitespace-nowrap inline-flex items-center gap-1.5">
+                      <span>All</span>
+                      <span className="px-1 py-0 text-[10px] rounded bg-gray-200 text-gray-700">{counts.all}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="draft" className="h-8 px-2 text-xs whitespace-nowrap inline-flex items-center gap-1.5">
+                      <span>Drafts</span>
+                      <span className="px-1 py-0 text-[10px] rounded bg-gray-200 text-gray-700">{counts.drafts}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="published" className="h-8 px-2 text-xs whitespace-nowrap inline-flex items-center gap-1.5">
+                      <span>Published</span>
+                      <span className="px-1 py-0 text-[10px] rounded bg-gray-200 text-gray-700">{counts.published}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="past" className="h-8 px-2 text-xs whitespace-nowrap inline-flex items-center gap-1.5">
+                      <span>Past</span>
+                      <span className="px-1 py-0 text-[10px] rounded bg-gray-200 text-gray-700">{counts.past}</span>
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+              </Tabs>
             </div>
           </div>
 
-          {/* Tabs */}
-          <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full md:w-auto">
-            <TabsList className="grid w-full grid-cols-4 md:w-auto md:grid-cols-4">
-              <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
-              <TabsTrigger value="draft">Drafts ({counts.drafts})</TabsTrigger>
-              <TabsTrigger value="published">Published ({counts.published})</TabsTrigger>
-              <TabsTrigger value="past">Past ({counts.past})</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {/* Filters / Bulk */}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setShowFilters(v => !v)}>
-              <Filter className="mr-2 h-4 w-4" />
+          {/* Second row: Filters / Bulk (wraps as needed) */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 md:gap-3">
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setShowFilters(v => !v)}>
+              <Filter className="mr-2 h-3.5 w-3.5" />
               {showFilters ? 'Hide Filters' : 'Show Filters'}
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <MoreHorizontal className="mr-2 h-4 w-4" />
+                <Button size="sm" variant="outline" className="h-8">
+                  <MoreHorizontal className="mr-2 h-3.5 w-3.5" />
                   Bulk ({selectedIds.length})
                 </Button>
               </DropdownMenuTrigger>
@@ -270,13 +291,13 @@ export default function EmployerEventsPage() {
         {showFilters && (
           <>
             <Separator />
-            <CardContent>
+            <CardContent className="py-2">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">Virtual</Badge>
-                <Badge variant="outline">In-person</Badge>
-                <Badge variant="outline">This week</Badge>
-                <Badge variant="outline">Has registration</Badge>
-                <Button variant="ghost" size="sm" onClick={() => setQ('')}>Clear</Button>
+                <Badge variant="outline" className="h-6 text-xs px-2">Virtual</Badge>
+                <Badge variant="outline" className="h-6 text-xs px-2">In-person</Badge>
+                <Badge variant="outline" className="h-6 text-xs px-2">This week</Badge>
+                <Badge variant="outline" className="h-6 text-xs px-2">Has registration</Badge>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setQ('')}>Clear</Button>
               </div>
             </CardContent>
           </>
