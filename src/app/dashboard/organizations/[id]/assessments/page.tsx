@@ -137,7 +137,7 @@ export default function AssessmentsPage() {
     router.push("/");
   };
 
-  /** Create new assessment → redirect straight to Questions builder */
+  /** Create new assessment → go straight to Edit (Details tab) */
   const handleCreate = async () => {
     if (!orgIdFromRoute) return;
     if (!title.trim()) return;
@@ -164,8 +164,7 @@ export default function AssessmentsPage() {
 
       if (resp.ok) {
         const created: Assessment = await resp.json();
-        // jump into question authoring immediately
-        router.push(`/dashboard/organizations/${orgIdFromRoute}/assessments/${created.id}/questions`);
+        router.push(`/dashboard/organizations/${orgIdFromRoute}/assessments/${created.id}/edit`);
         return;
       } else {
         const t = await resp.text();
@@ -190,7 +189,6 @@ export default function AssessmentsPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
-      {/* Left Sidebar */}
       <CompanySidebar
         org={org}
         user={session?.user || null}
@@ -199,11 +197,9 @@ export default function AssessmentsPage() {
         active="assessments"
       />
 
-      {/* ---------------- MAIN CONTENT ---------------- */}
       <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
         <div className="p-8">
           <div className="max-w-6xl">
-            {/* Breadcrumb */}
             <div className="flex items-center gap-4 mb-8">
               <nav className="flex items-center gap-2 text-sm">
                 <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 transition-colors">
@@ -214,7 +210,6 @@ export default function AssessmentsPage() {
               </nav>
             </div>
 
-            {/* Header + CTA */}
             <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -225,7 +220,6 @@ export default function AssessmentsPage() {
               </div>
             </div>
 
-            {/* List */}
             {loadingAssessments ? (
               <div className="py-10 flex items-center justify-center">
                 <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -256,21 +250,16 @@ export default function AssessmentsPage() {
                       </span>
                     </div>
 
-                    {/* Quick actions */}
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button asChild variant="outline" size="sm" className="text-xs">
                         <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}`}>
                           View
                         </Link>
                       </Button>
+                      {/* Edit now contains details + questions tabs */}
                       <Button asChild variant="outline" size="sm" className="text-xs">
                         <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/edit`}>
                           Edit
-                        </Link>
-                      </Button>
-                      <Button asChild variant="outline" size="sm" className="text-xs">
-                        <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/questions`}>
-                          Questions
                         </Link>
                       </Button>
                       <Button asChild variant="outline" size="sm" className="text-xs">
@@ -278,7 +267,6 @@ export default function AssessmentsPage() {
                           Results
                         </Link>
                       </Button>
-                      
                     </div>
                   </div>
                 ))}
@@ -288,17 +276,14 @@ export default function AssessmentsPage() {
         </div>
       </main>
 
-      {/* Command palette overlay */}
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
-      
-      {/* Settings Modal */}
+
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         organization={org ? { id: org.id, name: org.name, slug: "", type: "company", plan: "free", seatLimit: 5, createdAt: "", updatedAt: "" } : null}
       />
 
-      {/* ------------- New Assessment Dialog ------------- */}
       <Dialog open={openNew} onOpenChange={setOpenNew}>
         <DialogContent>
           <DialogHeader>
@@ -358,7 +343,7 @@ export default function AssessmentsPage() {
               Cancel
             </Button>
             <Button onClick={handleCreate} disabled={submitting || !title.trim() || !orgIdFromRoute}>
-              {submitting ? "Creating..." : "Create & add questions"}
+              {submitting ? "Creating..." : "Create & edit"}
             </Button>
           </DialogFooter>
         </DialogContent>
