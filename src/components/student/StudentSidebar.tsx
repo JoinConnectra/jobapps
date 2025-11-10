@@ -11,7 +11,8 @@ import {
   MessageSquare,
   HelpCircle,
   LogOut,
-  CalendarDays, // 👈 added
+  CalendarDays,
+  ListChecks, // 👈 added
 } from "lucide-react";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
@@ -22,11 +23,7 @@ import { useSession, authClient } from "@/lib/auth-client";
 function initialsFrom(nameOrEmail?: string) {
   if (!nameOrEmail) return "U";
   const str = nameOrEmail.trim();
-
-  // If it looks like an email, use first letter before '@'
   if (str.includes("@")) return str[0]?.toUpperCase() || "U";
-
-  // Otherwise try to create initials from a name
   const parts = str.split(/\s+/).filter(Boolean);
   if (parts.length === 1) return parts[0][0]?.toUpperCase() || "U";
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -40,13 +37,11 @@ export default function StudentSidebar() {
   const email = session?.user?.email as string | undefined;
 
   const [busy, setBusy] = useState(false);
-  const [displayName, setDisplayName] = useState<string>(""); // fetched user's name
+  const [displayName, setDisplayName] = useState<string>("");
   const [avatarLetter, setAvatarLetter] = useState<string>("U");
 
-  // Fetch app user by email (uses your existing API route)
   useEffect(() => {
     let cancelled = false;
-
     async function loadUser() {
       if (!email) return;
       try {
@@ -55,35 +50,25 @@ export default function StudentSidebar() {
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
         });
-
         if (cancelled) return;
 
         if (res.ok) {
           const user = await res.json();
           const name = (user?.name as string | undefined)?.trim();
-          const safeName = name && name.length > 0 ? name : email; // fallback to email's local part
+          const safeName = name && name.length > 0 ? name : email;
           setDisplayName(name && name.length > 0 ? name : (email?.split("@")[0] ?? "User"));
           setAvatarLetter(initialsFrom(safeName));
-        } else if (res.status === 404) {
-          // No DB user—fallback to email
-          setDisplayName(email?.split("@")[0] ?? "User");
-          setAvatarLetter(initialsFrom(email));
         } else {
-          // Unknown error—fallback to email
           setDisplayName(email?.split("@")[0] ?? "User");
           setAvatarLetter(initialsFrom(email));
         }
       } catch {
-        // Network/API failure—fallback to email
         setDisplayName(email?.split("@")[0] ?? "User");
         setAvatarLetter(initialsFrom(email));
       }
     }
-
     loadUser();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [email]);
 
   const links = useMemo(
@@ -91,8 +76,9 @@ export default function StudentSidebar() {
       { href: "/student/dashboard", label: "Dashboard", icon: Home },
       { href: "/student/jobs", label: "Jobs", icon: Briefcase },
       { href: "/student/inbox", label: "Inbox", icon: MessageSquare },
-      { href: "/student/events", label: "Events", icon: CalendarDays }, // 👈 added
+      { href: "/student/events", label: "Events", icon: CalendarDays },
       { href: "/student/applications", label: "Applications", icon: FileText },
+      { href: "/student/assessments", label: "Assessments", icon: ListChecks }, // 👈 NEW
       { href: "/student/profile", label: "Profile", icon: GraduationCap },
       { href: "/student/settings", label: "Settings", icon: Settings },
       { href: "/student/help", label: "Help", icon: HelpCircle },
@@ -106,7 +92,7 @@ export default function StudentSidebar() {
       await authClient.signOut({ fetchOptions: { headers: {} } });
       toast.success("Signed out");
       router.replace("/login");
-    } catch (e: any) {
+    } catch {
       toast.error("Failed to sign out");
     } finally {
       setBusy(false);
@@ -159,7 +145,7 @@ export default function StudentSidebar() {
         </div>
       </div>
 
-      {/* Footer user pill (employer-like footer strip) */}
+      {/* Footer user pill */}
       <div className="mt-auto p-6 border-t border-gray-200">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">

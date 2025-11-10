@@ -603,3 +603,38 @@ export const resumeSkillsAts = pgTable('resume_skills_ats', {
 }, (t) => ({
   resumeSkillUnique: uniqueIndex('resume_skills_ats_resume_skill_unique').on(t.resumeId, t.skillSlug),
 }));
+
+
+export const assessmentAttempts = pgTable('assessment_attempts', {
+  id: serial('id').primaryKey(),
+  assessmentId: integer('assessment_id').notNull(),
+  candidateId: uuid('candidate_id').notNull(),
+  startedAt: timestamp('started_at', { withTimezone: false }).defaultNow().notNull(),
+  submittedAt: timestamp('submitted_at', { withTimezone: false }),
+  score: numeric('score', { precision: 5, scale: 2 }),
+  totalPossible: numeric('total_possible', { precision: 5, scale: 2 }),
+  passed: boolean('passed'),
+  status: text('status').default('in_progress').notNull(),
+  autoScoreTotal: numeric('auto_score_total', { precision: 10, scale: 2 }),
+});
+
+
+export const assessmentAnswers = pgTable('assessment_answers', {
+  id: serial('id').primaryKey(),
+  attemptId: integer('attempt_id').notNull(),
+  questionId: integer('question_id').notNull(),
+  responseJson: jsonb('response_json'),
+  autoScore: numeric('auto_score', { precision: 5, scale: 2 }),
+  manualScore: numeric('manual_score', { precision: 5, scale: 2 }),
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow(),
+});
+
+
+export const codingTestCases = pgTable('coding_test_cases', {
+  id: serial('id').primaryKey(),
+  questionId: integer('question_id').notNull(),
+  inputJson: jsonb('input_json').notNull(),
+  expectedOutputJson: jsonb('expected_output_json').notNull(),
+  isHidden: boolean('is_hidden').default(false),
+});
+
