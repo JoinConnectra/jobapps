@@ -188,37 +188,56 @@ export default function AssessmentEditPage() {
   }, [session, assessmentId]);
 
   /** Save details */
-  const save = async () => {
-    if (!form || !assessmentId) return;
-    setSaving(true);
-    try {
-      const token = localStorage.getItem("bearer_token");
-      const resp = await fetch(`/api/assessments/${assessmentId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: form.title,
-          type: form.type,
-          duration: form.duration,
-          status: form.status,
-          descriptionMd: form.descriptionMd ?? null,
-          isPublished: form.isPublished,
-        }),
-      });
-      if (resp.ok) {
-        toast.success("Assessment updated");
-      } else {
-        toast.error("Failed to update");
-      }
-    } catch (e) {
-      toast.error("An error occurred");
-    } finally {
-      setSaving(false);
+  /** Save details */
+const save = async (mode?: "draft" | "publish") => {
+  if (!form || !assessmentId) return;
+  setSaving(true);
+  try {
+    // decide final status/visibility
+    let nextStatus = form.status;
+    let nextPublished = form.isPublished;
+
+    if (mode === "draft") {
+      nextStatus = "Draft";
+      nextPublished = false;
+    } else if (mode === "publish") {
+      nextStatus = "Published";
+      nextPublished = true;
     }
-  };
+    // if mode is undefined, we preserve whatever is already in the form
+
+    const token = localStorage.getItem("bearer_token");
+    const resp = await fetch(`/api/assessments/${assessmentId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title: form.title,
+        type: form.type,
+        duration: form.duration,
+        status: nextStatus,
+        descriptionMd: form.descriptionMd ?? null,
+        isPublished: nextPublished,
+      }),
+    });
+
+    if (resp.ok) {
+      toast.success(
+        mode === "publish" ? "Published" : mode === "draft" ? "Saved as draft" : "Saved changes"
+      );
+    } else {
+      toast.error("Failed to update");
+    }
+  } catch (e) {
+    toast.error("An error occurred");
+  } finally {
+    setSaving(false);
+  }
+};
+
+
 
   /** Sign out */
   const handleSignOut = async () => {
@@ -399,16 +418,27 @@ export default function AssessmentEditPage() {
                   <Button variant={activeTab === "questions" ? "default" : "outline"} size="sm" onClick={() => setActiveTab("questions")}>
                     Questions
                   </Button>
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${form.id}/results`}>
-                      Results
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${form.id}`}>
-                      View
-                    </Link>
-                  </Button>
+                  <Button
+  variant="outline"
+  size="sm"
+  disabled={saving}
+  onClick={() => save("draft")}
+>
+  {saving ? "Saving…" : "Save Draft"}
+</Button>
+
+<Button
+  variant="default"
+  size="sm"
+  disabled={saving}
+  onClick={() => save("publish")}
+>
+  {saving ? "Publishing…" : "Publish"}
+</Button>
+
+
+
+
                 </div>
               </div>
             </div>
@@ -496,10 +526,11 @@ export default function AssessmentEditPage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button onClick={save} disabled={saving}>
-                    {saving ? "Saving…" : "Save changes"}
-                  </Button>
-                </div>
+  <Button onClick={() => save()} disabled={saving}>
+    {saving ? "Saving…" : "Save changes"}
+  </Button>
+</div>
+
               </div>
             ) : (
               // ---------- QUESTIONS TAB ----------
