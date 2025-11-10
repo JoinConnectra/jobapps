@@ -278,11 +278,7 @@ export default function AssessmentsPage() {
                           Results
                         </Link>
                       </Button>
-                      <Button asChild variant="secondary" size="sm" className="text-xs">
-                        <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/start`}>
-                          Start (test)
-                        </Link>
-                      </Button>
+                      
                     </div>
                   </div>
                 ))}

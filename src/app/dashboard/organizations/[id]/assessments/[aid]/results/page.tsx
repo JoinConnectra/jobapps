@@ -186,11 +186,7 @@ export default function AssessmentResultsPage() {
                       Questions
                     </Link>
                   </Button>
-                  <Button asChild variant="secondary" size="sm" className="text-xs">
-                    <Link href={`/dashboard/organizations/${orgId}/assessments/${assessmentId}/start`}>
-                      Start (test)
-                    </Link>
-                  </Button>
+                
                 </div>
               </div>
             </div>

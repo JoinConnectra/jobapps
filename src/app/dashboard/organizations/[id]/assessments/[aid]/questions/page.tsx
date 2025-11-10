@@ -419,11 +419,7 @@ export default function QuestionsPage() {
                       Results
                     </Link>
                   </Button>
-                  <Button asChild variant="secondary" size="sm" className="text-xs">
-                    <Link href={`/dashboard/organizations/${orgId}/assessments/${assessmentId}/start`}>
-                      Start (test)
-                    </Link>
-                  </Button>
+                  
                   <Button onClick={() => setOpenNew(true)} size="sm" className="text-xs">
                     + Add Question
                   </Button>
