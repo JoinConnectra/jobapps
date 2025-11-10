@@ -1,19 +1,9 @@
+// src/app/dashboard/organizations/[id]/assessments/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ListChecks,
-  Bell,
-  BarChartIcon,
-  Briefcase,
-  Search,
-  HelpCircle,
-  UserPlus,
-  LogOut,
-  Settings,
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,14 +47,14 @@ export default function AssessmentsPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const params = useParams<{ id: string }>();
+
   const orgIdFromRoute = useMemo(() => {
     const raw = Array.isArray(params?.id) ? params.id[0] : params?.id;
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [params]);
 
-  const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } =
-    useCommandPalette();
+  const { isOpen: isCommandPaletteOpen, close: closeCommandPalette } = useCommandPalette();
 
   const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
@@ -147,7 +137,7 @@ export default function AssessmentsPage() {
     router.push("/");
   };
 
-  /** Create new assessment */
+  /** Create new assessment → redirect straight to Questions builder */
   const handleCreate = async () => {
     if (!orgIdFromRoute) return;
     if (!title.trim()) return;
@@ -173,14 +163,10 @@ export default function AssessmentsPage() {
       });
 
       if (resp.ok) {
-        // Optimistically append or just reload list
-        await loadAssessments();
-        // reset form
-        setTitle("");
-        setType("MCQ");
-        setDuration("30 min");
-        setDesc("");
-        setOpenNew(false);
+        const created: Assessment = await resp.json();
+        // jump into question authoring immediately
+        router.push(`/dashboard/organizations/${orgIdFromRoute}/assessments/${created.id}/questions`);
+        return;
       } else {
         const t = await resp.text();
         console.error("Create assessment failed:", t);
@@ -204,7 +190,7 @@ export default function AssessmentsPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
-      {/* Left Sidebar - Reusable Component */}
+      {/* Left Sidebar */}
       <CompanySidebar
         org={org}
         user={session?.user || null}
@@ -270,20 +256,34 @@ export default function AssessmentsPage() {
                       </span>
                     </div>
 
-                    {/* (Optional) View/Edit buttons can go here */}
-                    <div className="mt-4 flex gap-2">
-  <Button asChild variant="outline" size="sm" className="text-xs">
-    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}`}>
-      View
-    </Link>
-  </Button>
-  <Button asChild variant="outline" size="sm" className="text-xs">
-    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/edit`}>
-      Edit
-    </Link>
-  </Button>
-</div>
-
+                    {/* Quick actions */}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button asChild variant="outline" size="sm" className="text-xs">
+                        <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}`}>
+                          View
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" size="sm" className="text-xs">
+                        <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/edit`}>
+                          Edit
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" size="sm" className="text-xs">
+                        <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/questions`}>
+                          Questions
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" size="sm" className="text-xs">
+                        <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/results`}>
+                          Results
+                        </Link>
+                      </Button>
+                      <Button asChild variant="secondary" size="sm" className="text-xs">
+                        <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${a.id}/start`}>
+                          Start (test)
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -299,7 +299,7 @@ export default function AssessmentsPage() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+        organization={org ? { id: org.id, name: org.name, slug: "", type: "company", plan: "free", seatLimit: 5, createdAt: "", updatedAt: "" } : null}
       />
 
       {/* ------------- New Assessment Dialog ------------- */}
@@ -362,7 +362,7 @@ export default function AssessmentsPage() {
               Cancel
             </Button>
             <Button onClick={handleCreate} disabled={submitting || !title.trim() || !orgIdFromRoute}>
-              {submitting ? "Creating..." : "Create"}
+              {submitting ? "Creating..." : "Create & add questions"}
             </Button>
           </DialogFooter>
         </DialogContent>

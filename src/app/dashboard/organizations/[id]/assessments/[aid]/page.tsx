@@ -3,16 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ListChecks,
-  Bell,
-  BarChartIcon,
-  Briefcase,
-  Search,
-  HelpCircle,
-  UserPlus,
-  LogOut,
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession, authClient } from "@/lib/auth-client";
 import CommandPalette from "@/components/CommandPalette";
@@ -52,8 +42,7 @@ export default function AssessmentViewPage() {
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [params]);
 
-  const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } =
-    useCommandPalette();
+  const { isOpen: isCommandPaletteOpen, close: closeCommandPalette } = useCommandPalette();
 
   const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
@@ -162,9 +151,9 @@ export default function AssessmentViewPage() {
               </nav>
             </div>
 
-            {/* Header + CTA */}
+            {/* Header + CTAs */}
             <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-medium text-gray-900">{assessment.title}</h2>
                   <p className="text-sm text-gray-500">
@@ -172,11 +161,23 @@ export default function AssessmentViewPage() {
                     {assessment.isPublished ? " • Published" : ""}
                   </p>
                 </div>
-                <Button asChild>
-                  <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${assessment.id}/edit`}>
-                    Edit
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild variant="outline">
+                    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${assessment.id}/questions`}>
+                      Questions
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${assessment.id}/results`}>
+                      Results
+                    </Link>
+                  </Button>
+                  <Button asChild>
+                    <Link href={`/dashboard/organizations/${orgIdFromRoute}/assessments/${assessment.id}/edit`}>
+                      Edit
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </div>
 
