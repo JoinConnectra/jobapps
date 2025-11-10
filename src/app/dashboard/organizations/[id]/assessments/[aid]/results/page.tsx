@@ -14,10 +14,13 @@ import { useCommandPalette } from "@/hooks/use-command-palette";
 type Attempt = {
   id: number;
   candidateId: string;
+  candidateName?: string | null;
+  candidateEmail?: string | null;
   status: string;
   submittedAt: string | null;
-  autoScoreTotal: string | null; // e.g. "3/5"
+  autoScoreTotal: string | null;
 };
+
 
 export default function AssessmentResultsPage() {
   const { data: session, isPending } = useSession();
@@ -212,7 +215,12 @@ export default function AssessmentResultsPage() {
                     <tbody>
                       {attempts.map((a) => (
                         <tr key={a.id} className="align-top">
-                          <td className="p-2 border font-mono">{a.candidateId.slice(0, 8)}…</td>
+                          <td className="p-2 border">
+  {a.candidateName?.trim() ||
+   a.candidateEmail ||
+   `${a.candidateId.slice(0, 8)}…`}
+</td>
+
                           <td className="p-2 border">{renderPercent(a.autoScoreTotal)}</td>
                           <td className="p-2 border">
                             {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "—"}
