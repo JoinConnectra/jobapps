@@ -32,7 +32,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 
-import { conversations as ALL, messagesByConvId } from './_data/inbox';
+import { conversations as ALL, messagesByConvId } from './_data/company';
 import type { Conversation, InboxTab, Message } from './_types';
 import { ConversationList } from './_components/ConversationList';
 import { MessagePane } from './_components/MessagePane';
@@ -194,8 +194,8 @@ export default function EmployerInboxPage() {
                   {/* Placeholder filters */}
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">Has attachment</Badge>
-                    <Badge variant="outline">From employer</Badge>
-                    <Badge variant="outline">From career center</Badge>
+                    <Badge variant="outline">From candidate</Badge>
+                    <Badge variant="outline">From college</Badge>
                     <Badge variant="outline">Last 7 days</Badge>
                     <Button variant="ghost" size="sm" onClick={() => setQ('')}>Clear</Button>
                   </div>
