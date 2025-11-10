@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseService } from "@/lib/supabase";
 
 /**
  * POST /api/university/events/create
@@ -23,17 +23,16 @@ export async function POST(req: NextRequest) {
       title: String(title),
       description: description ?? null,
       location: location ?? null,
-      // university events default to in-person unless you add a selector
       medium: "IN_PERSON",
-      tags: [],                  // add UI later if you want tags
+      tags: [],
       start_at: String(startsAt),
       end_at: endsAt ? String(endsAt) : null,
       featured: false,
-      is_employer_hosted: false, // <-- key line: university-owned
-      status: "published",       // or "draft" if you prefer a review flow
+      is_employer_hosted: false, // university-owned
+      status: "published",       // or "draft" for a review flow
     };
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseService
       .from("events")
       .insert(insert)
       .select("*")

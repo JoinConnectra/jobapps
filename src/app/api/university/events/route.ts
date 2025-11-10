@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseService } from "@/lib/supabase";
 
 /**
  * GET /api/university/events?orgId=123&status=upcoming|past|all&q=...
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       | "all";
 
     // 1) employer-hosted, published (global feed)
-    const { data: employerRows, error: employerErr } = await supabaseAdmin
+    const { data: employerRows, error: employerErr } = await supabaseService
       .from("events")
       .select("*")
       .eq("is_employer_hosted", true)
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     // 2) this university’s own events (same table), optional
     let uniRows: any[] = [];
     if (orgId) {
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await supabaseService
         .from("events")
         .select("*")
         .eq("is_employer_hosted", false)
@@ -41,25 +41,22 @@ export async function GET(request: NextRequest) {
       uniRows = data || [];
     }
 
-    // Map to client shape
     type Host = "EMPLOYER" | "UNIVERSITY";
-
-const mapRow = (e: any, host: Host) => ({
-  id: e.id,
-  title: e.title,
-  description: e.description ?? null,
-  location: e.location ?? null,
-  startsAt: e.start_at,
-  endsAt: e.end_at ?? null,
-  medium: e.medium ?? null,
-  tags: e.tags ?? null,
-  categories: e.categories ?? null,
-  featured: !!e.featured,
-  status: e.status ?? null,
-  is_employer_hosted: !!e.is_employer_hosted,
-  _host: host, // ✅ no `as const`
-});
-
+    const mapRow = (e: any, host: Host) => ({
+      id: e.id,
+      title: e.title,
+      description: e.description ?? null,
+      location: e.location ?? null,
+      startsAt: e.start_at,
+      endsAt: e.end_at ?? null,
+      medium: e.medium ?? null,
+      tags: e.tags ?? null,
+      categories: e.categories ?? null,
+      featured: !!e.featured,
+      status: e.status ?? null,
+      is_employer_hosted: !!e.is_employer_hosted,
+      _host: host,
+    });
 
     let merged = [
       ...(employerRows || []).map((e) => mapRow(e, "EMPLOYER")),
@@ -89,7 +86,7 @@ const mapRow = (e: any, host: Host) => ({
     );
 
     return NextResponse.json(merged);
-  } catch (e: any) {
+  } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
