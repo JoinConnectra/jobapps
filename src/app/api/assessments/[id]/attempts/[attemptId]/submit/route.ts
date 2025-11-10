@@ -4,8 +4,10 @@ import {
   assessmentAttempts,
   assessmentAnswers,
   assessmentQuestions,
+  applicationAssessments,
 } from "@/db/schema-pg";
-import { eq } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 
 /** RFC4122 UUID v5 from a string (deterministic) */
@@ -56,7 +58,7 @@ export async function POST(
     const attempt = await db.query.assessmentAttempts.findFirst({
       where: (a, { eq }) => eq(a.id, atid),
     });
-    if (!attempt || Number(attempt.assessmentId) !== aid) {
+    if (!attempt || Number((attempt as any).assessmentId) !== aid) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -78,9 +80,9 @@ export async function POST(
     const qs = await db
       .select()
       .from(assessmentQuestions)
-      .where(eq(assessmentQuestions.assessmentId, attempt.assessmentId));
+      .where(eq(assessmentQuestions.assessmentId, (attempt as any).assessmentId));
 
-    // Idempotent for final submit: wipe answers, then insert the final payload
+    // Idempotent final submit: wipe answers, then insert final payload
     await db.delete(assessmentAnswers).where(eq(assessmentAnswers.attemptId, atid));
 
     let totalPossible = 0;
@@ -89,7 +91,7 @@ export async function POST(
     for (const q of qs as any[]) {
       const qid = Number(q.id);
       const kind: "mcq" | "short" | "coding" | "case" = q.kind ?? "short";
-      const userResp = answers?.[qid] ?? null;
+      const userResp = (answers as Record<number, any>)?.[qid] ?? null;
       if (!userResp) continue;
 
       const correctAnswer = q.correctAnswer ?? q.correct_answer ?? null;
@@ -116,20 +118,66 @@ export async function POST(
       } as any);
     }
 
-    const autoScoreTotal = totalPossible > 0 ? Number(totalScore) / Number(totalPossible) : null;
+    const submittedAt = new Date();
+    const autoScoreTotal =
+      totalPossible > 0 ? Number(totalScore) / Number(totalPossible) : null;
 
+    // ✅ 1) Mark assessment_attempts as submitted
     await db
       .update(assessmentAttempts)
       .set({
         status: "submitted",
-        submittedAt: new Date(),
+        submittedAt,
         score: Number(totalScore) as any,
         totalPossible: Number(totalPossible) as any,
         autoScoreTotal: autoScoreTotal as any,
       } as any)
       .where(eq(assessmentAttempts.id, atid));
 
-    return NextResponse.json({ ok: true, score: totalScore, totalPossible, autoScoreTotal });
+    // ✅ 2) Mark application_assessments as completed for THIS user & THIS assessment
+    // Look up this user's DB id
+    const usersRes = await db.execute(sql/* sql */`
+      select id from "users" where email = ${authUser.email} limit 1
+    `);
+    const meId: number | null =
+      usersRes.rows && usersRes.rows[0] ? Number((usersRes.rows[0] as any).id) : null;
+
+    if (meId != null) {
+      // find their application ids
+      const appsRes = await db.execute(sql/* sql */`
+        select id
+        from "applications"
+        where applicant_user_id = ${meId}
+      `);
+
+      const myAppIds: number[] = (appsRes.rows ?? [])
+        .map((r: any) => Number(r.id))
+        .filter((n: number) => Number.isFinite(n));
+
+      if (myAppIds.length > 0) {
+        await db
+          .update(applicationAssessments)
+          .set({
+            status: "completed",
+            submittedAt,
+            score: Number(totalScore) as any,
+          } as any)
+          .where(
+            and(
+              inArray(applicationAssessments.applicationId, myAppIds),
+              eq(applicationAssessments.assessmentId, aid)
+            )
+          );
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      score: totalScore,
+      totalPossible,
+      autoScoreTotal,
+      submittedAt: submittedAt.toISOString(),
+    });
   } catch (err) {
     console.error(
       "POST /api/assessments/[id]/attempts/[attemptId]/submit error:",
