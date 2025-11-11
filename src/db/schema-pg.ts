@@ -330,12 +330,16 @@ export const activity = pgTable('activity', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
 });
 
-export const answerReactions = pgTable('answer_reactions', {
-  id: serial('id').primaryKey(),
-  answerId: integer('answer_id').notNull(),
-  userId: integer('user_id').notNull(),
-  reaction: text('reaction').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+export const answerReactions = pgTable("answer_reactions", {
+  id: serial("id").primaryKey(),
+  answerId: integer("answer_id").notNull(),
+  applicationId: integer("application_id").notNull(),
+  jobId: integer("job_id"),
+  userId: integer("user_id").notNull(),
+  reaction: text("reaction").notNull(),
+  explanation: text("explanation").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow().notNull(),
 });
 
 export const answerComments = pgTable('answer_comments', {

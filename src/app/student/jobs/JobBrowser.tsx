@@ -306,9 +306,9 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                               className="h-10 w-10 rounded-xl object-cover shrink-0 border border-gray-200"
                             />
                           ) : (
-                            <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center text-sm font-semibold shrink-0">
-                              {j.organizationName?.[0]?.toUpperCase() ?? "•"}
-                            </div>
+                          <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center text-sm font-semibold shrink-0">
+                            {j.organizationName?.[0]?.toUpperCase() ?? "•"}
+                          </div>
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
@@ -384,9 +384,9 @@ export default function JobBrowser({ initialJobs }: { initialJobs: Job[] }) {
                       className="h-12 w-12 rounded-2xl object-cover shrink-0 border border-gray-200"
                     />
                   ) : (
-                    <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center text-base font-semibold shrink-0">
-                      {selectedJob.organizationName?.[0]?.toUpperCase() ?? "•"}
-                    </div>
+                  <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center text-base font-semibold shrink-0">
+                    {selectedJob.organizationName?.[0]?.toUpperCase() ?? "•"}
+                  </div>
                   )}
                   <div className="min-w-0">
                     <h1 className="text-2xl font-semibold tracking-tight truncate">

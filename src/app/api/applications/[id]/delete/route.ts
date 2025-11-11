@@ -36,7 +36,7 @@ export async function DELETE(
     // 1. Delete answer reactions
     await db
       .delete(answerReactions)
-      .where(eq(answerReactions.answerId, applicationId));
+      .where(eq(answerReactions.applicationId, applicationId));
 
     // 2. Delete answer comments
     await db
