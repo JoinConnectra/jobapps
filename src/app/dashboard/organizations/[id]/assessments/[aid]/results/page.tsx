@@ -111,12 +111,23 @@ export default function AssessmentResultsPage() {
   };
 
   const renderPercent = (s: string | null) => {
-    if (!s) return "—";
+  if (!s) return "—";
+  // If it's "num/den", keep your old behavior:
+  if (s.includes("/")) {
     const [num, den] = s.split("/").map((x) => Number(x));
     if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return s;
     const pct = Math.round((num / den) * 100);
     return `${s} (${pct}%)`;
-  };
+  }
+
+  // Otherwise, treat it as a fraction like "1.00"
+  const f = Number(s);
+  if (Number.isFinite(f)) {
+    const pct = Math.round(f * 100);
+    return `${pct}%`;
+  }
+  return s;
+};
 
   if (isPending || loadingOrg) {
     return (

@@ -103,6 +103,7 @@
         "three": "^0.178.0",
         "three-globe": "^2.43.0",
         "vaul": "^1.1.2",
+        "vm2": "^3.10.0",
         "zod": "^4.1.12"
     },
     "devDependencies": {

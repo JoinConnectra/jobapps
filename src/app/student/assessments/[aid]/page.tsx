@@ -25,7 +25,7 @@ export default function StudentAssessmentDetails() {
     (async () => {
       setLoading(true);
       try {
-        // Reuse the list endpoint then pick one; in future you can create a dedicated details API
+        // Reuse the list endpoint then pick one
         const res = await fetch("/api/student/assessments", { cache: "no-store" });
         const items = (await res.json()) as Detail[];
         setData(items.find((x) => x.id === aid) ?? null);
@@ -40,23 +40,19 @@ export default function StudentAssessmentDetails() {
   const startAttempt = useCallback(async () => {
     try {
       setStarting(true);
-      const maybeCandidateId = localStorage.getItem("candidate_id");
+      const token = typeof window !== "undefined" ? localStorage.getItem("bearer_token") || "" : "";
 
-      const resp = await fetch(`/api/student/assessments/${aid}/attempt`, {
+      const resp = await fetch(`/api/assessments/${aid}/attempts/start`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: maybeCandidateId ? JSON.stringify({ candidateId: maybeCandidateId }) : "{}",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
+
       const json = await resp.json();
-      if (!resp.ok || !json?.ok) {
+      if (!resp.ok || !json?.attemptId) {
         alert(json?.error || "Unable to start assessment.");
         return;
       }
-      const attemptId = json.attemptId as number | undefined;
-      if (!attemptId) {
-        alert("Server did not return attemptId.");
-        return;
-      }
+      const attemptId = Number(json.attemptId);
       window.location.href = `/student/assessments/${aid}/attempt/${attemptId}`;
     } finally {
       setStarting(false);
@@ -92,7 +88,6 @@ export default function StudentAssessmentDetails() {
           <CardContent>
             <div className="text-sm text-muted-foreground">
               {data.orgName ? <div className="mb-2">Organization: {data.orgName}</div> : null}
-              {/* You can render `descriptionMd` as markdown later */}
               <p>This assessment may include MCQs, short answers, coding, or case responses.</p>
             </div>
           </CardContent>

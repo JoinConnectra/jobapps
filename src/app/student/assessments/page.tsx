@@ -171,22 +171,20 @@ export default function StudentAssessmentsPage() {
   const startAssessment = async (assessmentId: number) => {
     try {
       setStartingId(assessmentId);
-      const res = await fetch(`/api/student/assessments/${assessmentId}/attempt`, {
+      const token = localStorage.getItem("bearer_token") || "";
+      const resp = await fetch(`/api/assessments/${assessmentId}/attempts/start`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(),
-        },
-        body: JSON.stringify({}),
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
-      const json = await res.json();
-      if (!res.ok || !json?.ok) {
-        alert(json?.error || "Could not start assessment.");
+
+      const data = await resp.json();
+      if (!resp.ok || !data?.attemptId) {
+        alert(data?.error || "Could not start/continue this assessment.");
         setStartingId(null);
         return;
       }
-      const attemptId = json.attemptId as number;
-      window.location.href = `/student/assessments/${assessmentId}/attempt/${attemptId}`;
+
+      window.location.href = `/student/assessments/${assessmentId}/attempt/${data.attemptId}`;
     } catch {
       alert("Network error starting assessment.");
       setStartingId(null);
@@ -362,7 +360,6 @@ export default function StudentAssessmentsPage() {
                     </div>
                   </div>
 
-                  {/* spacer pushes action to the bottom so all cards line up */}
                   <div className="mt-auto flex items-center justify-end">
                     {action}
                   </div>
