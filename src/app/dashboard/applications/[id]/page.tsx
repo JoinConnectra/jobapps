@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Play,
@@ -45,6 +46,17 @@ import CommandPalette from "@/components/CommandPalette";
 import SettingsModal from "@/components/SettingsModal";
 import CompanySidebar from "@/components/company/CompanySidebar";
 import { useCommandPalette } from "@/hooks/use-command-palette";
+
+const formatDateTime = (value: string) => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+};
 
 interface Application {
   id: number;
@@ -99,6 +111,7 @@ interface Answer {
   questionId: number;
   audioS3Key: string;
   durationSec: number;
+  applicationId: number;
 }
 
 interface Question {
@@ -109,9 +122,15 @@ interface Question {
 interface Reaction {
   id: number;
   answerId: number;
+  applicationId: number;
+  jobId: number | null;
   userId: number;
   reaction: "like" | "dislike";
   createdAt: string;
+  updatedAt?: string;
+  explanation: string;
+  userName?: string | null;
+  userEmail?: string | null;
 }
 
 interface Comment {
@@ -123,6 +142,14 @@ interface Comment {
   userName?: string;
   userEmail?: string;
 }
+
+type ReactionDialogState = {
+  open: boolean;
+  answerId: number | null;
+  reaction: "like" | "dislike" | null;
+  explanation: string;
+  isSaving: boolean;
+};
 
 type AssessmentRow = {
   id: number;
@@ -169,8 +196,13 @@ export default function ApplicationDetailPage() {
   const [reactions, setReactions] = useState<Record<number, Reaction[]>>({});
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [newComment, setNewComment] = useState<Record<number, string>>({});
-  const [showCommentPrompt, setShowCommentPrompt] = useState<Record<number, boolean>>({});
-  const [pendingReaction, setPendingReaction] = useState<Record<number, "like" | "dislike" | null>>({});
+  const [reactionDialog, setReactionDialog] = useState<ReactionDialogState>({
+    open: false,
+    answerId: null,
+    reaction: null,
+    explanation: "",
+    isSaving: false,
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Assign Assessment dialog state
@@ -219,6 +251,34 @@ export default function ApplicationDetailPage() {
     };
   }, [audioElements]);
 
+  // Preload audio metadata for all answers to get duration immediately
+  useEffect(() => {
+    if (answers.length === 0) return;
+
+    const audioKeys = Object.keys(audioElements).map(Number);
+    
+    answers.forEach((answer) => {
+      if (!answer.audioS3Key || audioKeys.includes(answer.id)) return;
+
+      const audio = new Audio();
+      audio.preload = "metadata";
+      
+      audio.addEventListener("loadedmetadata", () => {
+        setAudioElements((prev) => ({ ...prev, [answer.id]: audio }));
+      });
+
+      audio.addEventListener("error", () => {
+        // Silently fail - durationSec will be used as fallback
+      });
+
+      audio.src =
+        answer.audioS3Key && answer.audioS3Key.startsWith("/uploads/audio/")
+          ? answer.audioS3Key
+          : `/api/audio/${encodeURIComponent(answer.audioS3Key)}`;
+      audio.load();
+    });
+  }, [answers, audioElements]);
+
   const fetchOrg = async () => {
     try {
       const token = localStorage.getItem("bearer_token");
@@ -260,7 +320,10 @@ export default function ApplicationDetailPage() {
 
           // Fetch reactions and comments for each answer
           for (const answer of answersData) {
-            await fetchReactionsAndComments(answer.id);
+            await fetchReactionsAndComments(answer.id, {
+              applicationId: appData.id,
+              jobId: appData.jobId,
+            });
           }
         }
 
@@ -311,11 +374,50 @@ export default function ApplicationDetailPage() {
     }
   };
 
-  const fetchReactionsAndComments = async (answerId: number) => {
+  const handleDeleteAssignment = async (assignmentId: number) => {
+    if (!applicationId) return;
+    
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const resp = await fetch(
+        `/api/applications/${applicationId}/assessments?assignmentId=${assignmentId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (resp.ok) {
+        toast.success("Assessment assignment revoked");
+        await loadAssignments(applicationId);
+      } else {
+        const error = await resp.json().catch(() => ({ error: { message: "Failed to revoke assignment" } }));
+        toast.error(error.error?.message || "Failed to revoke assignment");
+      }
+    } catch (e) {
+      console.error("Failed to delete assignment:", e);
+      toast.error("Failed to revoke assignment");
+    }
+  };
+
+  const fetchReactionsAndComments = async (
+    answerId: number,
+    options?: { applicationId?: number | null; jobId?: number | null },
+  ) => {
     try {
       const token = localStorage.getItem("bearer_token");
 
-      const reactionsResponse = await fetch(`/api/answers/${answerId}/reactions`, {
+      const searchParams = new URLSearchParams();
+      if (options?.applicationId) {
+        searchParams.set("applicationId", String(options.applicationId));
+      }
+      if (options?.jobId) {
+        searchParams.set("jobId", String(options.jobId));
+      }
+
+      const reactionsUrl = `/api/answers/${answerId}/reactions${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+
+      const reactionsResponse = await fetch(reactionsUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -392,34 +494,120 @@ export default function ApplicationDetailPage() {
     }
   };
 
-  const handleReaction = async (answerId: number, reaction: "like" | "dislike") => {
-    try {
-      if (!session?.user?.id) {
-        toast.error("Please log in to react to answers");
-        return;
-      }
+  const handleSendEmail = () => {
+    if (!application?.applicantEmail) {
+      toast.error("Applicant email not available");
+      return;
+    }
 
+    // Get company name from the logged-in user's organization (fetched via /api/organizations?mine=true)
+    // This ensures each company sees their own company name in the email subject
+    const companyName = org?.name || "Our Company";
+    
+    // Get job title from the application
+    const jobTitle = application?.jobTitle || "job application";
+    
+    // Create professional subject line customized for the logged-in company and job title
+    const subject = encodeURIComponent(`${companyName}: Update on your ${jobTitle} application`);
+    
+    // Create mailto URL - works on both macOS and Windows
+    const mailtoUrl = `mailto:${application.applicantEmail}?subject=${subject}`;
+    
+    // Open default email client using anchor element (works reliably on both macOS and Windows)
+    const link = document.createElement("a");
+    link.href = mailtoUrl;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Record the action for tracking (non-blocking)
+    setTimeout(() => {
+      handleQuickAction("email_sent").catch(() => {
+        // Silently fail if action recording fails - email opening is more important
+      });
+    }, 100);
+  };
+
+  const openReactionDialog = (answerId: number, reaction: "like" | "dislike") => {
+    if (!session?.user?.id) {
+      toast.error("Please log in to react to answers");
+      return;
+    }
+
+    const existingReactions = reactions[answerId] || [];
+    const currentUserReaction = existingReactions.find(
+      (r) => r.userEmail === session.user?.email || r.userId === session.user?.id,
+    );
+
+    setReactionDialog({
+      open: true,
+      answerId,
+      reaction,
+      explanation: currentUserReaction?.explanation ?? "",
+      isSaving: false,
+    });
+  };
+
+  const resetReactionDialog = () => {
+    setReactionDialog({
+      open: false,
+      answerId: null,
+      reaction: null,
+      explanation: "",
+      isSaving: false,
+    });
+  };
+
+  const handleSaveReaction = async () => {
+    if (!reactionDialog.answerId || !reactionDialog.reaction) {
+      return;
+    }
+
+    const explanation = reactionDialog.explanation.trim();
+    if (!explanation) {
+      toast.error("Please add a brief explanation before saving.");
+      return;
+    }
+
+    try {
+      setReactionDialog((prev) => ({ ...prev, isSaving: true }));
       const token = localStorage.getItem("bearer_token");
-      const response = await fetch(`/api/answers/${answerId}/reactions`, {
+      const response = await fetch(`/api/answers/${reactionDialog.answerId}/reactions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ reaction }),
+        body: JSON.stringify({
+          reaction: reactionDialog.reaction,
+          explanation,
+        }),
       });
 
-      if (response.ok) {
-        await fetchReactionsAndComments(answerId);
-        setPendingReaction((prev) => ({ ...prev, [answerId]: reaction }));
-        setShowCommentPrompt((prev) => ({ ...prev, [answerId]: true }));
-        toast.success(`Reaction ${reaction}d - Please add a comment explaining your feedback`);
-      } else {
-        toast.error("Failed to add reaction");
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        toast.error(data?.error || "Failed to save feedback");
+        return;
       }
+
+      await fetchReactionsAndComments(reactionDialog.answerId, {
+        applicationId: application?.id ?? null,
+        jobId: application?.jobId ?? null,
+      });
+      toast.success("Feedback saved");
+      resetReactionDialog();
     } catch (error) {
-      toast.error("An error occurred");
+      console.error(error);
+      toast.error("An error occurred while saving feedback");
+    } finally {
+      setReactionDialog((prev) => ({ ...prev, isSaving: false }));
     }
+  };
+
+  const handleCancelReaction = () => {
+    if (reactionDialog.isSaving) return;
+    resetReactionDialog();
   };
 
   const handleAddComment = async (answerId: number) => {
@@ -444,9 +632,10 @@ export default function ApplicationDetailPage() {
 
       if (response.ok) {
         setNewComment((prev) => ({ ...prev, [answerId]: "" }));
-        setShowCommentPrompt((prev) => ({ ...prev, [answerId]: false }));
-        setPendingReaction((prev) => ({ ...prev, [answerId]: null }));
-        await fetchReactionsAndComments(answerId);
+        await fetchReactionsAndComments(answerId, {
+          applicationId: application?.id ?? null,
+          jobId: application?.jobId ?? null,
+        });
         toast.success("Comment added");
       } else {
         toast.error("Failed to add comment");
@@ -465,7 +654,10 @@ export default function ApplicationDetailPage() {
       });
 
       if (response.ok) {
-        await fetchReactionsAndComments(answerId);
+        await fetchReactionsAndComments(answerId, {
+          applicationId: application?.id ?? null,
+          jobId: application?.jobId ?? null,
+        });
         toast.success("Comment deleted");
       } else {
         const errorData = await response.json();
@@ -654,12 +846,12 @@ export default function ApplicationDetailPage() {
       />
 
       {/* Main Content */}
-      <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
-        <div className="p-8 max-w-6xl grid grid-cols-1 lg:grid-cols-[1fr_256px] gap-8">
+      <main className="flex-1 bg-[#FEFEFA] overflow-y-auto pr-80">
+        <div className="p-6 max-w-6xl mx-auto w-full">
           {/* Main Content Area */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Breadcrumb */}
-            <div className="flex items-center gap-4 mb-8">
+            <div className="flex items-center gap-3 mb-4">
               <nav className="flex items-center gap-2 text-sm">
                 <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 transition-colors">
                   Dashboard
@@ -681,25 +873,25 @@ export default function ApplicationDetailPage() {
             </div>
 
             {/* Application Header */}
-            <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-orange-600" />
+            <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-orange-100 rounded flex items-center justify-center">
+                    <User className="w-4 h-4 text-orange-600" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-medium text-gray-900 mb-1">
+                    <h2 className="text-base font-medium text-gray-900 mb-0.5">
                       {application.applicantEmail}
                     </h2>
-                    <p className="text-sm text-gray-500">Applied to: {application.jobTitle}</p>
+                    <p className="text-xs text-gray-500">Applied to: {application.jobTitle}</p>
                     {application.applicantUniversityName && (
-                      <p className="text-xs text-green-700 mt-1">
+                      <p className="text-[10px] text-green-700 mt-0.5">
                         University: {application.applicantUniversityName}
                       </p>
                     )}
-                    <div className="flex items-center gap-2 mt-1">
-                      <Clock className="w-3 h-3 text-gray-500" />
-                      <span className="text-xs text-gray-500">
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Clock className="w-2.5 h-2.5 text-gray-500" />
+                      <span className="text-[10px] text-gray-500">
                         {new Date(application.createdAt).toLocaleDateString()}
                       </span>
                     </div>
@@ -707,10 +899,10 @@ export default function ApplicationDetailPage() {
                 </div>
 
                 <div className="text-right">
-                  <label className="text-xs text-gray-500 block mb-1">Status</label>
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Status</label>
                   <Select value={application.stage} onValueChange={updateStage}>
-                    <SelectTrigger className="w-32 text-sm">
-                      <SelectValue />
+                    <SelectTrigger className="min-w-[140px] w-auto text-xs h-7">
+                      <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="applied">Applied</SelectItem>
@@ -727,47 +919,40 @@ export default function ApplicationDetailPage() {
               </div>
 
               {/* Quick Actions */}
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
                   <Button
                     variant="outline"
-                    className="gap-2 text-sm"
+                    className="gap-1.5 text-xs h-8"
                     onClick={() => handleQuickAction("move_to_phone")}
                   >
-                    <Phone className="w-3 h-3" />
+                    <Phone className="w-2.5 h-2.5" />
                     Phone Screen
                   </Button>
                   <Button
                     variant="outline"
-                    className="gap-2 text-sm"
-                    onClick={() => handleQuickAction("email_sent")}
+                    className="gap-1.5 text-xs h-8"
+                    onClick={handleSendEmail}
                   >
-                    <Mail className="w-3 h-3" />
+                    <Mail className="w-2.5 h-2.5" />
                     Send Email
                   </Button>
                   <Button
                     variant="outline"
-                    className="gap-2 text-sm"
+                    className="gap-1.5 text-xs h-8"
                     onClick={() => setAssignOpen(true)}
                     disabled={!orgIdForAssessments}
                     title={!orgIdForAssessments ? "Select or create an organization first" : "Assign assessment"}
                   >
-                    <ListChecks className="w-3 h-3" />
+                    <ListChecks className="w-2.5 h-2.5" />
                     Assign Assessment
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="gap-2 text-sm text-green-600 hover:text-green-700">
-                    <ThumbsUp className="w-3 h-3" />
-                    Approve
                   </Button>
                   <Button
                     variant="outline"
-                    className="gap-2 text-sm text-red-600 hover:text-red-700"
+                    className="gap-1.5 text-xs h-8 text-red-600 hover:text-red-700"
                     onClick={() => handleQuickAction("reject")}
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-2.5 h-2.5" />
                     Reject
                   </Button>
                 </div>
@@ -775,21 +960,21 @@ export default function ApplicationDetailPage() {
             </div>
 
             {/* Candidate Details (NEW) */}
-            <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+              <div className="flex items-center justify-between mb-2">
                 <button
                   onClick={() => setIsCandidateDetailsExpanded(!isCandidateDetailsExpanded)}
-                  className="flex items-center gap-2 text-lg font-medium text-gray-900 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1.5 text-base font-medium text-gray-900 hover:text-gray-700 transition-colors"
                 >
                   <span>Candidate details</span>
                   {isCandidateDetailsExpanded ? (
-                    <ChevronUp className="w-5 h-5" />
+                    <ChevronUp className="w-4 h-4" />
                   ) : (
-                    <ChevronDown className="w-5 h-5" />
+                    <ChevronDown className="w-4 h-4" />
                   )}
                 </button>
                 {application.resumeS3Key ? (
-                  <Button variant="outline" size="sm" onClick={handleDownloadResume}>
+                  <Button variant="outline" size="sm" className="text-xs h-7" onClick={handleDownloadResume}>
                     Download Resume {application.resumeFilename ? `(${application.resumeFilename})` : ""}
                   </Button>
                 ) : null}
@@ -797,73 +982,73 @@ export default function ApplicationDetailPage() {
 
               {/* Summary view when collapsed */}
               {!isCandidateDetailsExpanded && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 py-1.5">
                   <div>
-                    <div className="text-xs text-gray-500">Name</div>
-                    <div className="text-sm text-gray-900">{application.applicantName || "—"}</div>
+                    <div className="text-[10px] text-gray-500">Name</div>
+                    <div className="text-xs text-gray-900">{application.applicantName || "—"}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500">Email</div>
-                    <div className="text-sm text-gray-900">{application.applicantEmail}</div>
+                    <div className="text-[10px] text-gray-500">Email</div>
+                    <div className="text-xs text-gray-900">{application.applicantEmail}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500">Phone</div>
-                    <div className="text-sm text-gray-900">{application.phone || "—"}</div>
+                    <div className="text-[10px] text-gray-500">Phone</div>
+                    <div className="text-xs text-gray-900">{application.phone || "—"}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500">Location</div>
-                    <div className="text-sm text-gray-900">
+                    <div className="text-[10px] text-gray-500">Location</div>
+                    <div className="text-xs text-gray-900">
                       {[application.city, application.province, application.location].filter(Boolean).join(", ") || "—"}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500">University</div>
-                    <div className="text-sm text-gray-900">
+                    <div className="text-[10px] text-gray-500">University</div>
+                    <div className="text-xs text-gray-900">
                       {application.university || application.applicantUniversityName || "—"}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500">Experience</div>
-                    <div className="text-sm text-gray-900">{application.experienceYears || "—"}</div>
+                    <div className="text-[10px] text-gray-500">Experience</div>
+                    <div className="text-xs text-gray-900">{application.experienceYears || "—"}</div>
                   </div>
                 </div>
               )}
 
               {/* Full details when expanded */}
               {isCandidateDetailsExpanded && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Basics */}
                 <div>
-                  <div className="text-xs text-gray-500">Name</div>
-                  <div className="text-sm text-gray-900">{application.applicantName || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Name</div>
+                  <div className="text-xs text-gray-900">{application.applicantName || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Email</div>
-                  <div className="text-sm text-gray-900">{application.applicantEmail}</div>
+                  <div className="text-[10px] text-gray-500">Email</div>
+                  <div className="text-xs text-gray-900">{application.applicantEmail}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Phone</div>
-                  <div className="text-sm text-gray-900">{application.phone || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Phone</div>
+                  <div className="text-xs text-gray-900">{application.phone || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">WhatsApp</div>
-                  <div className="text-sm text-gray-900">{application.whatsapp || "—"}</div>
+                  <div className="text-[10px] text-gray-500">WhatsApp</div>
+                  <div className="text-xs text-gray-900">{application.whatsapp || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Location</div>
-                  <div className="text-sm text-gray-900">
+                  <div className="text-[10px] text-gray-500">Location</div>
+                  <div className="text-xs text-gray-900">
                     {[application.city, application.province, application.location].filter(Boolean).join(", ") || "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">CNIC</div>
-                  <div className="text-sm text-gray-900">{application.cnic || "—"}</div>
+                  <div className="text-[10px] text-gray-500">CNIC</div>
+                  <div className="text-xs text-gray-900">{application.cnic || "—"}</div>
                 </div>
 
                 {/* Links */}
                 <div>
-                  <div className="text-xs text-gray-500">LinkedIn</div>
-                  <div className="text-sm">
+                  <div className="text-[10px] text-gray-500">LinkedIn</div>
+                  <div className="text-xs">
                     {application.linkedinUrl ? (
                       <a
                         target="_blank"
@@ -879,8 +1064,8 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Portfolio</div>
-                  <div className="text-sm">
+                  <div className="text-[10px] text-gray-500">Portfolio</div>
+                  <div className="text-xs">
                     {application.portfolioUrl ? (
                       <a
                         target="_blank"
@@ -896,8 +1081,8 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">GitHub</div>
-                  <div className="text-sm">
+                  <div className="text-[10px] text-gray-500">GitHub</div>
+                  <div className="text-xs">
                     {application.githubUrl ? (
                       <a
                         target="_blank"
@@ -915,64 +1100,64 @@ export default function ApplicationDetailPage() {
 
                 {/* Work prefs */}
                 <div>
-                  <div className="text-xs text-gray-500">Work Authorization</div>
-                  <div className="text-sm text-gray-900">{application.workAuth || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Work Authorization</div>
+                  <div className="text-xs text-gray-900">{application.workAuth || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Needs Sponsorship</div>
-                  <div className="text-sm text-gray-900">
+                  <div className="text-[10px] text-gray-500">Needs Sponsorship</div>
+                  <div className="text-xs text-gray-900">
                     {application.needSponsorship == null ? "—" : application.needSponsorship ? "Yes" : "No"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Willing to Relocate</div>
-                  <div className="text-sm text-gray-900">
+                  <div className="text-[10px] text-gray-500">Willing to Relocate</div>
+                  <div className="text-xs text-gray-900">
                     {application.willingRelocate == null ? "—" : application.willingRelocate ? "Yes" : "No"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Remote Preference</div>
-                  <div className="text-sm text-gray-900">{application.remotePref || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Remote Preference</div>
+                  <div className="text-xs text-gray-900">{application.remotePref || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Earliest Start</div>
-                  <div className="text-sm text-gray-900">{application.earliestStart || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Earliest Start</div>
+                  <div className="text-xs text-gray-900">{application.earliestStart || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Salary Expectation (text)</div>
-                  <div className="text-sm text-gray-900">{application.salaryExpectation || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Salary Expectation (text)</div>
+                  <div className="text-xs text-gray-900">{application.salaryExpectation || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Expected Salary (PKR)</div>
-                  <div className="text-sm text-gray-900">{application.expectedSalaryPkr ?? "—"}</div>
+                  <div className="text-[10px] text-gray-500">Expected Salary (PKR)</div>
+                  <div className="text-xs text-gray-900">{application.expectedSalaryPkr ?? "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Notice Period (days)</div>
-                  <div className="text-sm text-gray-900">{application.noticePeriodDays ?? "—"}</div>
+                  <div className="text-[10px] text-gray-500">Notice Period (days)</div>
+                  <div className="text-xs text-gray-900">{application.noticePeriodDays ?? "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Experience</div>
-                  <div className="text-sm text-gray-900">{application.experienceYears || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Experience</div>
+                  <div className="text-xs text-gray-900">{application.experienceYears || "—"}</div>
                 </div>
 
                 {/* Education */}
                 <div>
-                  <div className="text-xs text-gray-500">University</div>
-                  <div className="text-sm text-gray-900">
+                  <div className="text-[10px] text-gray-500">University</div>
+                  <div className="text-xs text-gray-900">
                     {application.university || application.applicantUniversityName || "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Degree</div>
-                  <div className="text-sm text-gray-900">{application.degree || "—"}</div>
+                  <div className="text-[10px] text-gray-500">Degree</div>
+                  <div className="text-xs text-gray-900">{application.degree || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Graduation Year</div>
-                  <div className="text-sm text-gray-900">{application.graduationYear ?? "—"}</div>
+                  <div className="text-[10px] text-gray-500">Graduation Year</div>
+                  <div className="text-xs text-gray-900">{application.graduationYear ?? "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">GPA</div>
-                  <div className="text-sm text-gray-900">
+                  <div className="text-[10px] text-gray-500">GPA</div>
+                  <div className="text-xs text-gray-900">
                     {application.gpa ? `${application.gpa}${application.gpaScale ? ` / ${application.gpaScale}` : ""}` : "—"}
                   </div>
                 </div>
@@ -980,259 +1165,328 @@ export default function ApplicationDetailPage() {
               )}
             </div>
 
-            {/* Assigned Assessments */}
-            <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Assigned Assessments</h2>
-              {assignments.length === 0 ? (
-                <div className="text-sm text-gray-600">No assessments assigned yet.</div>
+            {/* Answers */}
+            <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+              <h2 className="text-base font-medium text-gray-900 mb-3">Answers</h2>
+
+              {answers.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-xs text-gray-500">No answers recorded</p>
+                </div>
               ) : (
-                <ul className="space-y-3">
+                <div className="space-y-3">
+                  {answers.map((answer) => {
+                    const question = questions.find((q) => q.id === answer.questionId);
+                    const reactionsForAnswer = reactions[answer.id] || [];
+                    const currentUserReaction = reactionsForAnswer.find(
+                      (reaction) =>
+                        reaction.userEmail === session?.user?.email || reaction.userId === session?.user?.id,
+                    );
+                    const activeReaction =
+                      reactionDialog.open && reactionDialog.answerId === answer.id
+                        ? reactionDialog.reaction
+                        : currentUserReaction?.reaction ?? null;
+
+                    return (
+                      <div key={answer.id} className="bg-gray-50 rounded-lg p-3 flex items-center gap-3">
+                        {/* Play Button */}
+                        <button
+                          onClick={() => toggleAudio(answer.id, answer.audioS3Key)}
+                          className="w-8 h-8 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                        >
+                          {playingAnswer === answer.id ? (
+                            <Pause className="w-3.5 h-3.5 text-gray-700" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5 text-gray-700 ml-0.5" />
+                          )}
+                        </button>
+
+                        {/* Question Content */}
+                        <div className="flex-1">
+                          <h3 className="text-xs font-semibold text-gray-900 mb-0.5">
+                            {question?.prompt || "Question not found"}
+                          </h3>
+                          <p className="text-[10px] text-gray-600">Feel free to get technical here!</p>
+                        </div>
+
+                        {/* Duration and Actions */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-500">
+                            {formatTime(currentTime[answer.id] || 0)} /{" "}
+                            {formatTime(answer.durationSec || audioElements[answer.id]?.duration || 0)}
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => openReactionDialog(answer.id, "like")}
+                              className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${
+                                activeReaction === "like" ? "bg-green-100" : ""
+                              }`}
+                            >
+                              <ThumbsUp
+                                className={`w-3 h-3 ${
+                                  activeReaction === "like" ? "text-green-600" : "text-gray-500"
+                                }`}
+                              />
+                            </button>
+                            <button
+                              onClick={() => openReactionDialog(answer.id, "dislike")}
+                              className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${
+                                activeReaction === "dislike" ? "bg-red-100" : ""
+                              }`}
+                            >
+                              <ThumbsDown
+                                className={`w-3 h-3 ${
+                                  activeReaction === "dislike" ? "text-red-600" : "text-gray-500"
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Assigned Assessments */}
+            <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+              <h2 className="text-base font-medium text-gray-900 mb-3">Assigned Assessments</h2>
+              {assignments.length === 0 ? (
+                <div className="text-xs text-gray-600">No assessments assigned yet.</div>
+              ) : (
+                <ul className="space-y-2">
                   {assignments.map((a) => (
-                    <li key={a.id} className="border rounded-lg p-4 flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">{a.assessmentTitle}</div>
-                        <div className="text-xs text-gray-500">
+                    <li key={a.id} className="border rounded p-3 flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="text-xs font-semibold text-gray-900">{a.assessmentTitle}</div>
+                        <div className="text-[10px] text-gray-500">
                           {a.assessmentType} • {a.assessmentDuration} • status: {a.status}
                           {a.dueAt ? ` • due ${new Date(a.dueAt).toLocaleString()}` : ""}
                         </div>
                       </div>
+                      <button
+                        onClick={() => handleDeleteAssignment(a.id)}
+                        className="ml-3 p-1.5 hover:bg-red-100 rounded transition-colors flex-shrink-0"
+                        title="Revoke assignment"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      </button>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
 
-            {/* Voice Answers */}
-            <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Voice Answers</h2>
-
-              {answers.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-500">No voice answers recorded</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {answers.map((answer) => {
-                    const question = questions.find((q) => q.id === answer.questionId);
-
-                    return (
-                      <div key={answer.id} className="bg-gray-50 rounded-lg p-4 flex items-center gap-4">
-                        {/* Play Button */}
-                        <button
-                          onClick={() => toggleAudio(answer.id, answer.audioS3Key)}
-                          className="w-10 h-10 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
-                        >
-                          {playingAnswer === answer.id ? (
-                            <Pause className="w-4 h-4 text-gray-700" />
-                          ) : (
-                            <Play className="w-4 h-4 text-gray-700 ml-0.5" />
-                          )}
-                        </button>
-
-                        {/* Question Content */}
-                        <div className="flex-1">
-                          <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                            {question?.prompt || "Question not found"}
-                          </h3>
-                          <p className="text-xs text-gray-600">Feel free to get technical here!</p>
-                        </div>
-
-                        {/* Duration and Actions */}
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-gray-500">
-                            {formatTime(currentTime[answer.id] || 0)} /{" "}
-                            {formatTime(audioElements[answer.id]?.duration || answer.durationSec || 0)}
-                          </span>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleReaction(answer.id, "like")}
-                              className={`p-1 hover:bg-gray-200 rounded transition-colors ${
-                                pendingReaction[answer.id] === "like" ? "bg-green-100" : ""
-                              }`}
-                            >
-                              <ThumbsUp
-                                className={`w-4 h-4 ${
-                                  pendingReaction[answer.id] === "like" ? "text-green-600" : "text-gray-500"
-                                }`}
-                              />
-                            </button>
-                            <button
-                              onClick={() => handleReaction(answer.id, "dislike")}
-                              className={`p-1 hover:bg-gray-200 rounded transition-colors ${
-                                pendingReaction[answer.id] === "dislike" ? "bg-red-100" : ""
-                              }`}
-                            >
-                              <ThumbsDown
-                                className={`w-4 h-4 ${
-                                  pendingReaction[answer.id] === "dislike" ? "text-red-600" : "text-gray-500"
-                                }`}
-                              />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             {/* AI Analysis Placeholder */}
-            <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg shadow-sm p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="w-4 h-4 text-orange-600" />
-                <h2 className="text-lg font-medium text-gray-900">AI Analysis</h2>
+            <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg shadow-sm p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Sparkles className="w-3 h-3 text-orange-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-medium text-gray-900">AI Analysis</h2>
+                    <p className="text-[10px] text-gray-600 truncate">
+                      Generate an AI-powered summary of this candidate&apos;s responses
+                    </p>
+                  </div>
+                </div>
+                <Button className="gap-1.5 text-xs h-7 flex-shrink-0">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Generate Summary
+                </Button>
               </div>
-              <p className="text-sm text-gray-600 mb-3">
-                Generate an AI-powered summary of this candidate&apos;s responses
-              </p>
-              <Button className="gap-2 text-sm">
-                <Sparkles className="w-3 h-3" />
-                Generate Summary
-              </Button>
             </div>
           </div>
+        </div>
+      </main>
 
-          {/* Right Sidebar - Activity */}
-          <aside className="w-80 bg-[#FEFEFA] border-l border-gray-200 flex flex-col h-screen sticky top-0">
-            <div className="p-4 flex flex-col h-full overflow-hidden">
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">Activity</h2>
+      {/* Right Sidebar - Activity (Fixed) */}
+      <aside className="fixed right-0 top-0 w-80 h-screen bg-[#FEFEFA] border-l border-gray-200 flex flex-col z-10">
+            <div className="p-3 flex flex-col h-full overflow-hidden">
+              <h2 className="text-base font-semibold mb-2 text-gray-900">Activity</h2>
 
               <div className="flex-1 overflow-y-auto overflow-x-hidden">
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {answers.map((answer) => {
                     const answerComments = comments[answer.id] || [];
+                    const question = questions.find((q) => q.id === answer.questionId);
+                    const questionText = question?.prompt || "this answer";
 
                     return (
-                      <div key={answer.id} className="space-y-3">
-                        {/* Reactions */}
+                      <div key={answer.id} className="space-y-2">
+                        {/* Reactions Section */}
                         {reactions[answer.id] && reactions[answer.id].length > 0 && (
-                          <div className="space-y-2">
-                            {reactions[answer.id].map((reaction) => (
-                              <div key={reaction.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                <div className="flex items-center gap-2 flex-1">
-                                  {reaction.reaction === "like" ? (
-                                    <ThumbsUp className="w-4 h-4 text-green-600" />
-                                  ) : (
-                                    <ThumbsDown className="w-4 h-4 text-red-600" />
-                                  )}
-                                  <span className="text-sm font-medium text-gray-900">
-                                    You {reaction.reaction}d this answer
-                                  </span>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <div className="h-px flex-1 bg-gray-200"></div>
+                              <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Feedback</span>
+                              <div className="h-px flex-1 bg-gray-200"></div>
+                            </div>
+                            {reactions[answer.id].map((reaction) => {
+                              const actorName = reaction.userName || reaction.userEmail || "Team member";
+                              return (
+                                <div key={reaction.id} className="flex items-start gap-2 p-2 bg-gradient-to-r from-green-50/50 to-blue-50/50 border border-green-100 rounded">
+                                  <div className="mt-0.5">
+                                    {reaction.reaction === "like" ? (
+                                      <ThumbsUp className="w-3 h-3 text-green-600" />
+                                    ) : (
+                                      <ThumbsDown className="w-3 h-3 text-red-600" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0 space-y-0.5">
+                                    <p className="text-xs font-medium text-gray-900 leading-tight">
+                                      {actorName} {reaction.reaction === "like" ? "liked" : "disliked"} "{questionText}"
+                                    </p>
+                                    {reaction.explanation && (
+                                      <p className="text-xs italic text-gray-700 break-words bg-white/60 rounded px-1.5 py-0.5 mt-0.5 leading-relaxed">
+                                        "{reaction.explanation}"
+                                      </p>
+                                    )}
+                                    <span className="text-[10px] text-gray-500">
+                                      {formatDateTime(reaction.updatedAt || reaction.createdAt)}
+                                    </span>
+                                  </div>
                                 </div>
-                                <span className="text-xs text-gray-500 flex-shrink-0">
-                                  {new Date(reaction.createdAt).toLocaleDateString()}
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
-                        {/* Comments */}
+                        {/* Comments Section */}
                         {answerComments.length > 0 && (
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <div className="h-px flex-1 bg-gray-200"></div>
+                              <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Comments</span>
+                              <div className="h-px flex-1 bg-gray-200"></div>
+                            </div>
                             {answerComments.map((comment) => (
-                              <div key={comment.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                                <div className="w-7 h-7 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <span className="text-xs font-medium text-gray-600">
-                                    {comment.userName?.charAt(0) || "U"}
+                              <div key={comment.id} className="flex items-start gap-2 p-2 bg-white border border-gray-200 rounded shadow-sm">
+                                <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
+                                  <span className="text-[10px] font-medium text-white">
+                                    {comment.userName?.charAt(0)?.toUpperCase() || "U"}
                                   </span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-1">
+                                  <div className="flex items-start justify-between mb-0.5">
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-semibold text-gray-900 truncate">
+                                      <p className="text-xs font-medium text-gray-900 truncate leading-tight">
                                         {comment.userName || "User"}
                                       </p>
-                                      <p className="text-xs text-gray-500">Employer</p>
+                                      <p className="text-[10px] text-gray-500">Employer</p>
                                     </div>
-                                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                                      <p className="text-xs text-gray-400">
+                                    <div className="flex items-center gap-1 ml-1.5 flex-shrink-0">
+                                      <p className="text-[10px] text-gray-400">
                                         {new Date(comment.createdAt).toLocaleDateString()}
                                       </p>
                                       {comment.userEmail === session?.user?.email && (
                                         <button
                                           onClick={() => handleDeleteComment(comment.id, answer.id)}
-                                          className="p-1 hover:bg-red-100 rounded transition-colors"
+                                          className="p-0.5 hover:bg-red-100 rounded transition-colors"
                                           title="Delete comment"
                                         >
-                                          <Trash2 className="w-3 h-3 text-red-500" />
+                                          <Trash2 className="w-2.5 h-2.5 text-red-500" />
                                         </button>
                                       )}
                                     </div>
                                   </div>
-                                  <p className="text-sm text-gray-700 break-words mt-1">{comment.comment}</p>
+                                  <p className="text-xs text-gray-700 break-words mt-0.5 leading-relaxed">{comment.comment}</p>
                                 </div>
                               </div>
                             ))}
                           </div>
                         )}
-
-                        {/* Reaction Comment Prompt */}
-                        {showCommentPrompt[answer.id] && pendingReaction[answer.id] && (
-                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                {pendingReaction[answer.id] === "like" ? (
-                                  <ThumbsUp className="w-3 h-3 text-white" />
-                                ) : (
-                                  <ThumbsDown className="w-3 h-3 text-white" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-blue-900">
-                                    {session?.user?.name || "You"}
-                                  </span>
-                                  <span className="text-xs text-blue-700">
-                                    {pendingReaction[answer.id]}d this answer
-                                  </span>
-                                </div>
-                                <p className="text-xs text-blue-600 mt-1">Please explain your feedback.</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Add Comment */}
-                        <div className="flex gap-2 mt-3">
-                          <input
-                            type="text"
-                            placeholder={
-                              showCommentPrompt[answer.id]
-                                ? `Explain why you ${pendingReaction[answer.id]}d this answer...`
-                                : "Add a comment..."
-                            }
-                            value={newComment[answer.id] || ""}
-                            onChange={(e) => setNewComment((prev) => ({ ...prev, [answer.id]: e.target.value }))}
-                            className={`flex-1 text-sm px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 min-w-0 ${
-                              showCommentPrompt[answer.id]
-                                ? "border-blue-300 focus:ring-blue-500 bg-blue-50"
-                                : "border-gray-300 focus:ring-blue-500"
-                            }`}
-                          />
-                          <Button
-                            size="sm"
-                            onClick={() => handleAddComment(answer.id)}
-                            className={`px-3 py-2 flex-shrink-0 ${
-                              showCommentPrompt[answer.id] ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-700"
-                            }`}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </Button>
-                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
+
+              {/* Add Comment - Fixed at bottom */}
+              <div className="border-t border-gray-200 p-2.5 bg-white">
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Add a comment..."
+                    value={newComment[answers[0]?.id] || ""}
+                    onChange={(e) => {
+                      if (answers[0]?.id) {
+                        setNewComment((prev) => ({ ...prev, [answers[0].id]: e.target.value }));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && answers[0]?.id) {
+                        handleAddComment(answers[0].id);
+                      }
+                    }}
+                    className="flex-1 text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => answers[0]?.id && handleAddComment(answers[0].id)}
+                    disabled={!answers[0]?.id || !newComment[answers[0]?.id]?.trim()}
+                    className="px-2 py-1.5 h-auto flex-shrink-0 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </aside>
-        </div>
-      </main>
 
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
+
+      {/* Reaction Explanation Dialog */}
+      <Dialog
+        open={reactionDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCancelReaction();
+          }
+        }}
+      >
+        <DialogContent
+          onInteractOutside={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {reactionDialog.reaction === "like" ? "Why did you like this answer?" : "Why did you dislike this answer?"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Please provide a short explanation so your teammates understand your feedback.
+            </p>
+            <Textarea
+              value={reactionDialog.explanation}
+              onChange={(e) =>
+                setReactionDialog((prev) => ({
+                  ...prev,
+                  explanation: e.target.value,
+                }))
+              }
+              placeholder="Share your reasoning..."
+              rows={4}
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={handleCancelReaction} disabled={reactionDialog.isSaving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveReaction}
+              disabled={reactionDialog.isSaving || !reactionDialog.explanation.trim()}
+            >
+              {reactionDialog.isSaving ? "Saving..." : "Save feedback"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Assign Assessment Dialog */}
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>

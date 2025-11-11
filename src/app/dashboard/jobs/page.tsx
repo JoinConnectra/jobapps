@@ -75,10 +75,13 @@ interface JobWithStats extends Job {
   applicationStats: {
     sourced: number;
     applied: number;
-    managerScreen: number;
+    reviewing: number;
+    phone_screen: number;
+    assessment: number;
     onsite: number;
     offer: number;
     hired: number;
+    rejected: number;
   };
   totalCandidates: number;
   createdBy: string;
@@ -271,14 +274,17 @@ export default function AllJobsPage() {
                 headers: { Authorization: `Bearer ${token}` },
               });
 
-              // defaults
+              // defaults - all statuses
               let stats = {
                 sourced: 0,
                 applied: 0,
-                managerScreen: 0,
+                reviewing: 0,
+                phone_screen: 0,
+                assessment: 0,
                 onsite: 0,
                 offer: 0,
                 hired: 0,
+                rejected: 0,
               };
               let totalCandidates = 0;
 
@@ -286,13 +292,25 @@ export default function AllJobsPage() {
                 const applications = await appsResp.json();
                 totalCandidates = applications.length;
                 applications.forEach((app: any) => {
+                  // Count sourced: applications with a non-empty source field
+                  if (app.source && app.source.trim() !== "") {
+                    stats.sourced++;
+                  }
+                  
+                  // Count by stage
                   switch (app.stage) {
                     case "applied":
                       stats.applied++;
                       break;
                     case "reviewing":
+                      stats.reviewing++;
+                      break;
                     case "phone_screen":
-                      stats.managerScreen++;
+                      stats.phone_screen++;
+                      break;
+                    case "assessment":
+                    case "assessments":
+                      stats.assessment++;
                       break;
                     case "onsite":
                       stats.onsite++;
@@ -303,7 +321,14 @@ export default function AllJobsPage() {
                     case "hired":
                       stats.hired++;
                       break;
+                    case "rejected":
+                      stats.rejected++;
+                      break;
                     default:
+                      // If stage is not set or unknown, count as applied
+                      if (!app.stage || app.stage === "") {
+                        stats.applied++;
+                      }
                       break;
                   }
                 });
@@ -318,7 +343,17 @@ export default function AllJobsPage() {
             } catch {
               return {
                 ...job,
-                applicationStats: { sourced: 0, applied: 0, managerScreen: 0, onsite: 0, offer: 0, hired: 0 },
+                applicationStats: { 
+                  sourced: 0, 
+                  applied: 0, 
+                  reviewing: 0, 
+                  phone_screen: 0, 
+                  assessment: 0, 
+                  onsite: 0, 
+                  offer: 0, 
+                  hired: 0, 
+                  rejected: 0 
+                },
                 totalCandidates: 0,
                 createdBy: session?.user?.name || "You",
               } as JobWithStats;
@@ -1068,34 +1103,33 @@ export default function AllJobsPage() {
                       </div>
                     </div>
 
-                    {/* Per-stage counts (ONE LINE, fixed 6 columns) */}
+                    {/* Per-stage counts (ONE LINE, dynamic grid based on number of statuses) */}
                     <Link href={`/dashboard/jobs/${job.id}`} className="block cursor-pointer">
-                      <div className="grid grid-cols-6 gap-3">
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-gray-900">{job.applicationStats.sourced}</div>
-                          <div className="text-xs text-gray-500">SOURCED</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-gray-900">{job.applicationStats.applied}</div>
-                          <div className="text-xs text-gray-500">APPLIED</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-gray-900">{job.applicationStats.managerScreen}</div>
-                          <div className="text-xs text-gray-500">MANAGER SCREEN</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-gray-900">{job.applicationStats.onsite}</div>
-                          <div className="text-xs text-gray-500">ON-SITE</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-gray-900">{job.applicationStats.offer}</div>
-                          <div className="text-xs text-gray-500">OFFER</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-gray-900">{job.applicationStats.hired}</div>
-                          <div className="text-xs text-gray-500">HIRED</div>
-                        </div>
-                      </div>
+                      {(() => {
+                        // Define all statuses in pipeline order with display labels
+                        const statusConfig = [
+                          { key: 'sourced' as const, label: 'SOURCED' },
+                          { key: 'applied' as const, label: 'APPLIED' },
+                          { key: 'reviewing' as const, label: 'REVIEWING' },
+                          { key: 'phone_screen' as const, label: 'PHONE SCREEN' },
+                          { key: 'assessment' as const, label: 'ASSESSMENT' },
+                          { key: 'onsite' as const, label: 'ON-SITE' },
+                          { key: 'offer' as const, label: 'OFFER' },
+                          { key: 'hired' as const, label: 'HIRED' },
+                          { key: 'rejected' as const, label: 'REJECTED' },
+                        ];
+                        
+                        return (
+                          <div className="grid gap-1.5 grid-cols-9 overflow-x-auto">
+                            {statusConfig.map(({ key, label }) => (
+                              <div key={key} className="text-center min-w-[60px] flex-shrink-0">
+                                <div className="text-sm font-semibold text-gray-900">{job.applicationStats[key]}</div>
+                                <div className="text-[9px] text-gray-500 leading-tight whitespace-nowrap">{label}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </Link>
                   </li>
                 ))}
