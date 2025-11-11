@@ -15,7 +15,7 @@ export default function BlogPage() {
             <h1 className="font-display font-normal text-[#1A1A1A] text-4xl md:text-5xl lg:text-6xl leading-tight mb-4">
               Blog & Hiring Guides.
             </h1>
-            <p className="font-display text-base md:text-lg text-gray-500 leading-relaxed">
+            <p className="font-sans text-base md:text-lg text-gray-500 leading-relaxed">
               Articles on hiring, attracting better candidates and our product.
             </p>
           </div>
@@ -39,7 +39,7 @@ export default function BlogPage() {
                   <h2 className="font-display font-normal text-[#1A1A1A] text-base md:text-lg leading-tight mb-2">
                     20 questions to ask your applicants and candidates
                   </h2>
-                  <p className="font-display text-xs md:text-sm text-gray-500 leading-relaxed">
+                  <p className="font-sans text-xs md:text-sm text-gray-500 leading-relaxed">
                     Discover the most effective questions to evaluate candidates during interviews and make better hiring decisions for your team.
                   </p>
                 </div>

@@ -52,10 +52,10 @@ export default function BlogPostPage() {
 
           {/* Intro paragraph */}
           <div className="mb-8 md:mb-12 space-y-4">
-            <p className="font-display text-gray-500 text-base md:text-lg leading-relaxed">
+            <p className="font-sans text-gray-500 text-base md:text-lg leading-relaxed">
               We've all been in a situation involving the cliché "Where do you see yourself in 5 years' time?" And let's face it, we're tired of it.
             </p>
-            <p className="font-display text-gray-700 text-base md:text-lg leading-relaxed">
+            <p className="font-sans text-gray-700 text-base md:text-lg leading-relaxed">
               Here is a list of 20 simple and non-boring questions to get the most out of your application form: Copy them into your Applicant Tracking System, or use them directly from within your TalentFlow Dashboard.
             </p>
           </div>
@@ -65,10 +65,10 @@ export default function BlogPostPage() {
             <ol className="space-y-4 md:space-y-5">
               {questions.map((question, index) => (
                 <li key={index} className="flex gap-4">
-                  <span className="font-display text-gray-400 text-base md:text-lg font-medium flex-shrink-0">
+                  <span className="font-sans text-gray-400 text-base md:text-lg font-medium flex-shrink-0">
                     {index + 1}.
                   </span>
-                  <span className="font-display text-gray-700 text-base md:text-lg leading-relaxed">
+                  <span className="font-sans text-gray-700 text-base md:text-lg leading-relaxed">
                     {question}
                   </span>
                 </li>
@@ -80,7 +80,7 @@ export default function BlogPostPage() {
           <div className="pt-8 border-t border-gray-200">
             <Link 
               href="/blog"
-              className="font-display text-gray-600 hover:text-gray-900 text-sm md:text-base transition-colors inline-flex items-center gap-2"
+              className="font-sans text-gray-600 hover:text-gray-900 text-sm md:text-base transition-colors inline-flex items-center gap-2"
             >
               ← Back to Blog
             </Link>
@@ -104,9 +104,9 @@ export default function BlogPostPage() {
                   Ready to transform your hiring?
                 </h2>
                 <p className="text-white text-xs md:text-sm leading-relaxed mb-4 md:mb-5">
-                  Schedule a call with our team to learn how TalentFlow can transform
+                  Schedule a call with our team to learn how Talent
                   <br />
-                  and simplify your hiring process.
+                  Flow can transform and simplify your hiring process.
                 </p>
                 <Link
                   href="/contact"
