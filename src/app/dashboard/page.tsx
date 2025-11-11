@@ -173,16 +173,46 @@ export default function DashboardPage() {
       if (filter === "applicants") url += `&entityType=application`;
       if (filter === "members") url += `&entityType=membership`;
 
-      if (timeRange !== "all") {
-        const since = new Date();
-        if (timeRange === "today") {
-          since.setHours(0, 0, 0, 0);
-        } else {
-          const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
-          since.setDate(since.getDate() - days);
-        }
-        url += `&since=${since.toISOString()}`;
-      }
+      // >>> Fix: Use UTC midnight boundaries so "today" doesn't start at 06:00Z in CST
+      // >>> Show Today + Yesterday in one query for "today"
+if (timeRange !== "all") {
+  const now = new Date();
+
+  // ✅ CHANGE THIS NUMBER whenever you want:
+  // 0 = only today
+  // 1 = today + yesterday
+  // 2 = last 3 days (today + previous 2)
+  const lookbackDays =
+    timeRange === "today"
+      ? 2
+      : timeRange === "7d"
+      ? 7
+      : timeRange === "30d"
+      ? 30
+      : timeRange === "90d"
+      ? 90
+      : 0;
+
+  // Compute today’s midnight UTC
+  const utcMidnightToday = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      0, 0, 0, 0
+    )
+  );
+
+  // Go back by lookbackDays
+  utcMidnightToday.setUTCDate(utcMidnightToday.getUTCDate() - lookbackDays);
+
+  // That is our since date
+  const since = utcMidnightToday;
+
+  url += `&since=${since.toISOString()}`;
+}
+
+
 
       const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!resp.ok) {
