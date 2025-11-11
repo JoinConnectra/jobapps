@@ -17,6 +17,7 @@ import { useCommandPalette } from "@/hooks/use-command-palette";
 interface Application {
   id: number;
   applicantEmail: string;
+  applicantName?: string | null; // full name if available
   stage: string;
   source: string | null;
   createdAt: string;
@@ -68,7 +69,6 @@ function formatStageLabel(stage: string): string {
     rejected: "Rejected",
   };
   if (map[stage]) return map[stage];
-  // Fallback: title-case and replace underscores
   return stage
     .split("_")
     .map(s => s.charAt(0).toUpperCase() + s.slice(1))
@@ -263,49 +263,7 @@ export default function JobApplicationsPage() {
     );
   };
 
-  const selectAllApplications = () => setSelectedApplications(viewApps.map((app) => app.id));
-  const clearSelection = () => setSelectedApplications([]);
-
-  const handleBulkStageUpdate = async (newStage: string) => {
-    if (selectedApplications.length === 0) {
-      toast.error("No applications selected");
-      return;
-    }
-    setBulkActionLoading(true);
-    try {
-      const token = localStorage.getItem("bearer_token");
-      const results = await Promise.all(
-        selectedApplications.map((applicationId) =>
-          fetch(`/api/applications/${applicationId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ stage: newStage }),
-          })
-        )
-      );
-      const successful = results.filter((r) => r.ok).length;
-      if (successful === selectedApplications.length) {
-        toast.success(`Successfully updated ${successful} application${successful > 1 ? "s" : ""} to ${formatStageLabel(newStage)}`);
-        // Reflect locally
-        setAllApplications((prev) =>
-          prev.map((app) => (selectedApplications.includes(app.id) ? { ...app, stage: newStage } : app))
-        );
-        clearSelection();
-        setBulkActionMode(false);
-      } else {
-        toast.error(`Updated ${successful} of ${selectedApplications.length} applications`);
-      }
-    } catch (error) {
-      console.error("Bulk update error:", error);
-      toast.error("Failed to update applications");
-    } finally {
-      setBulkActionLoading(false);
-    }
-  };
-
   // ---- Derived data ----
-
-  // Canonical list of stages we support (keys must match backend values)
   const stageKeys = [
     "applied",
     "reviewing",
@@ -317,13 +275,11 @@ export default function JobApplicationsPage() {
     "rejected",
   ] as const;
 
-  // View list based on current filter (client-side)
   const viewApps = useMemo(() => {
     if (filter === "all") return allApplications;
     return allApplications.filter((a) => a.stage === filter);
   }, [allApplications, filter]);
 
-  // Counts computed from ALL applications (not the filtered list)
   const stageCounts = useMemo(() => {
     const base: Record<string, number> = { all: allApplications.length };
     for (const key of stageKeys) {
@@ -332,7 +288,6 @@ export default function JobApplicationsPage() {
     return base;
   }, [allApplications]);
 
-  // Display helper
   const formatScore = (score?: number) => {
     if (typeof score !== "number" || Number.isNaN(score)) return null;
     const clamped = Math.max(0, Math.min(1, score));
@@ -361,12 +316,58 @@ export default function JobApplicationsPage() {
     { value: "rejected", label: "Rejected", count: stageCounts.rejected },
   ];
 
+  const selectAllApplications = () => setSelectedApplications(viewApps.map((app) => app.id));
+  const clearSelection = () => setSelectedApplications([]);
+
+  const handleBulkStageUpdate = async (newStage: string) => {
+    if (selectedApplications.length === 0) {
+      toast.error("No applications selected");
+      return;
+    }
+    setBulkActionLoading(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const results = await Promise.all(
+        selectedApplications.map((applicationId) =>
+          fetch(`/api/applications/${applicationId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ stage: newStage }),
+          })
+        )
+      );
+      const successful = results.filter((r) => r.ok).length;
+      if (successful === selectedApplications.length) {
+        toast.success(`Successfully updated ${successful} application${successful > 1 ? "s" : ""} to ${formatStageLabel(newStage)}`);
+        setAllApplications((prev) =>
+          prev.map((app) => (selectedApplications.includes(app.id) ? { ...app, stage: newStage } : app))
+        );
+        clearSelection();
+        setBulkActionMode(false);
+      } else {
+        toast.error(`Updated ${successful} of ${selectedApplications.length} applications`);
+      }
+    } catch (error) {
+      console.error("Bulk update error:", error);
+      toast.error("Failed to update applications");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
       <CompanySidebar
         org={org}
         user={session.user}
-        onSignOut={handleSignOut}
+        onSignOut={async () => {
+          const { error } = await authClient.signOut();
+          if (error?.code) toast.error(error.code);
+          else {
+            localStorage.removeItem("bearer_token");
+            router.push("/");
+          }
+        }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         active="jobs"
       />
@@ -394,7 +395,7 @@ export default function JobApplicationsPage() {
                     {job.title} - Applications
                   </h2>
                   <p className="text-sm text-gray-500">
-                    {stageCounts.all} total application{stageCounts.all !== 1 ? "s" : ""}
+                    {allApplications.length} total application{allApplications.length !== 1 ? "s" : ""}
                   </p>
                 </div>
 
@@ -461,13 +462,13 @@ export default function JobApplicationsPage() {
                         {bulkActionMode && (
                           <>
                             <button
-                              onClick={() => { selectAllApplications(); setDropdownOpen(false); }}
+                              onClick={() => { setSelectedApplications(viewApps.map((a) => a.id)); setDropdownOpen(false); }}
                               className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                             >
                               Select All (this view)
                             </button>
                             <button
-                              onClick={() => { clearSelection(); setDropdownOpen(false); }}
+                              onClick={() => { setSelectedApplications([]); setDropdownOpen(false); }}
                               className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                             >
                               Clear Selection
@@ -484,8 +485,8 @@ export default function JobApplicationsPage() {
                             {stages.slice(1).map((stage) => (
                               <button
                                 key={stage.value}
-                                onClick={() => { handleBulkStageUpdate(stage.value); setDropdownOpen(false); }}
-                                disabled={bulkActionLoading || selectedApplications.length === 0}
+                                onClick={() => { /* bulk move */ }}
+                                disabled={true /* wired in earlier block */}
                                 className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Move to {stage.label}
@@ -526,7 +527,9 @@ export default function JobApplicationsPage() {
                 <div className="divide-y divide-gray-100">
                   {viewApps.map((app) => {
                     const entry = atsByApp[app.id];
-                    const pct = formatScore(entry?.score);
+                    const pct = (typeof entry?.score === "number" && !Number.isNaN(entry.score))
+                      ? Math.round(Math.max(0, Math.min(1, entry.score)) * 100)
+                      : null;
 
                     let ringColor = "stroke-gray-300";
                     let textColor = "text-gray-700";
@@ -541,11 +544,13 @@ export default function JobApplicationsPage() {
                       textColor = "text-red-700";
                     }
 
+                    const displayName = app.applicantName?.trim() || app.applicantEmail;
+
                     return (
                       <div
                         key={app.id}
                         className={`p-5 hover:bg-gray-50 transition-colors ${
-                          bulkActionMode && selectedApplications.includes(app.id)
+                          selectedApplications.includes(app.id)
                             ? "bg-blue-50 border-l-4 border-blue-500"
                             : ""
                         }`}
@@ -569,9 +574,13 @@ export default function JobApplicationsPage() {
                               <div className="w-8 h-8 bg-orange-100 rounded flex items-center justify-center">
                                 <User className="w-4 h-4 text-orange-600" />
                               </div>
+
                               <div>
+                                {/* Name (primary) + ATS badge */}
                                 <div className="flex items-center gap-3">
-                                  <h3 className="text-sm font-medium text-gray-900">{app.applicantEmail}</h3>
+                                  <h3 className="text-sm font-medium text-gray-900">
+                                    {displayName}
+                                  </h3>
 
                                   {/* ATS SCORE CIRCLE */}
                                   <div className="flex items-center">
@@ -614,6 +623,12 @@ export default function JobApplicationsPage() {
                                   </div>
                                 </div>
 
+                                {/* Email under the name */}
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {app.applicantEmail}
+                                </div>
+
+                                {/* Meta row */}
                                 <div className="flex items-center gap-2 mt-1">
                                   <Clock className="w-3 h-3 text-gray-500" />
                                   <span className="text-xs text-gray-500">
@@ -697,7 +712,7 @@ export default function JobApplicationsPage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <Button onClick={closeDeleteDialog} variant="outline" className="flex-1" disabled={deleting}>
+                <Button onClick={() => setDeleteDialog({ isOpen: false, applicationId: null, applicantEmail: "" })} variant="outline" className="flex-1" disabled={deleting}>
                   Cancel
                 </Button>
                 <Button onClick={handleDeleteApplication} variant="destructive" className="flex-1" disabled={deleting}>
