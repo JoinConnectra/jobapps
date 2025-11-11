@@ -650,66 +650,73 @@ export default function TalentPage() {
               })}
             </ul>
           ) : (
-            // ======= GRID VIEW =======
+            // ======= GRID VIEW (fixed bottom-aligned button) =======
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {sorted.map((it) => {
                 const displayName = it.name || "Unnamed Candidate";
                 const loc =
-                  [it.locationCity, it.locationCountry].filter(Boolean).join(", ") ||
-                  "—";
+                  [it.locationCity, it.locationCountry].filter(Boolean).join(", ") || "—";
+
                 return (
                   <div
                     key={it.id}
-                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow transition-shadow flex flex-col"
+                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow transition-shadow flex flex-col h-full"
                   >
-                    <Link
-                      href={`/dashboard/talent/${it.id}`}
-                      className="min-w-0 flex items-start gap-3"
-                    >
-                      <InitialAvatar name={displayName} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
-                            {displayName}
-                          </h3>
-                          {it.verified && (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <BadgeCheck className="w-3 h-3" />
-                              Verified
-                            </span>
+                    {/* Content + skills block grows to fill card */}
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <Link
+                        href={`/dashboard/talent/${it.id}`}
+                        className="min-w-0 flex items-start gap-3"
+                      >
+                        <InitialAvatar name={displayName} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
+                              {displayName}
+                            </h3>
+                            {it.verified && (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                <BadgeCheck className="w-3 h-3" />
+                                Verified
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-gray-500 mt-1">
+                            {(it.program || "—")}
+                            {it.experienceYears != null ? ` • ${it.experienceYears} yrs` : ""}
+                          </div>
+                          <div className="text-[11px] text-gray-500 mt-0.5 truncate">
+                            {loc}
+                          </div>
+                          {it.headline && (
+                            <div className="text-xs text-gray-700 mt-2 line-clamp-2">
+                              {it.headline}
+                            </div>
                           )}
                         </div>
-                        <div className="text-[11px] text-gray-500 mt-1">
-                          {(it.program || "—")}
-                          {it.experienceYears != null ? ` • ${it.experienceYears} yrs` : ""}
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5 truncate">
-                          {loc}
-                        </div>
-                        {it.headline && (
-                          <div className="text-xs text-gray-700 mt-2 line-clamp-2">
-                            {it.headline}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
+                      </Link>
 
-                    {(it.skills || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-3">
-                        {it.skills.slice(0, 6).map((s) => (
-                          <span
-                            key={s}
-                            className="text-[10px] px-2 py-1 rounded-full border"
-                          >
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                      {(it.skills || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-3">
+                          {it.skills.slice(0, 6).map((s) => (
+                            <span
+                              key={s}
+                              className="text-[10px] px-2 py-1 rounded-full border"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
+                    {/* Button pinned to bottom via mt-auto on a separate block */}
                     <div className="mt-4">
                       <Link href={`/dashboard/talent/${it.id}`}>
-                        <Button size="sm" className="w-full bg-[#6a994e] hover:bg-[#5a8743] text-white">
+                        <Button
+                          size="sm"
+                          className="w-full bg-[#6a994e] hover:bg-[#5a8743] text-white"
+                        >
                           View Profile
                         </Button>
                       </Link>
