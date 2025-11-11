@@ -1020,12 +1020,10 @@ export default function AllJobsPage() {
                           {new Date(job.createdAt).toLocaleDateString()}
                         </div>
 
-                        {/* quick meta */}
-                        {(job.location || job.seniority || job.skillsCsv) && (
+                        {/* Location only */}
+                        {job.location && (
                           <div className="text-xs text-gray-500 mt-1">
-                            {job.location ? <span className="mr-3">📍 {job.location}</span> : null}
-                            {job.seniority ? <span className="mr-3">🎯 {job.seniority}</span> : null}
-                            {job.skillsCsv ? <span>🛠️ {job.skillsCsv}</span> : null}
+                            <span>📍 {job.location}</span>
                           </div>
                         )}
                       </Link>
