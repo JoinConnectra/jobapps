@@ -19,9 +19,9 @@ export default function Page() {
       <ApplicantShowcaseSection />
       <AnimatedSearchSection />
       <ActivityFeatureSection />
-      <FeaturesOverviewSection />
-      <AiAssistantFeature />
-      <ActivityCrmFeature />
+      {/* <FeaturesOverviewSection /> */}
+      {/* <AiAssistantFeature /> */}
+      {/* <ActivityCrmFeature /> */}
       {/* <GlobalTeamSection /> */}
       {/* <TestimonialsSection /> */}
       <FinalCtaSection />

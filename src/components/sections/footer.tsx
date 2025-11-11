@@ -19,22 +19,10 @@ export default function Footer() {
               Features
             </Link>
             <Link
-              href="/pricing"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Pricing
-            </Link>
-            <Link
               href="/blog"
               className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
             >
               Blog
-            </Link>
-            <Link
-              href="/contact"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Contact
             </Link>
           </nav>
 

@@ -431,7 +431,7 @@ export default function ActivityFeatureSection() {
 
   return (
     <section ref={sectionRef} className="relative bg-white py-16 md:py-20 lg:py-24 overflow-hidden">
-      <div className="container relative z-10 mx-auto px-6 max-w-7xl">
+      <div className="container relative z-10 mx-auto px-6 max-w-5xl">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-center">
           {/* Left side - Headline and description */}
           <div className="flex flex-col">

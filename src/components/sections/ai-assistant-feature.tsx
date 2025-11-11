@@ -3,8 +3,8 @@ import { Sparkles, UserCheck, UserX, Mail } from 'lucide-react';
 const AiAssistantFeature = () => {
   return (
     <section className="bg-white pt-8 lg:pt-12 pb-8 lg:pb-12">
-      <div className="container mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-12 items-start max-w-6xl mx-auto">
+      <div className="container mx-auto px-6 max-w-5xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-12 items-start max-w-5xl mx-auto">
           {/* Column 1: AI Assistant */}
           <div className="flex flex-col">
             <div className="rounded-xl bg-white border border-gray-200 p-4 shadow-sm">

@@ -4,7 +4,7 @@ import React from 'react';
 export default function HeroSection() {
   return (
     <section className="relative bg-white overflow-hidden pt-32 pb-16 md:pt-40 md:pb-20 lg:pt-48 lg:pb-24">
-      <div className="container relative z-20 flex flex-col items-center text-center px-6 max-w-4xl mx-auto">
+      <div className="container relative z-20 flex flex-col items-center text-center px-6 max-w-5xl mx-auto">
         <h1 className="font-display font-semibold text-[#1A1A1A] text-4xl md:text-5xl lg:text-6xl leading-[1.15] tracking-tight mb-6">
           Helping growing teams
           <br />
@@ -23,7 +23,7 @@ export default function HeroSection() {
           <Link
             href="/register"
             className="inline-flex items-center justify-center rounded bg-[#3d6a4a] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2f5239]"
-          >
+        >
             Get started
           </Link>
           

@@ -9,6 +9,7 @@ const HeaderNavigation = () => {
 
   const navLinks = [
     { href: '/#rapha-features', label: 'Features' },
+    { href: '/blog', label: 'Blog' },
   ];
 
   return (

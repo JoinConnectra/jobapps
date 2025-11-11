@@ -3,8 +3,8 @@ import Image from "next/image";
 const ActivityCrmFeature = () => {
   return (
     <section className="bg-white pt-8 lg:pt-12 pb-16 lg:pb-20">
-      <div className="container mx-auto px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 items-start max-w-6xl mx-auto">
+      <div className="container mx-auto px-6 max-w-5xl">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 items-start max-w-5xl mx-auto">
           {/* Activity is centralized Card */}
           <div className="flex flex-col">
             <div className="rounded-xl bg-white border border-gray-200 p-4 shadow-sm">

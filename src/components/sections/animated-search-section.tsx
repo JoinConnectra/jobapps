@@ -106,7 +106,7 @@ export default function AnimatedSearchSection() {
 
   return (
     <section ref={sectionRef} className="relative bg-white py-16 md:py-20 lg:py-24 overflow-hidden">
-      <div className="container relative z-10 mx-auto px-6 max-w-7xl">
+      <div className="container relative z-10 mx-auto px-6 max-w-5xl">
         {/* Top section - Headline and description */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 mb-10">
           {/* Left side - Headline */}
@@ -125,9 +125,9 @@ export default function AnimatedSearchSection() {
         </div>
 
         {/* Bottom section - Search bar with background pattern */}
-        <div className="relative w-full">
+        <div className="relative w-full flex justify-center">
           {/* Background pattern card - matching SVG aspect ratio (1326x362) */}
-          <div className="relative rounded-xl overflow-hidden w-full" style={{ aspectRatio: '1326/362', minHeight: '200px' }}>
+          <div className="relative rounded-xl overflow-hidden w-full max-w-5xl" style={{ aspectRatio: '1326/362', minHeight: '200px' }}>
             <div className="absolute inset-0 z-0">
               <Image
                 src="/images/green_stripe.svg"
