@@ -25,6 +25,9 @@ import SettingsModal from "@/components/SettingsModal";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import {
@@ -44,6 +47,9 @@ import {
   Rows,
   ArrowUpDown,
   Command as CommandIcon,
+  Sparkles,
+  Loader2,
+  GraduationCap,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -95,11 +101,31 @@ export default function AllJobsPage() {
 
   // ----- Org -----
   const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
+  const [orgId, setOrgId] = useState<number | null>(null);
 
   // ----- Data state -----
   const [jobs, setJobs] = useState<JobWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+
+  // ----- Job creation form state -----
+  const [creating, setCreating] = useState(false);
+  const [generatingJD, setGeneratingJD] = useState(false);
+  const [universities, setUniversities] = useState<{id: number; name: string; approved: boolean}[]>([]);
+  const [loadingUniversities, setLoadingUniversities] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    dept: "",
+    locationMode: "remote",
+    salaryRange: "",
+    descriptionMd: "",
+    status: "draft" as "draft" | "published" | "closed",
+    visibility: "public" as "public" | "institutions" | "both",
+    universityIds: [] as number[],
+    location: "",
+    seniority: "junior" as "junior" | "mid" | "senior",
+    skillsCsv: "",
+  });
 
   // ----- Filters / sort / view (top bar shows these; status+search are applied) -----
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -121,6 +147,55 @@ export default function AllJobsPage() {
   useEffect(() => {
     if (!isPending && !session?.user) router.push("/login");
   }, [session, isPending, router]);
+
+  // Fetch organization early (needed for job creation form)
+  useEffect(() => {
+    if (session?.user && !orgId) {
+      const fetchOrg = async () => {
+        try {
+          const token = localStorage.getItem("bearer_token");
+          const orgResp = await fetch("/api/organizations?mine=true", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (orgResp.ok) {
+            const orgs = await orgResp.json();
+            if (Array.isArray(orgs) && orgs.length > 0) {
+              setOrgId(orgs[0].id);
+              setOrg(orgs[0]);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch organization:", error);
+        }
+      };
+      fetchOrg();
+    }
+  }, [session, orgId]);
+
+  // Fetch approved universities when orgId is available and form is visible
+  useEffect(() => {
+    if (orgId && searchParams?.get("create") === "1") {
+      const fetchUniversities = async () => {
+        setLoadingUniversities(true);
+        try {
+          const token = localStorage.getItem("bearer_token");
+          const response = await fetch(`/api/employer/universities?orgId=${orgId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const approvedUniversities = data.filter((uni: any) => uni.approved);
+            setUniversities(approvedUniversities);
+          }
+        } catch (error) {
+          console.error("Failed to fetch universities:", error);
+        } finally {
+          setLoadingUniversities(false);
+        }
+      };
+      fetchUniversities();
+    }
+  }, [orgId, searchParams]);
 
   // Keyboard shortcuts (⌘/Ctrl K; / focus; R refresh; G toggle)
   useEffect(() => {
@@ -153,8 +228,8 @@ export default function AllJobsPage() {
 
   // Load jobs on session ready or status/search change (old behavior)
   useEffect(() => {
-    if (session?.user) fetchJobs();
-  }, [session, statusFilter, searchQuery]);
+    if (session?.user && orgId) fetchJobs();
+  }, [session, orgId, statusFilter, searchQuery]);
 
   // ---------------- Data fetchers ----------------
   const fetchJobs = async (force = false) => {
@@ -162,14 +237,19 @@ export default function AllJobsPage() {
       setLoading(true);
       const token = localStorage.getItem("bearer_token");
 
-      // 1) Primary org
-      const orgResp = await fetch("/api/organizations?mine=true", { headers: { Authorization: `Bearer ${token}` } });
+      // 1) Use orgId if available, otherwise fetch org
       let orgIdParam = "";
-      if (orgResp.ok) {
-        const orgs = await orgResp.json();
-        if (Array.isArray(orgs) && orgs.length > 0) {
-          setOrg(orgs[0]);
-          orgIdParam = `&orgId=${orgs[0].id}`;
+      if (orgId) {
+        orgIdParam = `&orgId=${orgId}`;
+      } else {
+        const orgResp = await fetch("/api/organizations?mine=true", { headers: { Authorization: `Bearer ${token}` } });
+        if (orgResp.ok) {
+          const orgs = await orgResp.json();
+          if (Array.isArray(orgs) && orgs.length > 0) {
+            setOrgId(orgs[0].id);
+            setOrg(orgs[0]);
+            orgIdParam = `&orgId=${orgs[0].id}`;
+          }
         }
       }
 
@@ -317,6 +397,107 @@ export default function AllJobsPage() {
     }
   };
 
+  // ---------------- Job creation handlers ----------------
+  const handleGenerateJD = async () => {
+    if (!orgId) return toast.error("No organization found");
+    if (!form.title) return toast.error("Enter a job title first");
+
+    setGeneratingJD(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+
+      // Create draft job shell
+      const createResp = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          orgId,
+          title: form.title,
+          dept: form.dept,
+          locationMode: form.locationMode,
+          salaryRange: form.salaryRange,
+          status: "draft",
+          location: form.location,
+          seniority: form.seniority,
+          skillsCsv: form.skillsCsv,
+        }),
+      });
+      if (!createResp.ok) throw new Error();
+      const job = await createResp.json();
+
+      // Ask AI to generate description
+      const prompt = `Create a comprehensive job description for a ${form.title} position${
+        form.dept ? ` in the ${form.dept} department` : ""
+      }. Location mode: ${form.locationMode}${
+        form.location ? `, Work location: ${form.location}` : ""
+      }${
+        form.seniority ? `. Seniority: ${form.seniority}` : ""
+      }${
+        form.skillsCsv ? `. Required skills: ${form.skillsCsv}` : ""
+      }${
+        form.salaryRange ? `. Salary: ${form.salaryRange}` : ""
+      }. Make it suitable for the Pakistan job market with both English and Urdu context. Provide clear responsibilities and qualifications, and a short application CTA.`;
+
+      const jdResp = await fetch("/api/ai/generate-jd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jobId: job.id, prompt }),
+      });
+
+      if (jdResp.ok) {
+        const jd = await jdResp.json();
+        setForm((p) => ({ ...p, descriptionMd: jd.contentMd }));
+        toast.success("Generated description");
+      }
+    } catch {
+      toast.error("Failed to generate description");
+    } finally {
+      setGeneratingJD(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orgId) return toast.error("No organization found");
+
+    setCreating(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+      const resp = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId, ...form }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || "Failed to create job");
+
+      toast.success("Job created successfully!");
+      // Reset form
+      setForm({
+        title: "",
+        dept: "",
+        locationMode: "remote",
+        salaryRange: "",
+        descriptionMd: "",
+        status: "draft",
+        visibility: "public",
+        universityIds: [],
+        location: "",
+        seniority: "junior",
+        skillsCsv: "",
+      });
+      // Remove create param and refresh
+      router.push("/dashboard/jobs");
+      await fetchJobs(true);
+      // Navigate to job detail page
+      router.push(`/dashboard/jobs/${data.id}`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   // Small bits for top
   const LiveDot = () => (
     <span className="relative flex h-2.5 w-2.5">
@@ -384,121 +565,227 @@ export default function AllJobsPage() {
 
       {/* Main */}
       <main className="flex-1 bg-[#FEFEFA] overflow-y-auto overflow-x-hidden">
-        {/* Sticky header */}
-        <div className="sticky top-0 z-30 border-b border-gray-200 bg-[#FEFEFA]/90 backdrop-blur">
-          <div className="max-w-6xl mx-auto px-6 sm:px-8 py-4">
-            <div className="flex items-center justify-between gap-3">
-              {/* Breadcrumbs + icon */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-lg bg-white border border-gray-200 grid place-items-center shrink-0">
-                  <Briefcase className="h-5 w-5 text-gray-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-gray-500">Dashboard</div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">
-                      Home
-                    </Link>
-                    <ChevronRight className="h-4 w-4 text-gray-300" />
-                    <span className="text-gray-900 font-medium truncate">Jobs</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Live + Command */}
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="hidden md:flex items-center gap-2 text-xs text-gray-500" title="Live status">
-                  <LiveDot />
-                  <span>
-                    Live •{" "}
-                    {lastRefreshedAt
-                      ? `Updated ${new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(
-                          -Math.max(1, Math.floor((Date.now() - lastRefreshedAt.getTime()) / 1000)),
-                          "second"
-                        )}`
-                      : "Connecting…"}
-                  </span>
-                </div>
-                <Button variant="outline" className="hidden md:flex gap-2" onClick={openCommandPalette} title="⌘K / Ctrl+K">
-                  <CommandIcon className="h-4 w-4" />
-                  Command
-                </Button>
-              </div>
+        {/* Breadcrumb and spacing — match Assessments page */}
+        <div className="p-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center gap-4 mb-8">
+              <nav className="flex items-center gap-2 text-sm">
+                <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 transition-colors">
+                  Dashboard
+                </Link>
+                <span className="text-gray-400">›</span>
+                <span className="text-gray-900 font-medium">Jobs</span>
+              </nav>
             </div>
 
-            {/* KPI Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-              <StatTile icon={Briefcase} label="Open Jobs" value={countsByStatus.published + countsByStatus.draft} />
-              <StatTile icon={User} label="Total Candidates" value={totals.totalCandidates} />
-              <StatTile icon={BarChartIcon} label="Funnel (Hired/Applied)" value={`${totals.funnel}%`} />
-              <StatTile icon={ListChecks} label="Fill Velocity" value={totals.fillVelocity} sub="Hires per job" />
-            </div>
-          </div>
+            {/* KPI Row - Only show when NOT creating a job */}
+            {searchParams?.get("create") !== "1" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <StatTile icon={Briefcase} label="Open Jobs" value={countsByStatus.published + countsByStatus.draft} />
+                <StatTile icon={User} label="Total Candidates" value={totals.totalCandidates} />
+                <StatTile icon={BarChartIcon} label="Funnel (Hired/Applied)" value={`${totals.funnel}%`} />
+                <StatTile icon={ListChecks} label="Fill Velocity" value={totals.fillVelocity} sub="Hires per job" />
+              </div>
+            )}
 
-          {/* Toolbar (WRAPS to 2nd line instead of leaking) */}
-          <div className="border-t border-gray-200 bg-white">
-            <div className="max-w-6xl mx-auto px-6 sm:px-8 py-3">
-              {/* Two columns that wrap on small screens */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {/* LEFT: status chips + filters */}
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Status chips with counts */}
-                    <div className="flex flex-wrap bg-gray-100 rounded-lg p-1">
-                      {([
-                        ["all", countsByStatus.all, "All"],
-                        ["published", countsByStatus.published, "Published"],
-                        ["draft", countsByStatus.draft, "Draft"],
-                        ["archived", countsByStatus.archived, "Archived"],
-                      ] as [StatusFilter, number, string][]).map(([key, count, label]) => (
-                        <button
-                          key={key}
-                          onClick={() => setStatusFilter(key)}
-                          className={[
-                            "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                            statusFilter === key ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
-                          ].join(" ")}
-                        >
-                          <span>{label}</span>
-                          <span
+            {/* Toolbar (WRAPS to 2nd line instead of leaking) - Only show when NOT creating a job */}
+            {searchParams?.get("create") !== "1" && (
+              <div className="bg-white rounded-lg border border-gray-200">
+                <div className="px-6 sm:px-8 py-3">
+                {/* Two columns that wrap on small screens */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {/* LEFT: status chips + filters */}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Status chips with counts */}
+                      <div className="flex flex-wrap bg-gray-100 rounded-lg p-1">
+                        {([
+                          ["all", countsByStatus.all, "All"],
+                          ["published", countsByStatus.published, "Published"],
+                          ["draft", countsByStatus.draft, "Draft"],
+                          ["archived", countsByStatus.archived, "Archived"],
+                        ] as [StatusFilter, number, string][]).map(([key, count, label]) => (
+                          <button
+                            key={key}
+                            onClick={() => setStatusFilter(key)}
                             className={[
-                              "px-1.5 py-0.5 text-[10px] rounded-md",
-                              statusFilter === key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700",
+                              "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+                              statusFilter === key ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
                             ].join(" ")}
                           >
-                            {count}
-                          </span>
-                        </button>
-                      ))}
+                            <span>{label}</span>
+                            <span
+                              className={[
+                                "px-1.5 py-0.5 text-[10px] rounded-md",
+                                statusFilter === key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700",
+                              ].join(" ")}
+                            >
+                              {count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Extra filters (visual only; do not affect API in this hybrid) */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Filter className="h-4 w-4 text-gray-400 hidden md:block" />
+                        <Select value={timeFilter} onValueChange={(v: TimeFilter) => setTimeFilter(v)}>
+                          <SelectTrigger className="w-40"><SelectValue placeholder="Time" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All time</SelectItem>
+                            <SelectItem value="7d">Last 7 days</SelectItem>
+                            <SelectItem value="30d">Last 30 days</SelectItem>
+                            <SelectItem value="90d">Last 90 days</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={seniorityFilter} onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}>
+                          <SelectTrigger className="w-40"><SelectValue placeholder="Seniority" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All levels</SelectItem>
+                            <SelectItem value="junior">Junior</SelectItem>
+                            <SelectItem value="mid">Mid</SelectItem>
+                            <SelectItem value="senior">Senior</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={modeFilter} onValueChange={(v: ModeFilter) => setModeFilter(v)}>
+                          <SelectTrigger className="w-40"><SelectValue placeholder="Mode" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All modes</SelectItem>
+                            <SelectItem value="remote">Remote</SelectItem>
+                            <SelectItem value="hybrid">Hybrid</SelectItem>
+                            <SelectItem value="onsite">On-site</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+                  </div>
 
-                    {/* Extra filters (visual only; do not affect API in this hybrid) */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Filter className="h-4 w-4 text-gray-400 hidden md:block" />
-                      <Select value={timeFilter} onValueChange={(v: TimeFilter) => setTimeFilter(v)}>
-                        <SelectTrigger className="w-40"><SelectValue placeholder="Time" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All time</SelectItem>
-                          <SelectItem value="7d">Last 7 days</SelectItem>
-                          <SelectItem value="30d">Last 30 days</SelectItem>
-                          <SelectItem value="90d">Last 90 days</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  {/* RIGHT: search, sort, view toggle */}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 min-w-0">
+                      {/* Search (full width on mobile to avoid overflow) */}
+                      <div className="relative w-full sm:w-72" title="Press / to focus">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <Input
+                          ref={searchRef}
+                          placeholder="Search by title, location, owner"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
 
-                      <Select value={seniorityFilter} onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}>
-                        <SelectTrigger className="w-40"><SelectValue placeholder="Seniority" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All levels</SelectItem>
-                          <SelectItem value="junior">Junior</SelectItem>
-                          <SelectItem value="mid">Mid</SelectItem>
-                          <SelectItem value="senior">Senior</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {/* Sort (display only in this hybrid) */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="gap-2">
+                            <ArrowUpDown className="h-4 w-4" />
+                            Sort
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => setSortKey("createdAt")}>
+                            Created {sortKey === "createdAt" ? "•" : ""}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSortKey("candidates")}>
+                            Candidates {sortKey === "candidates" ? "•" : ""}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}>
+                            Direction: {sortDir.toUpperCase()}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
 
-                      <Select value={modeFilter} onValueChange={(v: ModeFilter) => setModeFilter(v)}>
-                        <SelectTrigger className="w-40"><SelectValue placeholder="Mode" /></SelectTrigger>
+                      {/* View toggle (display only) */}
+                      <div className="flex bg-gray-100 rounded-lg p-1">
+                        <button
+                          onClick={() => setViewMode("grid")}
+                          className={[
+                            "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+                            viewMode === "grid" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                          ].join(" ")}
+                          title="G to toggle"
+                        >
+                          <LayoutGrid className="h-4 w-4" />
+                          Grid
+                        </button>
+                        <button
+                          onClick={() => setViewMode("list")}
+                          className={[
+                            "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+                            viewMode === "list" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                          ].join(" ")}
+                          title="G to toggle"
+                        >
+                          <Rows className="h-4 w-4" />
+                          List
+                        </button>
+                      </div>
+
+                      {/* (Removed) New Job button from toolbar */}
+                    </div>
+                  </div>
+                </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* CONTENT (Jobs as spaced tiles) */}
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8">
+          {/* Job Creation Form - Shows when ?create=1 */}
+          {searchParams?.get("create") === "1" && (
+            <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Create a Job</h2>
+                <Button
+                  variant="ghost"
+                  onClick={() => router.push("/dashboard/jobs")}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              {!orgId ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm text-gray-500">Loading organization...</p>
+                </div>
+              ) : (
+                <form onSubmit={handleCreate} className="space-y-6">
+                  <div>
+                    <Label htmlFor="title">Job Title *</Label>
+                    <Input
+                      id="title"
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      placeholder="e.g., Senior Software Engineer"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="dept">Department</Label>
+                      <Input
+                        id="dept"
+                        value={form.dept}
+                        onChange={(e) => setForm({ ...form, dept: e.target.value })}
+                        placeholder="e.g., Engineering"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="locationMode">Location Mode</Label>
+                      <Select value={form.locationMode} onValueChange={(v) => setForm({ ...form, locationMode: v })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All modes</SelectItem>
                           <SelectItem value="remote">Remote</SelectItem>
                           <SelectItem value="hybrid">Hybrid</SelectItem>
                           <SelectItem value="onsite">On-site</SelectItem>
@@ -506,81 +793,191 @@ export default function AllJobsPage() {
                       </Select>
                     </div>
                   </div>
-                </div>
 
-                {/* RIGHT: search, sort, view toggle */}
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 min-w-0">
-                    {/* Search (full width on mobile to avoid overflow) */}
-                    <div className="relative w-full sm:w-72" title="Press / to focus">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="location">Work Location (City/Office)</Label>
                       <Input
-                        ref={searchRef}
-                        placeholder="Search by title, location, owner"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9"
+                        id="location"
+                        value={form.location}
+                        onChange={(e) => setForm({ ...form, location: e.target.value })}
+                        placeholder="e.g., Lahore, PK or DHA Phase 5 Office"
                       />
                     </div>
-
-                    {/* Sort (display only in this hybrid) */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="gap-2">
-                          <ArrowUpDown className="h-4 w-4" />
-                          Sort
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem onClick={() => setSortKey("createdAt")}>
-                          Created {sortKey === "createdAt" ? "•" : ""}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setSortKey("candidates")}>
-                          Candidates {sortKey === "candidates" ? "•" : ""}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}>
-                          Direction: {sortDir.toUpperCase()}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {/* View toggle (display only) */}
-                    <div className="flex bg-gray-100 rounded-lg p-1">
-                      <button
-                        onClick={() => setViewMode("grid")}
-                        className={[
-                          "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                          viewMode === "grid" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
-                        ].join(" ")}
-                        title="G to toggle"
+                    <div>
+                      <Label htmlFor="seniority">Seniority</Label>
+                      <Select
+                        value={form.seniority}
+                        onValueChange={(v: "junior" | "mid" | "senior") => setForm({ ...form, seniority: v })}
                       >
-                        <LayoutGrid className="h-4 w-4" />
-                        Grid
-                      </button>
-                      <button
-                        onClick={() => setViewMode("list")}
-                        className={[
-                          "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                          viewMode === "list" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
-                        ].join(" ")}
-                        title="G to toggle"
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="junior">Junior</SelectItem>
+                          <SelectItem value="mid">Mid</SelectItem>
+                          <SelectItem value="senior">Senior</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="salaryRange">Salary Range</Label>
+                    <Input
+                      id="salaryRange"
+                      value={form.salaryRange}
+                      onChange={(e) => setForm({ ...form, salaryRange: e.target.value })}
+                      placeholder="e.g., PKR 150,000 - 250,000/month"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="skillsCsv">Required Skills (comma-separated)</Label>
+                    <Input
+                      id="skillsCsv"
+                      value={form.skillsCsv}
+                      onChange={(e) => setForm({ ...form, skillsCsv: e.target.value })}
+                      placeholder="e.g., React, TypeScript, Node, Postgres"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label htmlFor="descriptionMd">Job Description</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGenerateJD}
+                        disabled={generatingJD || !form.title}
+                        className="gap-2"
                       >
-                        <Rows className="h-4 w-4" />
-                        List
-                      </button>
+                        {generatingJD ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            Generate with AI
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <Textarea
+                      id="descriptionMd"
+                      value={form.descriptionMd}
+                      onChange={(e) => setForm({ ...form, descriptionMd: e.target.value })}
+                      rows={10}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="status">Status</Label>
+                      <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as any })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="published">Published</SelectItem>
+                          <SelectItem value="closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
-                    {/* (Removed) New Job button from toolbar */}
+                    <div>
+                      <Label htmlFor="visibility">Visibility</Label>
+                      <Select value={form.visibility} onValueChange={(v) => setForm({ ...form, visibility: v as any })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="public">Public</SelectItem>
+                          <SelectItem value="institutions">Selected Institutions Only</SelectItem>
+                          <SelectItem value="both">Institutions + Public</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* CONTENT (Jobs as spaced tiles) */}
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8">
+                  {/* University Selection - Only show when institutions or both is selected */}
+                  {(form.visibility === 'institutions' || form.visibility === 'both') && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <GraduationCap className="w-4 h-4 text-[#6a994e]" />
+                        <Label>Select Universities</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Choose which universities can see this job posting.
+                      </p>
+                      
+                      {loadingUniversities ? (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          Loading universities...
+                        </div>
+                      ) : universities.length > 0 ? (
+                        <div className="space-y-2 max-h-40 overflow-y-auto border border-[#d4d4d8] rounded-md p-3">
+                          {universities.map((university) => (
+                            <div key={university.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`university-${university.id}`}
+                                checked={form.universityIds.includes(university.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setForm({
+                                      ...form,
+                                      universityIds: [...form.universityIds, university.id]
+                                    });
+                                  } else {
+                                    setForm({
+                                      ...form,
+                                      universityIds: form.universityIds.filter(id => id !== university.id)
+                                    });
+                                  }
+                                }}
+                              />
+                              <Label
+                                htmlFor={`university-${university.id}`}
+                                className="text-sm font-normal cursor-pointer"
+                              >
+                                {university.name}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center text-sm text-muted-foreground border border-[#d4d4d8] rounded-md">
+                          No approved universities available. Please request access to universities in your organization settings first.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={creating} className="gap-2">
+                      {creating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4" />
+                          Create Job
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
           <div className="">
             {jobs.length === 0 ? (
               // Empty state (kept simple)
@@ -595,7 +992,7 @@ export default function AllJobsPage() {
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Post a job</h3>
                 <p className="text-sm text-gray-500 mb-6">Once you do, they will sit right here for you</p>
                 <Button
-                  onClick={() => router.push("/dashboard/jobs/new")}
+                  onClick={() => router.push("/dashboard/jobs?create=1")}
                   className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
                 >
                   Create your first job

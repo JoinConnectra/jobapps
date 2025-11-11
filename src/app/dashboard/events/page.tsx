@@ -157,20 +157,18 @@ export default function EmployerEventsPage() {
       user={{ name: session.user.name }}
       onSignOut={handleSignOut}
       crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Events' }]}
-      title="Events"
-      actions={
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => setComposerOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Event
-          </Button>
-          <Button size="sm" variant="outline">
-            <Upload className="mr-2 h-4 w-4" />
-            Bulk import
-          </Button>
-        </div>
-      }
     >
+      {/* Actions moved into page content to keep header minimal */}
+      <div className="mb-3 flex gap-2">
+        <Button size="sm" onClick={() => setComposerOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Event
+        </Button>
+        <Button size="sm" variant="outline">
+          <Upload className="mr-2 h-4 w-4" />
+          Bulk import
+        </Button>
+      </div>
       {/* ====== Toolbar (compact; tabs on the right) ====== */}
       <Card className="sticky top-2 z-10 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         {/* Remove space between Browse and the toolbar */}

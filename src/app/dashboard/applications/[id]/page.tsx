@@ -225,12 +225,12 @@ export default function ApplicationDetailPage() {
       const orgResp = await fetch("/api/organizations?mine=true", {
         headers: { Authorization: `Bearer ${token}` },
       });
-        if (orgResp.ok) {
-          const orgs = await orgResp.json();
-          if (Array.isArray(orgs) && orgs.length > 0) {
+      if (orgResp.ok) {
+        const orgs = await orgResp.json();
+        if (Array.isArray(orgs) && orgs.length > 0) {
             setOrg({ id: orgs[0].id, name: orgs[0].name, logoUrl: orgs[0].logoUrl });
-          }
         }
+      }
     } catch (error) {
       console.error("Failed to fetch org:", error);
     }
@@ -831,7 +831,7 @@ export default function ApplicationDetailPage() {
 
               {/* Full details when expanded */}
               {isCandidateDetailsExpanded && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Basics */}
                 <div>
                   <div className="text-xs text-gray-500">Name</div>
@@ -976,7 +976,7 @@ export default function ApplicationDetailPage() {
                     {application.gpa ? `${application.gpa}${application.gpaScale ? ` / ${application.gpaScale}` : ""}` : "—"}
                   </div>
                 </div>
-                </div>
+              </div>
               )}
             </div>
 

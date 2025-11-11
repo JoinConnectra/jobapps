@@ -103,27 +103,17 @@ export default function EmployerInboxPage() {
       user={{ name: session.user.name }}
       onSignOut={handleSignOut}
       crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Inbox' }]}
-      title="Inbox"
-      actions={
-        // keep a small action on the right (optional)
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}>
-            <Filter className="mr-2 h-4 w-4" />
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </Button>
-        </div>
-      }
     >
+      {/* Optional: quick filters button moved below header to keep header minimal */}
+      <div className="mb-4">
+        <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}>
+          <Filter className="mr-2 h-4 w-4" />
+          {showFilters ? 'Hide Filters' : 'Show Filters'}
+        </Button>
+      </div>
       {/* Header (side-by-side, same as student) */}
       <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
-          <p className="text-sm text-muted-foreground">
-            Chat with candidates and partners. Manage recruiting messages.
-          </p>
-        </div>
-
-        {/* Search + actions (compact, same pattern as student) */}
+        {/* Search + actions */}
         <div className="flex flex-wrap gap-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
