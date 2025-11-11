@@ -5,9 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowLeft, User, ListChecks, Clock, BarChartIcon, Filter,
-  Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Trash2,
-  AlertTriangle, Check, ChevronDown, MoreVertical, Settings, RefreshCcw
+  User, Filter, MoreVertical, ChevronDown, RefreshCcw, Clock, Trash2, AlertTriangle, Check
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -57,13 +55,38 @@ type RankResponse = {
   ranked: RankItem[];
 };
 
+/** Map backend stage -> human label */
+function formatStageLabel(stage: string): string {
+  const map: Record<string, string> = {
+    applied: "Applied",
+    reviewing: "Reviewing",
+    assessment: "Assessment",
+    phone_screen: "Phone Screen",
+    onsite: "Onsite",
+    offer: "Offer",
+    hired: "Hired",
+    rejected: "Rejected",
+  };
+  if (map[stage]) return map[stage];
+  // Fallback: title-case and replace underscores
+  return stage
+    .split("_")
+    .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(" ");
+}
+
 export default function JobApplicationsPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session, isPending } = useSession();
   const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } = useCommandPalette();
+
   const [job, setJob] = useState<Job | null>(null);
-  const [applications, setApplications] = useState<Application[]>([]);
+
+  // Keep ALL applications here, always fetched without stage filter
+  const [allApplications, setAllApplications] = useState<Application[]>([]);
+
+  // UI & controls
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
@@ -75,30 +98,36 @@ export default function JobApplicationsPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // ATS scores mapped by application id
   const [atsByApp, setAtsByApp] = useState<Record<number, { score: number; resumeId: number }>>({});
   const [atsLoading, setAtsLoading] = useState(false);
 
+  // ---- Auth gate ----
   useEffect(() => {
     if (!isPending && !session?.user) {
       router.push("/login");
     }
   }, [session, isPending, router]);
 
+  // ---- Initial data ----
   useEffect(() => {
     if (session?.user && params.id) {
-      fetchData();
-      fetchOrg();
+      fetchJobAndOrg();
+      fetchAllApplications(); // always ALL (unfiltered)
     }
-  }, [session, params.id, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, params.id]);
 
+  // Refresh ATS whenever the dataset changes
   useEffect(() => {
-    if (applications.length) {
+    if (allApplications.length) {
       fetchAtsScores();
     } else {
       setAtsByApp({});
     }
-  }, [applications]);
+  }, [allApplications]);
 
+  // Close actions menu on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
@@ -106,18 +135,25 @@ export default function JobApplicationsPage() {
         setDropdownOpen(false);
       }
     };
-
-    if (dropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    if (dropdownOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
 
-  const fetchOrg = async () => {
+  // ---- Fetchers ----
+  const fetchJobAndOrg = async () => {
     try {
       const token = localStorage.getItem("bearer_token");
+
+      // Job
+      const jobResponse = await fetch(`/api/jobs?id=${params.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (jobResponse.ok) {
+        const jobData = await jobResponse.json();
+        setJob(jobData);
+      }
+
+      // Org (for sidebar)
       const orgResp = await fetch("/api/organizations?mine=true", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -128,37 +164,27 @@ export default function JobApplicationsPage() {
         }
       }
     } catch (error) {
-      console.error("Failed to fetch org:", error);
+      console.error("Failed to fetch job/org:", error);
     }
   };
 
-  const fetchData = async () => {
+  const fetchAllApplications = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem("bearer_token");
-
-      const jobResponse = await fetch(`/api/jobs?id=${params.id}`, {
+      // Always pull ALL; let the client filter for view & counts
+      const appsResponse = await fetch(`/api/applications?jobId=${params.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (jobResponse.ok) {
-        const jobData = await jobResponse.json();
-        setJob(jobData);
-      }
-
-      const appsUrl =
-        filter === "all"
-          ? `/api/applications?jobId=${params.id}`
-          : `/api/applications?jobId=${params.id}&stage=${filter}`;
-
-      const appsResponse = await fetch(appsUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
       if (appsResponse.ok) {
         const appsData = await appsResponse.json();
-        setApplications(appsData);
+        setAllApplications(appsData || []);
+      } else {
+        setAllApplications([]);
       }
     } catch (error) {
-      console.error("Failed to fetch data:", error);
+      console.error("Failed to fetch applications:", error);
+      setAllApplications([]);
     } finally {
       setLoading(false);
     }
@@ -190,11 +216,11 @@ export default function JobApplicationsPage() {
     }
   };
 
+  // ---- Mutations ----
   const handleSignOut = async () => {
     const { error } = await authClient.signOut();
-    if (error?.code) {
-      toast.error(error.code);
-    } else {
+    if (error?.code) toast.error(error.code);
+    else {
       localStorage.removeItem("bearer_token");
       router.push("/");
     }
@@ -212,7 +238,7 @@ export default function JobApplicationsPage() {
 
       if (response.ok) {
         toast.success("Application deleted successfully");
-        setApplications((prev) => prev.filter((app) => app.id !== deleteDialog.applicationId));
+        setAllApplications((prev) => prev.filter((app) => app.id !== deleteDialog.applicationId));
         setDeleteDialog({ isOpen: false, applicationId: null, applicantEmail: "" });
       } else {
         const errorData = await response.json();
@@ -237,7 +263,7 @@ export default function JobApplicationsPage() {
     );
   };
 
-  const selectAllApplications = () => setSelectedApplications(applications.map((app) => app.id));
+  const selectAllApplications = () => setSelectedApplications(viewApps.map((app) => app.id));
   const clearSelection = () => setSelectedApplications([]);
 
   const handleBulkStageUpdate = async (newStage: string) => {
@@ -259,8 +285,9 @@ export default function JobApplicationsPage() {
       );
       const successful = results.filter((r) => r.ok).length;
       if (successful === selectedApplications.length) {
-        toast.success(`Successfully updated ${successful} application${successful > 1 ? "s" : ""} to ${newStage}`);
-        setApplications((prev) =>
+        toast.success(`Successfully updated ${successful} application${successful > 1 ? "s" : ""} to ${formatStageLabel(newStage)}`);
+        // Reflect locally
+        setAllApplications((prev) =>
           prev.map((app) => (selectedApplications.includes(app.id) ? { ...app, stage: newStage } : app))
         );
         clearSelection();
@@ -276,11 +303,43 @@ export default function JobApplicationsPage() {
     }
   };
 
+  // ---- Derived data ----
+
+  // Canonical list of stages we support (keys must match backend values)
+  const stageKeys = [
+    "applied",
+    "reviewing",
+    "assessment",
+    "phone_screen",
+    "onsite",
+    "offer",
+    "hired",
+    "rejected",
+  ] as const;
+
+  // View list based on current filter (client-side)
+  const viewApps = useMemo(() => {
+    if (filter === "all") return allApplications;
+    return allApplications.filter((a) => a.stage === filter);
+  }, [allApplications, filter]);
+
+  // Counts computed from ALL applications (not the filtered list)
+  const stageCounts = useMemo(() => {
+    const base: Record<string, number> = { all: allApplications.length };
+    for (const key of stageKeys) {
+      base[key] = allApplications.filter((a) => a.stage === key).length;
+    }
+    return base;
+  }, [allApplications]);
+
+  // Display helper
   const formatScore = (score?: number) => {
     if (typeof score !== "number" || Number.isNaN(score)) return null;
-    return Math.round(Math.max(0, Math.min(1, score)) * 100);
+    const clamped = Math.max(0, Math.min(1, score));
+    return Math.round(clamped * 100);
   };
 
+  // ---- Loading / auth ----
   if (isPending || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
@@ -291,15 +350,15 @@ export default function JobApplicationsPage() {
   if (!session?.user || !job) return null;
 
   const stages = [
-    { value: "all", label: "All", count: applications.length },
-    { value: "applied", label: "Applied", count: applications.filter((a) => a.stage === "applied").length },
-    { value: "reviewing", label: "Reviewing", count: applications.filter((a) => a.stage === "reviewing").length },
-    { value: "assessment", label: "Assessment", count: applications.filter((a) => a.stage === "assessments").length },
-    { value: "phone_screen", label: "Phone Screen", count: applications.filter((a) => a.stage === "phone_screen").length },
-    { value: "onsite", label: "Onsite", count: applications.filter((a) => a.stage === "onsite").length },
-    { value: "offer", label: "Offer", count: applications.filter((a) => a.stage === "offer").length },
-    { value: "hired", label: "Hired", count: applications.filter((a) => a.stage === "hired").length },
-    { value: "rejected", label: "Rejected", count: applications.filter((a) => a.stage === "rejected").length },
+    { value: "all", label: "All", count: stageCounts.all },
+    { value: "applied", label: "Applied", count: stageCounts.applied },
+    { value: "reviewing", label: "Reviewing", count: stageCounts.reviewing },
+    { value: "assessment", label: "Assessment", count: stageCounts.assessment },
+    { value: "phone_screen", label: "Phone Screen", count: stageCounts.phone_screen },
+    { value: "onsite", label: "Onsite", count: stageCounts.onsite },
+    { value: "offer", label: "Offer", count: stageCounts.offer },
+    { value: "hired", label: "Hired", count: stageCounts.hired },
+    { value: "rejected", label: "Rejected", count: stageCounts.rejected },
   ];
 
   return (
@@ -335,7 +394,7 @@ export default function JobApplicationsPage() {
                     {job.title} - Applications
                   </h2>
                   <p className="text-sm text-gray-500">
-                    {applications.length} total application{applications.length !== 1 ? "s" : ""}
+                    {stageCounts.all} total application{stageCounts.all !== 1 ? "s" : ""}
                   </p>
                 </div>
 
@@ -405,7 +464,7 @@ export default function JobApplicationsPage() {
                               onClick={() => { selectAllApplications(); setDropdownOpen(false); }}
                               className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                             >
-                              Select All
+                              Select All (this view)
                             </button>
                             <button
                               onClick={() => { clearSelection(); setDropdownOpen(false); }}
@@ -458,14 +517,14 @@ export default function JobApplicationsPage() {
                 </div>
               )}
 
-              {applications.length === 0 ? (
+              {viewApps.length === 0 ? (
                 <div className="text-center py-12">
                   <User className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-500">No applications found for this filter</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {applications.map((app) => {
+                  {viewApps.map((app) => {
                     const entry = atsByApp[app.id];
                     const pct = formatScore(entry?.score);
 
@@ -477,7 +536,7 @@ export default function JobApplicationsPage() {
                     } else if (pct != null && pct >= 60) {
                       ringColor = "stroke-yellow-500";
                       textColor = "text-yellow-700";
-                    }else if (pct != null && pct >= 30) {
+                    } else if (pct != null && pct >= 30) {
                       ringColor = "stroke-red-500";
                       textColor = "text-red-700";
                     }
@@ -514,7 +573,7 @@ export default function JobApplicationsPage() {
                                 <div className="flex items-center gap-3">
                                   <h3 className="text-sm font-medium text-gray-900">{app.applicantEmail}</h3>
 
-                                  {/* ✅ NEW: BIG ATS SCORE CIRCLE */}
+                                  {/* ATS SCORE CIRCLE */}
                                   <div className="flex items-center">
                                     {pct != null ? (
                                       <div className="relative w-10 h-10" title={`ATS ${pct}%`}>
@@ -581,7 +640,7 @@ export default function JobApplicationsPage() {
                                   : "bg-blue-100 text-blue-700"
                               }`}
                             >
-                              {app.stage}
+                              {formatStageLabel(app.stage)}
                             </span>
 
                             {!bulkActionMode && (
