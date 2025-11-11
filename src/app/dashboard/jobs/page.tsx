@@ -771,7 +771,7 @@ export default function AllJobsPage() {
         </div>
 
         {/* CONTENT (Jobs as spaced tiles) */}
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-0">
           {/* Job Creation Form - Shows when ?create=1 */}
           {searchParams?.get("create") === "1" && (
             <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
