@@ -246,12 +246,12 @@ export default function AllJobsPage() {
         orgIdParam = `&orgId=${orgId}`;
       } else {
         const orgResp = await fetch("/api/organizations?mine=true", { headers: { Authorization: `Bearer ${token}` } });
-        if (orgResp.ok) {
-          const orgs = await orgResp.json();
-          if (Array.isArray(orgs) && orgs.length > 0) {
-            setOrgId(orgs[0].id);
-            setOrg(orgs[0]);
-            orgIdParam = `&orgId=${orgs[0].id}`;
+      if (orgResp.ok) {
+        const orgs = await orgResp.json();
+        if (Array.isArray(orgs) && orgs.length > 0) {
+          setOrgId(orgs[0].id);
+          setOrg(orgs[0]);
+          orgIdParam = `&orgId=${orgs[0].id}`;
           }
         }
       }
@@ -343,15 +343,15 @@ export default function AllJobsPage() {
             } catch {
               return {
                 ...job,
-                applicationStats: { 
-                  sourced: 0, 
-                  applied: 0, 
+                applicationStats: {
+                  sourced: 0,
+                  applied: 0,
                   reviewing: 0, 
                   phone_screen: 0, 
                   assessment: 0, 
-                  onsite: 0, 
-                  offer: 0, 
-                  hired: 0, 
+                  onsite: 0,
+                  offer: 0,
+                  hired: 0,
                   rejected: 0 
                 },
                 totalCandidates: 0,
@@ -611,7 +611,7 @@ export default function AllJobsPage() {
                 <span className="text-gray-400">›</span>
                 <span className="text-gray-900 font-medium">Jobs</span>
               </nav>
-            </div>
+          </div>
 
             {/* KPI Row - Only show when NOT creating a job */}
             {searchParams?.get("create") !== "1" && (
@@ -695,7 +695,7 @@ export default function AllJobsPage() {
                         </Select>
                       </div>
                     </div>
-                  </div>
+        </div>
 
                   {/* RIGHT: search, sort, view toggle */}
                   <div className="min-w-0">
@@ -719,7 +719,7 @@ export default function AllJobsPage() {
                             <ArrowUpDown className="h-4 w-4" />
                             Sort
                             <ChevronDown className="h-4 w-4" />
-                          </Button>
+            </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
                           <DropdownMenuItem onClick={() => setSortKey("createdAt")}>
@@ -754,29 +754,29 @@ export default function AllJobsPage() {
                             viewMode === "list" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
                           ].join(" ")}
                           title="G to toggle"
-                        >
+            >
                           <Rows className="h-4 w-4" />
                           List
                         </button>
-                      </div>
+          </div>
 
                       {/* (Removed) New Job button from toolbar */}
-                    </div>
-                  </div>
-                </div>
+            </div>
+          </div>
+        </div>
                 </div>
               </div>
             )}
           </div>
-        </div>
+            </div>
 
         {/* CONTENT (Jobs as spaced tiles) */}
         <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8">
           {/* Job Creation Form - Shows when ?create=1 */}
-          {searchParams?.get("create") === "1" && (
-            <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Create a Job</h2>
+            {searchParams?.get("create") === "1" && (
+              <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Create a Job</h2>
                 <Button
                   variant="ghost"
                   onClick={() => router.push("/dashboard/jobs")}
@@ -784,7 +784,7 @@ export default function AllJobsPage() {
                 >
                   Cancel
                 </Button>
-              </div>
+                </div>
 
               {!orgId ? (
                 <div className="text-center py-8">
@@ -1010,50 +1010,50 @@ export default function AllJobsPage() {
                   </div>
                 </form>
               )}
-            </div>
-          )}
+              </div>
+            )}
 
           <div className="">
-            {jobs.length === 0 ? (
+              {jobs.length === 0 ? (
               // Empty state (kept simple)
               <div className="text-center py-16 bg-white rounded-lg shadow-sm">
-                <div className="flex items-center justify-center mb-6">
-                  <div className="w-16 h-16 border-2 border-gray-300 rounded-lg flex items-center justify-center">
-                    <div className="w-8 h-8 border border-gray-300 rounded-sm flex items-center justify-center">
-                      <Plus className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center justify-center mb-6">
+                    <div className="w-16 h-16 border-2 border-gray-300 rounded-lg flex items-center justify-center">
+                      <div className="w-8 h-8 border border-gray-300 rounded-sm flex items-center justify-center">
+                        <Plus className="w-4 h-4 text-gray-400" />
+                      </div>
                     </div>
                   </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Post a job</h3>
+                  <p className="text-sm text-gray-500 mb-6">Once you do, they will sit right here for you</p>
+                  <Button
+                    onClick={() => router.push("/dashboard/jobs?create=1")}
+                    className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
+                  >
+                    Create your first job
+                  </Button>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Post a job</h3>
-                <p className="text-sm text-gray-500 mb-6">Once you do, they will sit right here for you</p>
-                <Button
-                  onClick={() => router.push("/dashboard/jobs?create=1")}
-                  className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
-                >
-                  Create your first job
-                </Button>
-              </div>
-            ) : (
+              ) : (
               // Spaced tiles; keep stage counts in ONE LINE (6 columns)
               <ul className="space-y-2 sm:space-y-3">
-                {jobs.map((job) => (
+                  {jobs.map((job) => (
                   <li
                     key={job.id}
                     className="rounded-xl border border-gray-200 bg-white px-5 py-6 md:py-7 shadow-sm hover:shadow transition-shadow"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      {/* Job title / meta */}
+                      <div className="flex items-center justify-between mb-3">
+                        {/* Job title / meta */}
                       <Link href={`/dashboard/jobs/${job.id}`} className="flex-1 cursor-pointer min-w-0">
-                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3">
                           <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
-                            {job.title}
-                          </h3>
+                              {job.title}
+                            </h3>
                           {job.locationMode && <span className="text-xs text-gray-500">{job.locationMode}</span>}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {job.totalCandidates} candidates • {job.createdBy} •{" "}
-                          {new Date(job.createdAt).toLocaleDateString()}
-                        </div>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {job.totalCandidates} candidates • {job.createdBy} •{" "}
+                            {new Date(job.createdAt).toLocaleDateString()}
+                          </div>
 
                         {/* Location only */}
                         {job.location && (
@@ -1061,50 +1061,50 @@ export default function AllJobsPage() {
                             <span>📍 {job.location}</span>
                           </div>
                         )}
-                      </Link>
+                        </Link>
 
-                      {/* Status badge + row actions */}
+                        {/* Status badge + row actions */}
                       <div className="flex items-center gap-2 shrink-0 pl-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusPill(job.status)}`}>
                           {job.status === "closed" ? "archived" : job.status}
-                        </span>
+                          </span>
 
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/jobs/${job.id}`)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Job
-                            </DropdownMenuItem>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => router.push(`/dashboard/jobs/${job.id}`)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit Job
+                              </DropdownMenuItem>
 
-                            {job.status === "published" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "draft")}>
-                                Move to Draft
+                              {job.status === "published" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(job.id, "draft")}>
+                                  Move to Draft
+                                </DropdownMenuItem>
+                              )}
+                              {job.status === "draft" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(job.id, "published")}>
+                                  Publish
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "closed")}>
+                                Archive
                               </DropdownMenuItem>
-                            )}
-                            {job.status === "draft" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "published")}>
-                                Publish
+                              <DropdownMenuItem onClick={() => handleDelete(job.id)} className="text-red-600">
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
                               </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleStatusChange(job.id, "closed")}>
-                              Archive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(job.id)} className="text-red-600">
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                    </div>
 
                     {/* Per-stage counts (ONE LINE, dynamic grid based on number of statuses) */}
-                    <Link href={`/dashboard/jobs/${job.id}`} className="block cursor-pointer">
+                      <Link href={`/dashboard/jobs/${job.id}`} className="block cursor-pointer">
                       {(() => {
                         // Define all statuses in pipeline order with display labels
                         const statusConfig = [
@@ -1125,22 +1125,22 @@ export default function AllJobsPage() {
                               <div key={key} className="text-center min-w-[60px] flex-shrink-0">
                                 <div className="text-sm font-semibold text-gray-900">{job.applicationStats[key]}</div>
                                 <div className="text-[9px] text-gray-500 leading-tight whitespace-nowrap">{label}</div>
-                              </div>
+                          </div>
                             ))}
                           </div>
                         );
                       })()}
-                    </Link>
+                      </Link>
                   </li>
-                ))}
+                  ))}
               </ul>
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
         {/* Command palette */}
         <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
-
+        
         {/* Settings modal */}
         <SettingsModal
           isOpen={isSettingsOpen}
@@ -1176,6 +1176,6 @@ export default function AllJobsPage() {
           }
         />
       </main>
-    </div>
-  );
-}
+      </div>
+    );
+  }

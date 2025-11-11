@@ -60,7 +60,7 @@ const TestimonialCard: React.FC<Testimonial> = ({ name, title, quote, imgSrc }) 
 
 const TestimonialsSection = () => {
   return (
-    <section className="bg-[#FFF9F1] py-24">
+    <section className="bg-white py-24">
       <div className="max-w-[1200px] mx-auto px-6">
         <h2 className="font-display text-5xl text-center text-[#1A1A1A] mb-16">
           What companies think

@@ -5,15 +5,10 @@ import Image from 'next/image';
 
 const FeaturesOverviewSection = () => {
   return (
-    <section id="rapha-features" className="bg-[#FEFEFA] pt-24 sm:pt-32 pb-8 lg:pb-12">
+    <section id="rapha-features" className="bg-white pt-24 sm:pt-32 pb-8 lg:pb-12">
       <div className="container mx-auto px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
-          <div className="flex justify-center">
-             <div className="relative rounded-full px-4 py-1 text-sm leading-6 text-primary ring-1 ring-primary/20 hover:ring-primary/30">
-              You'll never recruit alone
-            </div>
-          </div>
-          <h2 className="mt-6 font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-text-primary">
+          <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-text-primary">
             What's under the hood
           </h2>
         </div>

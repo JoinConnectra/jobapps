@@ -1,7 +1,8 @@
 import HeaderNavigation from '@/components/sections/header-navigation';
 import HeroSection from '@/components/sections/hero-section';
-import CandidateProfileShowcase from '@/components/sections/candidate-profile-showcase';
-import CompanyLogosSection from '@/components/sections/company-logos-section';
+import ApplicantShowcaseSection from '@/components/sections/applicant-showcase-section';
+import AnimatedSearchSection from '@/components/sections/animated-search-section';
+import ActivityFeatureSection from '@/components/sections/activity-feature-section';
 import FeaturesOverviewSection from '@/components/sections/features-overview-section';
 import AiAssistantFeature from '@/components/sections/ai-assistant-feature';
 import ActivityCrmFeature from '@/components/sections/activity-crm-feature';
@@ -12,11 +13,12 @@ import Footer from '@/components/sections/footer';
 
 export default function Page() {
   return (
-    <main className="min-h-screen bg-[#FEFEFA]">
+    <main className="min-h-screen bg-white">
       <HeaderNavigation />
       <HeroSection />
-      <CandidateProfileShowcase />
-      <CompanyLogosSection />
+      <ApplicantShowcaseSection />
+      <AnimatedSearchSection />
+      <ActivityFeatureSection />
       <FeaturesOverviewSection />
       <AiAssistantFeature />
       <ActivityCrmFeature />

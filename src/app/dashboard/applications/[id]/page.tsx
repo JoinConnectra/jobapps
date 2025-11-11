@@ -530,10 +530,10 @@ export default function ApplicationDetailPage() {
   };
 
   const openReactionDialog = (answerId: number, reaction: "like" | "dislike") => {
-    if (!session?.user?.id) {
-      toast.error("Please log in to react to answers");
-      return;
-    }
+      if (!session?.user?.id) {
+        toast.error("Please log in to react to answers");
+        return;
+      }
 
     const existingReactions = reactions[answerId] || [];
     const currentUserReaction = existingReactions.find(
@@ -1264,7 +1264,7 @@ export default function ApplicationDetailPage() {
                         <div className="text-[10px] text-gray-500">
                           {a.assessmentType} • {a.assessmentDuration} • status: {a.status}
                           {a.dueAt ? ` • due ${new Date(a.dueAt).toLocaleString()}` : ""}
-                        </div>
+              </div>
                       </div>
                       <button
                         onClick={() => handleDeleteAssignment(a.id)}
@@ -1287,16 +1287,16 @@ export default function ApplicationDetailPage() {
                   <div className="min-w-0">
                     <h2 className="text-sm font-medium text-gray-900">AI Analysis</h2>
                     <p className="text-[10px] text-gray-600 truncate">
-                      Generate an AI-powered summary of this candidate&apos;s responses
-                    </p>
+                Generate an AI-powered summary of this candidate&apos;s responses
+              </p>
                   </div>
                 </div>
                 <Button className="gap-1.5 text-xs h-7 flex-shrink-0">
                   <Sparkles className="w-2.5 h-2.5" />
-                  Generate Summary
-                </Button>
-              </div>
+                Generate Summary
+              </Button>
             </div>
+          </div>
           </div>
         </div>
       </main>
@@ -1328,12 +1328,12 @@ export default function ApplicationDetailPage() {
                               return (
                                 <div key={reaction.id} className="flex items-start gap-2 p-2 bg-gradient-to-r from-green-50/50 to-blue-50/50 border border-green-100 rounded">
                                   <div className="mt-0.5">
-                                    {reaction.reaction === "like" ? (
+                                  {reaction.reaction === "like" ? (
                                       <ThumbsUp className="w-3 h-3 text-green-600" />
-                                    ) : (
+                                  ) : (
                                       <ThumbsDown className="w-3 h-3 text-red-600" />
-                                    )}
-                                  </div>
+                                  )}
+                                </div>
                                   <div className="flex-1 min-w-0 space-y-0.5">
                                     <p className="text-xs font-medium text-gray-900 leading-tight">
                                       {actorName} {reaction.reaction === "like" ? "liked" : "disliked"} "{questionText}"
@@ -1345,8 +1345,8 @@ export default function ApplicationDetailPage() {
                                     )}
                                     <span className="text-[10px] text-gray-500">
                                       {formatDateTime(reaction.updatedAt || reaction.createdAt)}
-                                    </span>
-                                  </div>
+                                </span>
+                              </div>
                                 </div>
                               );
                             })}
@@ -1396,18 +1396,18 @@ export default function ApplicationDetailPage() {
                               </div>
                             ))}
                           </div>
-                        )}
-                      </div>
+                                )}
+                              </div>
                     );
                   })}
-                </div>
-              </div>
+                                </div>
+                              </div>
 
               {/* Add Comment - Fixed at bottom */}
               <div className="border-t border-gray-200 p-2.5 bg-white">
                 <div className="flex gap-1.5">
-                  <input
-                    type="text"
+                          <input
+                            type="text"
                     placeholder="Add a comment..."
                     value={newComment[answers[0]?.id] || ""}
                     onChange={(e) => {
@@ -1421,15 +1421,15 @@ export default function ApplicationDetailPage() {
                       }
                     }}
                     className="flex-1 text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
-                  />
-                  <Button
-                    size="sm"
+                          />
+                          <Button
+                            size="sm"
                     onClick={() => answers[0]?.id && handleAddComment(answers[0].id)}
                     disabled={!answers[0]?.id || !newComment[answers[0]?.id]?.trim()}
                     className="px-2 py-1.5 h-auto flex-shrink-0 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
+                          >
                     <Plus className="w-3 h-3" />
-                  </Button>
+                          </Button>
                 </div>
               </div>
             </div>

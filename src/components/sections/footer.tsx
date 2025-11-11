@@ -1,50 +1,49 @@
-import { Linkedin, Twitter, Mail } from 'lucide-react';
 import Link from 'next/link';
 
-const Footer = () => {
+export default function Footer() {
   return (
-    <footer className="w-full bg-[#FFF9F1]">
-      <div className="mx-auto max-w-[1200px] px-16 py-12">
-        <div>
-          <Link href="/" className="inline-flex items-center gap-x-3">
-            {/* As per instruction "red circular icon (48px)", using secondary theme color for the red/coral circle. */}
-            <div className="h-12 w-12 rounded-full bg-secondary" />
-            <span className="font-display text-[2rem] font-bold leading-none text-foreground">
+    <footer className="w-full border-t border-gray-100 bg-white">
+      <div className="mx-auto max-w-7xl px-12 lg:px-16 xl:px-20 py-12">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <Link href="/" className="flex items-center">
+            <span className="font-display text-2xl font-bold text-gray-900 tracking-tight">
               TalentFlow
             </span>
           </Link>
 
-          <p className="mt-2 text-base text-[#666666]">
-            Let's capture origin stories together
-          </p>
+          <nav className="flex items-center gap-6">
+            <Link
+              href="/#rapha-features"
+              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+            >
+              Features
+            </Link>
+            <Link
+              href="/pricing"
+              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/blog"
+              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+            >
+              Blog
+            </Link>
+            <Link
+              href="/contact"
+              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+            >
+              Contact
+            </Link>
+          </nav>
 
-          <div className="mt-6 flex items-center gap-4">
-            <a
-              href="#"
-              aria-label="LinkedIn"
-              className="text-[#333333] transition-colors hover:text-black"
-            >
-              <Linkedin size={24} />
-            </a>
-            <a
-              href="#"
-              aria-label="Twitter"
-              className="text-[#333333] transition-colors hover:text-black"
-            >
-              <Twitter size={24} />
-            </a>
-            <a
-              href="#"
-              aria-label="Email"
-              className="text-[#333333] transition-colors hover:text-black"
-            >
-              <Mail size={24} />
-            </a>
-          </div>
+          <p className="text-sm text-gray-500">
+            © {new Date().getFullYear()} TalentFlow. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>
   );
-};
+}
 
-export default Footer;

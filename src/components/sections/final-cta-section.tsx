@@ -2,7 +2,7 @@ import Image from 'next/image';
 
 const FinalCtaSection = () => {
   return (
-    <section className="relative py-16 lg:py-20">
+    <section className="relative py-16 md:py-20 lg:py-24">
       <div className="container mx-auto px-6">
         <div className="max-w-5xl mx-auto">
           <div

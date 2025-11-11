@@ -71,7 +71,7 @@ export default function DashboardPage() {
   const [timeFilter, setTimeFilter] = useState<"today" | "7d" | "30d" | "90d" | "all">("today");
   const [search, setSearch] = useState<string>("");
   const [loadingFeed, setLoadingFeed] = useState<boolean>(false);
-
+  
   // ---- Settings modal state ----
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -129,26 +129,26 @@ export default function DashboardPage() {
 
       if (!orgsResponse.ok) throw new Error("Failed to fetch organizations");
 
-      const orgs = await orgsResponse.json();
-      const primary = Array.isArray(orgs) && orgs.length > 0 ? orgs[0] : null;
+        const orgs = await orgsResponse.json();
+        const primary = Array.isArray(orgs) && orgs.length > 0 ? orgs[0] : null;
       const orgData = primary ? { id: primary.id, name: primary.name, logoUrl: primary.logoUrl } : null;
       setOrg(orgData);
-      setLoadingOrg(false);
+        setLoadingOrg(false);
 
-      if (primary) {
-        const [jobsResp, appsResp] = await Promise.all([
+        if (primary) {
+          const [jobsResp, appsResp] = await Promise.all([
           fetch(`/api/jobs?orgId=${primary.id}&limit=10`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`/api/applications?orgId=${primary.id}&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
+          ]);
 
-        if (jobsResp.ok) {
-          const jobsData = await jobsResp.json();
-          setStats((prev) => ({ ...prev, jobs: Array.isArray(jobsData) ? jobsData.length : 0 }));
-        }
-        if (appsResp.ok) {
-          const appsData = await appsResp.json();
+          if (jobsResp.ok) {
+            const jobsData = await jobsResp.json();
+            setStats((prev) => ({ ...prev, jobs: Array.isArray(jobsData) ? jobsData.length : 0 }));
+          }
+          if (appsResp.ok) {
+            const appsData = await appsResp.json();
           setStats((prev) => ({ ...prev, applications: Array.isArray(appsData) ? appsData.length : 0 }));
-        }
+          }
 
         await fetchActivity(primary.id, token, activityFilter, timeFilter);
       }
@@ -168,9 +168,9 @@ export default function DashboardPage() {
   ) => {
     setLoadingFeed(true);
     try {
-      let url = `/api/activity?orgId=${orgId}&limit=50`;
-      if (filter === "company") url += `&entityType=job`;
-      if (filter === "applicants") url += `&entityType=application`;
+    let url = `/api/activity?orgId=${orgId}&limit=50`;
+    if (filter === "company") url += `&entityType=job`;
+    if (filter === "applicants") url += `&entityType=application`;
       if (filter === "members") url += `&entityType=membership`;
 
       if (timeRange !== "all") {
@@ -184,35 +184,35 @@ export default function DashboardPage() {
         url += `&since=${since.toISOString()}`;
       }
 
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!resp.ok) {
         setFeed([]);
         setLastRefreshedAt(new Date());
         return;
       }
 
-      const acts = await resp.json();
-      const items: FeedItem[] = acts.map((a: any) => {
-        if (a.entityType === "job" && a.action === "created") {
-          const jobTitle = a.diffJson?.jobTitle || "a job";
-          const by = a.actorName || a.actorEmail || "Someone";
-          return {
-            at: a.createdAt,
+    const acts = await resp.json();
+    const items: FeedItem[] = acts.map((a: any) => {
+      if (a.entityType === "job" && a.action === "created") {
+        const jobTitle = a.diffJson?.jobTitle || "a job";
+        const by = a.actorName || a.actorEmail || "Someone";
+        return {
+          at: a.createdAt,
             title: `${by} created "${jobTitle}"`,
-            href: a.entityId ? `/dashboard/jobs/${a.entityId}` : undefined,
-            kind: "company",
-          };
-        }
-        if (a.entityType === "application" && a.action === "applied") {
-          const email = a.diffJson?.applicantEmail || "A candidate";
-          const jobTitle = a.diffJson?.jobTitle || "a job";
-          return {
-            at: a.createdAt,
+          href: a.entityId ? `/dashboard/jobs/${a.entityId}` : undefined,
+          kind: "company",
+        };
+      }
+      if (a.entityType === "application" && a.action === "applied") {
+        const email = a.diffJson?.applicantEmail || "A candidate";
+        const jobTitle = a.diffJson?.jobTitle || "a job";
+        return {
+          at: a.createdAt,
             title: `${email} applied to "${jobTitle}"`,
-            href: a.entityId ? `/dashboard/applications/${a.entityId}` : undefined,
-            kind: "applicants",
-          };
-        }
+          href: a.entityId ? `/dashboard/applications/${a.entityId}` : undefined,
+          kind: "applicants",
+        };
+      }
         if (a.entityType === "membership" && a.action === "joined") {
           const memberName = a.diffJson?.memberName || a.actorName || "Someone";
           const role = a.diffJson?.role || "member";
@@ -223,16 +223,16 @@ export default function DashboardPage() {
             kind: "members",
           };
         }
-        return {
-          at: a.createdAt,
-          title: `${a.actorName || a.actorEmail || "Someone"} performed ${a.action} on ${
-            a.entityType
-          }#${a.entityId}`,
-          kind: "company",
-        };
-      });
+      return {
+        at: a.createdAt,
+        title: `${a.actorName || a.actorEmail || "Someone"} performed ${a.action} on ${
+          a.entityType
+        }#${a.entityId}`,
+        kind: "company",
+      };
+    });
 
-      setFeed(items);
+    setFeed(items);
       setLastRefreshedAt(new Date());
     } catch (e) {
       console.error(e);
@@ -325,7 +325,7 @@ export default function DashboardPage() {
         "px-2.5 py-1.5 rounded-md text-xs font-medium transition-all inline-flex items-center gap-1.5",
         active ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-100",
       ].join(" ")}
-    >
+            >
       <span>{children}</span>
       {typeof badge === "number" && (
         <span
@@ -333,7 +333,7 @@ export default function DashboardPage() {
             "px-1.5 py-0.5 text-[10px] rounded-md",
             active ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700",
           ].join(" ")}
-        >
+            >
           {badge}
         </span>
       )}
@@ -358,9 +358,9 @@ export default function DashboardPage() {
         <div>
           <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
           <div className="text-xl font-semibold text-gray-900">{value}</div>
-        </div>
-      </div>
-    </div>
+          </div>
+            </div>
+          </div>
   );
 
   const SkeletonRow = () => (
@@ -429,10 +429,10 @@ export default function DashboardPage() {
                       All
                     </SegButton>
                     <SegButton active={activityFilter === "company"} onClick={() => setActivityFilter("company")} badge={counts.company} title="Company">
-                      Company
+                Company
                     </SegButton>
                     <SegButton active={activityFilter === "applicants"} onClick={() => setActivityFilter("applicants")} badge={counts.applicants} title="Applicants">
-                      Applicants
+                Applicants
                     </SegButton>
                     <SegButton active={activityFilter === "members"} onClick={() => setActivityFilter("members")} badge={counts.members} title="Members">
                       Members
@@ -476,7 +476,7 @@ export default function DashboardPage() {
                 {Array.from({ length: 6 }).map((_, i) => (
                   <SkeletonRow key={i} />
                 ))}
-              </div>
+                      </div>
             ) : filteredFeed.length === 0 ? (
               // Empty
               <div className="text-center py-16 px-6">
@@ -493,7 +493,7 @@ export default function DashboardPage() {
                     : activityFilter === "applicants"
                     ? "No applicant activity"
                     : "No member activity"}
-                </h3>
+                  </h3>
                 <p className="text-sm text-gray-500 mb-2">
                   Try broadening the time range or clearing your search.
                 </p>
@@ -501,10 +501,10 @@ export default function DashboardPage() {
                   Tip: Press <kbd className="px-1 py-0.5 rounded border">/</kbd> to search •{" "}
                   <kbd className="px-1 py-0.5 rounded border">⌘K</kbd>/<kbd className="px-1 py-0.5 rounded border">Ctrl+K</kbd> opens Command Palette
                 </div>
-              </div>
-            ) : (
+                </div>
+              ) : (
               // Timeline groups
-              <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-gray-100">
                 {grouped.map(([label, items]) => (
                   <section key={label} className="p-6">
                     <div className="flex items-center gap-2 mb-4">
@@ -520,7 +520,7 @@ export default function DashboardPage() {
                             className="group flex items-start gap-3 rounded-lg p-4 hover:bg-gray-50 transition-colors"
                           >
                             {/* Icon pill */}
-                            <div
+                        <div
                               className={[
                                 "mt-1 h-8 w-8 shrink-0 rounded-full grid place-items-center",
                                 item.kind === "company"
@@ -529,21 +529,21 @@ export default function DashboardPage() {
                                   ? "bg-purple-50 text-purple-600"
                                   : "bg-blue-50 text-blue-600",
                               ].join(" ")}
-                            >
-                              {item.kind === "company" ? (
+                        >
+                          {item.kind === "company" ? (
                                 <Send className="h-4 w-4" />
                               ) : item.kind === "members" ? (
                                 <Users className="h-4 w-4" />
-                              ) : (
+                          ) : (
                                 <User className="h-4 w-4" />
-                              )}
-                            </div>
+                          )}
+                        </div>
 
                             {/* Title + timestamp */}
-                            <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm text-gray-900 group-hover:text-[#6a994e] transition-colors">
-                                  {item.title}
+                              {item.title}
                                 </p>
                               </div>
                               <p className="mt-1 text-xs text-gray-400">{getRelativeTime(item.at)}</p>
@@ -558,9 +558,9 @@ export default function DashboardPage() {
                       ))}
                     </ul>
                   </section>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

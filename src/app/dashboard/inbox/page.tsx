@@ -106,11 +106,11 @@ export default function EmployerInboxPage() {
     >
       {/* Optional: quick filters button moved below header to keep header minimal */}
       <div className="mb-4">
-        <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}>
-          <Filter className="mr-2 h-4 w-4" />
-          {showFilters ? 'Hide Filters' : 'Show Filters'}
-        </Button>
-      </div>
+          <Button variant="outline" size="sm" onClick={() => setShowFilters((v) => !v)}>
+            <Filter className="mr-2 h-4 w-4" />
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </Button>
+        </div>
       {/* Header (side-by-side, same as student) */}
       <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         {/* Search + actions */}
