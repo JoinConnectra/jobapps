@@ -1,13 +1,18 @@
+// src/app/api/assessments/[id]/attempts/[attemptId]/review/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { assessmentAnswers, assessmentAttempts, assessmentQuestions } from "@/db/schema-pg";
-import { and, eq } from "drizzle-orm";
+import { assessmentAnswers, assessmentQuestions } from "@/db/schema-pg";
+import { eq, and } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string; attemptId: string } }) {
-  const assessmentId = Number(params.id);
-  const attemptId = Number(params.attemptId);
-  if (!Number.isFinite(assessmentId) || !Number.isFinite(attemptId)) {
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string; attemptId: string }> }
+) {
+  const { id, attemptId } = await ctx.params; // ✅ await params in App Router
+  const assessmentId = Number(id);
+  const atId = Number(attemptId);
+  if (!Number.isFinite(assessmentId) || !Number.isFinite(atId)) {
     return NextResponse.json({ error: "Bad params" }, { status: 400 });
   }
 
@@ -20,20 +25,22 @@ export async function GET(req: NextRequest, { params }: { params: { id: string; 
   });
   if (!appUser?.id) return NextResponse.json({ error: "No app user" }, { status: 403 });
 
-  const assess = await db.query.assessments.findFirst({ where: (a, { eq }) => eq(a.id, assessmentId) });
+  const assess = await db.query.assessments.findFirst({
+    where: (a, { eq }) => eq(a.id, assessmentId)
+  });
   if (!assess) return NextResponse.json({ error: "Assessment not found" }, { status: 404 });
 
   const member = await db.query.memberships.findFirst({
-    where: (m, { and, eq }) => and(eq(m.orgId, assess.orgId), eq(m.userId, appUser.id)),
+    where: (m, { and, eq }) => and(eq(m.orgId, (assess as any).orgId), eq(m.userId, appUser.id)),
     columns: { id: true }
   });
   if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const attempt = await db.query.assessmentAttempts.findFirst({
-    where: (a, { eq }) => eq(a.id, attemptId),
+    where: (a, { eq }) => eq(a.id, atId),
     columns: { assessmentId: true }
   });
-  if (!attempt || attempt.assessmentId !== assessmentId) {
+  if (!attempt || (attempt as any).assessmentId !== assessmentId) {
     return NextResponse.json({ error: "Attempt not found for assessment" }, { status: 404 });
   }
 
@@ -47,7 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string; 
     })
     .from(assessmentAnswers)
     .leftJoin(assessmentQuestions, eq(assessmentAnswers.questionId, assessmentQuestions.id))
-    .where(eq(assessmentAnswers.attemptId, attemptId));
+    .where(eq(assessmentAnswers.attemptId, atId));
 
   return NextResponse.json(rows);
 }

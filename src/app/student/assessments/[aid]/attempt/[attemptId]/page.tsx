@@ -3,9 +3,13 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+
+// Load the editor client-side only
+const CodeEditor = dynamic(() => import("@/components/student/CodeEditor"), { ssr: false });
 
 type Question = {
   id: number;
@@ -333,19 +337,45 @@ export default function AttemptRunner() {
                   <div className="text-xs text-muted-foreground">
                     Language: {q.optionsJson?.language ?? "—"}
                     {q.optionsJson?.timeLimitSec ? ` • Time limit: ${q.optionsJson.timeLimitSec}s` : ""}
+                    {q.optionsJson?.entryPoint ? ` • Entry: ${q.optionsJson.entryPoint}` : ""}
                   </div>
+
+                  {/* Starter code helper */}
                   {q.optionsJson?.starterCode ? (
-                    <div className="rounded bg-muted p-2 text-xs overflow-auto">
-                      <pre>{q.optionsJson.starterCode}</pre>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="text-xs underline text-blue-600 disabled:text-gray-400"
+                        onClick={() => {
+                          const cur = answers[q.id]?.code ?? "";
+                          if (!cur.trim()) onCodingChange(q.id, String(q.optionsJson.starterCode || ""));
+                        }}
+                        disabled={!!(answers[q.id]?.code ?? "").trim()}
+                        title="Insert starter code (only if empty)"
+                      >
+                        Use starter code
+                      </button>
+                      <span className="text-[11px] text-muted-foreground">
+                        (disabled if you’ve already started typing)
+                      </span>
                     </div>
                   ) : null}
-                  <Textarea
-                    placeholder="Write your solution here…"
+
+                  {/* Code editor */}
+                  <CodeEditor
                     value={answers[q.id]?.code ?? ""}
-                    onChange={(e) => onCodingChange(q.id, e.target.value)}
-                    rows={8}
-                    disabled={locked}
+                    onChange={(code) => onCodingChange(q.id, code)}
+                    language={(q.optionsJson?.language as "javascript" | "python" | "cpp") || "javascript"}
+                    readOnly={locked}
+                    height="360px"
                   />
+
+                  {/* Fallback for no-JS environments */}
+                  <noscript>
+                    <div className="rounded bg-muted p-2 text-xs">
+                      JavaScript required for code editor. Enable JS or update your browser.
+                    </div>
+                  </noscript>
                 </div>
               )}
 

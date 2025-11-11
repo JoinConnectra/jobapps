@@ -25,13 +25,12 @@ function parseDurationToSeconds(s?: string | null): number | null {
   return seconds || null;
 }
 
-/** Resolve the org id column name across schema variants */
 function resolveOrgCol() {
   const aAny = assessments as any;
   return aAny.orgId ?? aAny.organizationId ?? aAny.org_id;
 }
 
-/** RFC4122 UUID v5 (deterministic from name+namespace) */
+/** RFC 4122 UUID v5 (deterministic) */
 async function uuidFromStringV5Async(
   name: string,
   namespace = "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
@@ -39,25 +38,18 @@ async function uuidFromStringV5Async(
   const nsHex = namespace.replace(/-/g, "");
   const ns = new Uint8Array(16);
   for (let i = 0; i < 16; i++) ns[i] = parseInt(nsHex.slice(i * 2, i * 2 + 2), 16);
-
   const nameBytes = new TextEncoder().encode(name);
   const combined = new Uint8Array(ns.length + nameBytes.length);
   combined.set(ns, 0);
   combined.set(nameBytes, ns.length);
-
   // @ts-ignore
   const subtle = globalThis.crypto?.subtle ?? (require("crypto").webcrypto.subtle);
   const hashBuf = await subtle.digest("SHA-1", combined);
   const hash = new Uint8Array(hashBuf).slice(0, 16);
-
-  // version 5 + RFC 4122 variant
   hash[6] = (hash[6] & 0x0f) | 0x50;
   hash[8] = (hash[8] & 0x3f) | 0x80;
-
   const hex: string[] = [];
   for (let i = 0; i < 16; i++) hex.push((hash[i] + 0x100).toString(16).slice(1));
-
-  // format 8-4-4-4-12 (no extra dashes inside the last group!)
   return [
     hex.slice(0, 4).join(""),
     hex.slice(4, 6).join(""),
@@ -69,7 +61,6 @@ async function uuidFromStringV5Async(
 
 export async function GET(req: NextRequest) {
   try {
-    // 0) Who is the student?
     const authUser = await getCurrentUser(req);
     if (!authUser) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -88,7 +79,7 @@ export async function GET(req: NextRequest) {
     }
     const meId = Number(me.id);
 
-    // 1) application_assessments for MY applications
+    // application_assessments for MY applications
     const aa = await db
       .select({
         aaId: applicationAssessments.id,
@@ -106,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     if (aa.length === 0) return NextResponse.json([], { status: 200 });
 
-    // 2) Hydrate assessments + orgs
+    // Hydrate assessments + orgs
     const assessmentIds = [...new Set(aa.map((r) => r.assessmentId))];
     const orgCol: any = resolveOrgCol();
 
@@ -131,7 +122,7 @@ export async function GET(req: NextRequest) {
     }
     const assessById = new Map(assn.map((a) => [a.id, a]));
 
-    // 3) Latest attempt per assessment (for THIS student), with status
+    // Latest attempt per assessment (for THIS student), with status
     const candidateUuid = await uuidFromStringV5Async(String(authUser.email));
     const typedArr = sql`${sql.raw(`array[${assessmentIds.map(Number).join(",")}]::int4[]`)}`;
 
@@ -163,7 +154,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 4) Normalize + shape output (override to completed if attempt is submitted)
+    // Normalize + shape output (override to completed if attempt is submitted)
     const list = aa.map((r) => {
       const a = assessById.get(r.assessmentId);
       const org = a?.orgId ? orgById.get(Number(a.orgId)) : undefined;

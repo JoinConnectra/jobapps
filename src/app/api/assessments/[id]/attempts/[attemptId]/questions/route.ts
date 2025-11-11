@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, asc } from "drizzle-orm";
 import {
   assessmentAttempts,
   assessmentQuestions,
@@ -48,15 +48,9 @@ function parseDurationToSeconds(s?: string | null): number | null {
   if (m) sec += Number(m[1]) * 60;
   if (!h && !m) {
     const num = Number(str.match(/(\d+)/)?.[1]);
-    if (Number.isFinite(num)) sec += num * 60; // bare number => minutes
+    if (Number.isFinite(num)) sec += num * 60;
   }
   return sec || null;
-}
-
-/** Keep your old helper, though we won't use it for selecting missing columns. */
-function resolveDurationCol() {
-  const any = assessments as any;
-  return any.durationSec ?? any.duration_sec ?? any.duration ?? null;
 }
 
 export async function GET(
@@ -96,15 +90,14 @@ export async function GET(
       return NextResponse.json({ error: "Attempt already submitted" }, { status: 403 });
     }
 
-    // Load questions (same as your old logic)
+    // Load questions in deterministic order
     const qRows = await db
       .select()
       .from(assessmentQuestions)
       .where(eq(assessmentQuestions.assessmentId, aid))
-      .orderBy(assessmentQuestions.orderIndex);
+      .orderBy(asc(assessmentQuestions.orderIndex));
 
-    // 🔧 Meta (title + duration): select only columns that EXIST for sure.
-    // Your table shows: title (text), duration (text like "30 min")
+    // Meta (title + duration)
     const { rows: metaRows } = await db.execute(sql/* sql */`
       select "title", "duration"
       from "assessments"
@@ -112,10 +105,10 @@ export async function GET(
       limit 1
     `);
     const meta = metaRows?.[0] ?? {};
-    const title: string = meta?.title ?? "Assessment";
-    const durationSec: number | null = parseDurationToSeconds(meta?.duration ?? null);
+    const title: string = (meta as any)?.title ?? "Assessment";
+    const durationSec: number | null = parseDurationToSeconds((meta as any)?.duration ?? null);
 
-    // ✅ startedAt for the client-side timer
+    // startedAt for timer
     const rawStarted =
       (attempt as any).startedAt ??
       (attempt as any).started_at ??
@@ -148,8 +141,8 @@ export async function GET(
         questions,
         meta: {
           title,
-          durationSec,                    // number (seconds)
-          startedAt,                      // ISO string
+          durationSec,
+          startedAt,
           attemptStatus: (attempt as any).status ?? "in_progress",
         },
       },
