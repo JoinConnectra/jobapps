@@ -36,9 +36,9 @@ export default function DashboardShell({
       <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
         {/* Top header (breadcrumbs + actions) */}
         <div className="border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="mx-auto max-w-6xl px-8 py-5">
+          <div className="mx-auto max-w-6xl px-8 pt-8 pb-0">
             {/* Breadcrumbs */}
-            <nav className="flex items-center gap-2 text-sm text-gray-500">
+            <nav className="flex items-center gap-2 text-sm text-gray-500 mb-8">
               {crumbs.map((c, i) => (
                 <span key={i} className="flex items-center gap-2">
                   {i > 0 && <span className="text-gray-400">›</span>}
@@ -53,11 +53,13 @@ export default function DashboardShell({
               ))}
             </nav>
 
-            {/* Title row */}
-            <div className="mt-3 flex items-center justify-between">
-              <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-              <div className="flex items-center gap-2">{actions}</div>
-            </div>
+            {/* Title row (optional) */}
+            {(title || actions) && (
+              <div className="mt-3 flex items-center justify-between">
+                {title ? <h1 className="text-xl font-semibold text-gray-900">{title}</h1> : <div />}
+                <div className="flex items-center gap-2">{actions}</div>
+              </div>
+            )}
           </div>
         </div>
 

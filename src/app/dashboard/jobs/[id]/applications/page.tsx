@@ -507,7 +507,7 @@ export default function JobApplicationsPage() {
                             )}
 
                             <Link href={`/dashboard/applications/${app.id}`} className="flex items-center gap-3 flex-1">
-                              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                              <div className="w-8 h-8 bg-orange-100 rounded flex items-center justify-center">
                                 <User className="w-4 h-4 text-orange-600" />
                               </div>
                               <div>

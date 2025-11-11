@@ -179,3 +179,70 @@ export async function POST(
     return serverError();
   }
 }
+
+// ---------- DELETE: revoke/delete an assignment ----------
+/**
+ * Query params:
+ *   assignmentId: number (the applicationAssessments.id)
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const req = _req;
+    const appUserId = await resolveAppUserId(req);
+    if (!appUserId) return unauthorized();
+
+    const { id } = await params;
+    const appId = Number(id);
+    if (!Number.isFinite(appId) || appId <= 0) return badRequest("Invalid application id");
+
+    const searchParams = req.nextUrl.searchParams;
+    const assignmentIdParam = searchParams.get("assignmentId");
+    if (!assignmentIdParam) return badRequest("assignmentId query parameter is required");
+
+    const assignmentId = Number(assignmentIdParam);
+    if (!Number.isFinite(assignmentId) || assignmentId <= 0) return badRequest("Invalid assignmentId");
+
+    // Load the assignment to verify it exists and get the application
+    const assignmentRow = await db.query.applicationAssessments.findFirst({
+      where: (aa, { and, eq }) => and(
+        eq(aa.id, assignmentId),
+        eq(aa.applicationId, appId)
+      ),
+      columns: { id: true, applicationId: true },
+    });
+    if (!assignmentRow) return notFound("Assignment not found");
+
+    // Load application & job to discover the org
+    const appRow = await db.query.applications.findFirst({
+      where: (a, { eq }) => eq(a.id, appId),
+      columns: { id: true, jobId: true },
+    });
+    if (!appRow) return notFound("Application not found");
+
+    const jobRow = await db.query.jobs.findFirst({
+      where: (j, { eq }) => eq(j.id, appRow.jobId),
+      columns: { id: true, orgId: true },
+    });
+    if (!jobRow) return notFound("Job not found");
+
+    // Membership check
+    const member = await db.query.memberships.findFirst({
+      where: (m, { and, eq }) => and(eq(m.orgId, jobRow.orgId), eq(m.userId, appUserId)),
+      columns: { id: true },
+    });
+    if (!member) return forbidden("Not a member of this organization");
+
+    // Delete the assignment (this will also remove it from the applicant's view)
+    await db
+      .delete(applicationAssessments)
+      .where(eq(applicationAssessments.id, assignmentId));
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (err) {
+    console.error("[DELETE /api/applications/[id]/assessments] error:", err);
+    return serverError();
+  }
+}

@@ -185,14 +185,14 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
 
   const fetchPendingInvites = async () => {
     if (!organization) return;
-
+    
     setIsLoadingInvites(true);
     try {
       const token = localStorage.getItem("bearer_token");
       const response = await fetch(`/api/invite/list?orgId=${organization.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
+      
       if (response.ok) {
         const data = await response.json();
         setPendingInvites(data);
@@ -655,11 +655,11 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                               </button>
                             )}
                           </div>
-                        ) : (
+                  ) : (
                           <div className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
                             <Building className="w-6 h-6 text-gray-400" />
-                          </div>
-                        )}
+                    </div>
+                  )}
                       </div>
 
                       {/* Upload Controls */}
@@ -706,18 +706,18 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                       <h4 className="text-sm font-medium text-gray-900 mb-1">About company</h4>
                       <p className="text-xs text-gray-500">This will be part of your job descriptions by default</p>
                     </div>
-                    {isEditing ? (
-                      <Textarea
-                        value={aboutCompany}
-                        onChange={(e) => setAboutCompany(e.target.value)}
-                        placeholder="Enter company description..."
+                  {isEditing ? (
+                    <Textarea
+                      value={aboutCompany}
+                      onChange={(e) => setAboutCompany(e.target.value)}
+                      placeholder="Enter company description..."
                         className="min-h-[100px] text-sm border-gray-300 focus:border-gray-400 focus:ring-gray-400 resize-none"
-                      />
-                    ) : (
+                    />
+                  ) : (
                       <div className="min-h-[100px] p-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-600">
                         {aboutCompany || <span className="text-gray-400">No company description added yet</span>}
-                      </div>
-                    )}
+                    </div>
+                  )}
                   </div>
                 </div>
 
@@ -912,9 +912,9 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
 
                 {/* Copy Invite Link */}
                 <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleCopyInviteLink}
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleCopyInviteLink}
                       disabled={isGeneratingInvite}
                       className="bg-[#1a1a1a] text-white hover:bg-[#3D3D3D] text-sm px-3 py-1 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
@@ -943,10 +943,10 @@ export default function SettingsModal({ isOpen, onClose, organization }: Setting
                           }}
                           size="sm"
                           className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white text-xs px-3 py-1 flex-shrink-0"
-                        >
-                          <Copy className="w-3 h-3 mr-1" />
+                  >
+                    <Copy className="w-3 h-3 mr-1" />
                           Copy
-                        </Button>
+                  </Button>
                       </div>
                     </div>
                   )}

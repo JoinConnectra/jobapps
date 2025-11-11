@@ -322,7 +322,7 @@ export default function DashboardPage() {
       onClick={onClick}
       title={title}
       className={[
-        "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+        "px-2.5 py-1.5 rounded-md text-xs font-medium transition-all inline-flex items-center gap-1.5",
         active ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-100",
       ].join(" ")}
     >
@@ -349,15 +349,15 @@ export default function DashboardPage() {
     label: string;
     value: number | string;
   }) => (
-    <div className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow transition-shadow">
+    <div className="group relative overflow-hidden rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow transition-shadow">
       <div className="absolute inset-0 bg-gradient-to-tr from-[#6a994e]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-[#6a994e]/10 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-[#6a994e]" />
+      <div className="flex items-center gap-2.5">
+        <div className="h-8 w-8 rounded-lg bg-[#6a994e]/10 flex items-center justify-center">
+          <Icon className="h-4 w-4 text-[#6a994e]" />
         </div>
         <div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
-          <div className="text-2xl font-semibold text-gray-900">{value}</div>
+          <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
+          <div className="text-xl font-semibold text-gray-900">{value}</div>
         </div>
       </div>
     </div>
@@ -396,112 +396,52 @@ export default function DashboardPage() {
 
       {/* Main */}
       <main className="flex-1 bg-[#FEFEFA] overflow-y-auto">
-        {/* Sticky Top Bar */}
-        <div className="sticky top-0 z-30 border-b border-gray-200 bg-[#FEFEFA]/90 backdrop-blur">
-          <div className="max-w-6xl mx-auto px-6 sm:px-8 py-4">
+        <div className="p-8">
+          <div className="max-w-6xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
-              {/* Org / Breadcrumb */}
-              <div className="flex items-center gap-3">
-                {/* Org avatar */}
-                <div className="h-10 w-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
-                  {org?.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={org.logoUrl} alt="logo" className="h-full w-full object-cover" />
-                  ) : (
-                    <Briefcase className="h-5 w-5 text-gray-400" />
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Dashboard</div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">
-                      Home
-                    </Link>
-                    <ChevronRight className="h-4 w-4 text-gray-300" />
-                    <span className="text-gray-900 font-medium">Activities</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick actions (Command only) + Live indicator */}
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500" title="Live updates">
-                  <LiveDot />
-                  <span>
-                    Live •{" "}
-                    {lastRefreshedAt ? `Updated ${getRelativeTime(lastRefreshedAt.toISOString())}` : "Connecting…"}
-                  </span>
-                </div>
-                <Button
-                  variant="outline"
-                  className="hidden md:flex gap-2"
-                  onClick={openCommandPalette}
-                  title="Open Command Palette (⌘K / Ctrl+K)"
-                >
-                  <CommandIcon className="h-4 w-4" />
-                  Command
-                </Button>
+              <nav className="flex items-center gap-2 text-sm">
+                <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 transition-colors">
+                  Dashboard
+                </Link>
+                <span className="text-gray-400">›</span>
+                <span className="text-gray-900 font-medium">Activities</span>
+              </nav>
+              <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500" title="Live updates">
+                <LiveDot />
+                <span>
+                  Live • {lastRefreshedAt ? `Updated ${getRelativeTime(lastRefreshedAt.toISOString())}` : "Connecting…"}
+                </span>
               </div>
             </div>
 
-            {/* Stats Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatTile icon={Briefcase} label="Open Jobs" value={stats.jobs} />
               <StatTile icon={User} label="Applications" value={stats.applications} />
               <StatTile icon={BarChartIcon} label="Engagement (30d)" value={`${Math.min(stats.applications * 2, 99)}%`} />
             </div>
-          </div>
 
-          {/* Sticky Filter Bar */}
-          <div className="border-t border-gray-200 bg-white">
-            <div className="max-w-6xl mx-auto px-6 sm:px-8 py-3">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                {/* Segmented filters with dynamic badges */}
+            <div className="bg-white rounded-lg border border-gray-200 px-4 sm:px-6 py-2.5">
+              <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600 font-medium hidden sm:inline">Filter:</span>
+                  <span className="text-xs text-gray-600 font-medium hidden sm:inline">Filter:</span>
                   <div className="flex bg-gray-100 rounded-lg p-1">
-                    <SegButton
-                      active={activityFilter === "all"}
-                      onClick={() => setActivityFilter("all")}
-                      badge={counts.all}
-                      title="All activity"
-                    >
+                    <SegButton active={activityFilter === "all"} onClick={() => setActivityFilter("all")} badge={counts.all} title="All activity">
                       All
                     </SegButton>
-                    <SegButton
-                      active={activityFilter === "company"}
-                      onClick={() => setActivityFilter("company")}
-                      badge={counts.company}
-                      title="Company"
-                    >
+                    <SegButton active={activityFilter === "company"} onClick={() => setActivityFilter("company")} badge={counts.company} title="Company">
                       Company
                     </SegButton>
-                    <SegButton
-                      active={activityFilter === "applicants"}
-                      onClick={() => setActivityFilter("applicants")}
-                      badge={counts.applicants}
-                      title="Applicants"
-                    >
+                    <SegButton active={activityFilter === "applicants"} onClick={() => setActivityFilter("applicants")} badge={counts.applicants} title="Applicants">
                       Applicants
                     </SegButton>
-                    <SegButton
-                      active={activityFilter === "members"}
-                      onClick={() => setActivityFilter("members")}
-                      badge={counts.members}
-                      title="Members"
-                    >
+                    <SegButton active={activityFilter === "members"} onClick={() => setActivityFilter("members")} badge={counts.members} title="Members">
                       Members
                     </SegButton>
                   </div>
-
-                  {/* Time range */}
                   <div className="flex items-center gap-2 ml-2">
-                    <Filter className="h-4 w-4 text-gray-400 hidden md:block" />
-                    <Select
-                      value={timeFilter}
-                      onValueChange={(v: "today" | "7d" | "30d" | "90d" | "all") => setTimeFilter(v)}
-                    >
-                      <SelectTrigger className="w-40">
+                    <Filter className="h-3.5 w-3.5 text-gray-400 hidden md:block" />
+                    <Select value={timeFilter} onValueChange={(v: "today" | "7d" | "30d" | "90d" | "all") => setTimeFilter(v)}>
+                      <SelectTrigger className="w-36 h-8 text-xs">
                         <SelectValue placeholder="Time range" />
                       </SelectTrigger>
                       <SelectContent>
@@ -515,25 +455,21 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Search ("/" to focus) */}
-                <div className="relative w-full md:w-72" title="Press / to focus search">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <div className="relative w-full md:w-64" title="Press / to focus search">
+                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-gray-400" />
                   <input
                     ref={searchRef}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search activity…"
-                    className="w-full pl-9 pr-3 py-2 rounded-md border border-gray-200 focus:ring-2 focus:ring-[#6a994e]/40 focus:outline-none"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-gray-200 focus:ring-2 focus:ring-[#6a994e]/40 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Activities */}
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Activities */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             {/* Skeleton while loading */}
             {loadingOrg || loadingFeed ? (
               <div className="divide-y divide-gray-100">
@@ -625,6 +561,7 @@ export default function DashboardPage() {
                 ))}
               </div>
             )}
+            </div>
           </div>
         </div>
       </main>

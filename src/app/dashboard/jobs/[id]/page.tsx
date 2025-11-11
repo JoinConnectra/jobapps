@@ -241,7 +241,8 @@ export default function JobDetailPage() {
 
   /**
    * Save Questions:
-   * - POST only the newly added (id-less) questions to /api/jobs/[id]/questions
+   * - POST newly added (id-less) questions to /api/jobs/[id]/questions
+   * - PATCH existing questions (with id) to update them
    * - After saving, refetch to get fresh list with IDs
    */
   const saveQuestions = async () => {
@@ -250,7 +251,13 @@ export default function JobDetailPage() {
       const token = localStorage.getItem("bearer_token");
 
       for (const question of questions) {
-        if (!question.id && question.prompt.trim()) {
+        if (!question.prompt.trim()) {
+          // Skip empty questions
+          continue;
+        }
+
+        if (!question.id) {
+          // Create new question
           await fetch(`/api/jobs/${params.id}/questions`, {
             method: "POST",
             headers: {
@@ -262,12 +269,31 @@ export default function JobDetailPage() {
               ...question,
             }),
           });
+        } else {
+          // Update existing question
+          await fetch(`/api/jobs/${params.id}/questions`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              questionId: question.id,
+              prompt: question.prompt,
+              kind: question.kind,
+              maxSec: question.maxSec,
+              maxChars: question.maxChars,
+              required: question.required,
+              orderIndex: question.orderIndex,
+            }),
+          });
         }
       }
 
       toast.success("Questions saved successfully!");
       fetchJobData(); // refresh with server copy (now with IDs)
     } catch (error) {
+      console.error("Failed to save questions:", error);
       toast.error("Failed to save questions");
     } finally {
       setSaving(false);
