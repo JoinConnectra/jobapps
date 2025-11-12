@@ -11,20 +11,6 @@ export default function Footer() {
             </span>
           </Link>
 
-          <nav className="flex items-center gap-6">
-            <Link
-              href="/#rapha-features"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Features
-            </Link>
-            <Link
-              href="/blog"
-              className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Blog
-            </Link>
-          </nav>
 
           <p className="text-sm text-gray-500">
             © {new Date().getFullYear()} TalentFlow. All rights reserved.

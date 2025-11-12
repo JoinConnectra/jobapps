@@ -105,7 +105,7 @@ export default function AnimatedSearchSection() {
   }, [displayedText, isTyping, isDeleting, currentRoleIndex, currentRole, baseText, isVisible]);
 
   return (
-    <section ref={sectionRef} className="relative bg-white py-16 md:py-20 lg:py-24 overflow-hidden">
+    <section id="features" ref={sectionRef} className="relative bg-white py-16 md:py-20 lg:py-24 overflow-hidden">
       <div className="container relative z-10 mx-auto px-6 max-w-5xl">
         {/* Top section - Headline and description */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 mb-10">

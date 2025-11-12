@@ -8,7 +8,7 @@ const HeaderNavigation = () => {
   const { data: session, isPending } = useSession();
 
   const navLinks = [
-    { href: '/#rapha-features', label: 'Features' },
+    { href: '/#features', label: 'Features' },
     { href: '/blog', label: 'Blog' },
   ];
 

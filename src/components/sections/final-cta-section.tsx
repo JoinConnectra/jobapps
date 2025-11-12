@@ -33,7 +33,7 @@ const FinalCtaSection = () => {
             {/* Screenshot - positioned in bottom right corner */}
             <div className="absolute bottom-0 right-0 w-[50%] md:w-[45%] lg:w-[40%] h-[60%] md:h-[70%] overflow-hidden">
               <Image
-                src="/images/employer-screenshot.png"
+                src="/images/activities-section.png"
                 alt="TalentFlow dashboard showcase"
                 fill
                 className="object-cover "
