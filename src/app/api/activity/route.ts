@@ -158,6 +158,8 @@ export async function GET(request: NextRequest) {
       try {
         const sinceDate = new Date(sinceParam);
         if (!isNaN(sinceDate.getTime())) {
+          // NOTE: Client now sends UTC-midnight boundaries, so this comparison
+          // aligns even if the DB column is `timestamp without time zone`.
           console.log('API: Adding time filter - since:', sinceDate.toISOString());
           conditions.push(gte(activity.createdAt, sinceDate));
         }

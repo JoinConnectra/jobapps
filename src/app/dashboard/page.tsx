@@ -42,9 +42,7 @@ import {
   Calendar,
   ChevronRight,
   Filter,
-  Command as CommandIcon,
   BarChartIcon,
-  Activity as ActivityIcon,
 } from "lucide-react";
 
 type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" | "members" };
@@ -111,14 +109,14 @@ export default function DashboardPage() {
     }
   }, [session]);
 
-  // Refresh activity on filter/org change
+  // Refresh activity on time/org change
   useEffect(() => {
     const token = localStorage.getItem("bearer_token");
     if (org?.id && token) {
-      fetchActivity(org.id, token, activityFilter, timeFilter);
+      fetchActivity(org.id, token, timeFilter);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activityFilter, timeFilter, org?.id]);
+  }, [timeFilter, org?.id]);
 
   const fetchOrgAndStats = async () => {
     try {
@@ -150,7 +148,7 @@ export default function DashboardPage() {
           setStats((prev) => ({ ...prev, applications: Array.isArray(appsData) ? appsData.length : 0 }));
         }
 
-        await fetchActivity(primary.id, token, activityFilter, timeFilter);
+        await fetchActivity(primary.id, token, timeFilter);
       }
     } catch (error) {
       console.error("Failed to fetch stats:", error);
@@ -160,27 +158,37 @@ export default function DashboardPage() {
     }
   };
 
+  // ⛳️ Always fetch ALL kinds; we will filter client-side for counts & view
   const fetchActivity = async (
     orgId: number,
     token: string,
-    filter: "all" | "company" | "applicants" | "members",
     timeRange: "today" | "7d" | "30d" | "90d" | "all",
   ) => {
     setLoadingFeed(true);
     try {
       let url = `/api/activity?orgId=${orgId}&limit=50`;
-      if (filter === "company") url += `&entityType=job`;
-      if (filter === "applicants") url += `&entityType=application`;
-      if (filter === "members") url += `&entityType=membership`;
 
+      // Time range (keep your UTC-midnight logic)
       if (timeRange !== "all") {
-        const since = new Date();
-        if (timeRange === "today") {
-          since.setHours(0, 0, 0, 0);
-        } else {
-          const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
-          since.setDate(since.getDate() - days);
-        }
+        const now = new Date();
+
+        const lookbackDays =
+          timeRange === "today"
+            ? 2 // today + yesterday (as you had)
+            : timeRange === "7d"
+            ? 7
+            : timeRange === "30d"
+            ? 30
+            : timeRange === "90d"
+            ? 90
+            : 0;
+
+        const utcMidnightToday = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+        );
+        utcMidnightToday.setUTCDate(utcMidnightToday.getUTCDate() - lookbackDays);
+        const since = utcMidnightToday;
+
         url += `&since=${since.toISOString()}`;
       }
 
@@ -253,21 +261,28 @@ export default function DashboardPage() {
   };
 
   // ---- Derived UI helpers ----
-  const filteredFeed = useMemo(() => {
-    const byType = feed.filter((item) => (activityFilter === "all" ? true : item.kind === activityFilter));
-    if (!search.trim()) return byType;
-    const q = search.toLowerCase();
-    return byType.filter((i) => i.title.toLowerCase().includes(q));
-  }, [feed, activityFilter, search]);
 
-  // Dynamic counts for filter badges
+  // 1) Search filtering (used for both counts and list)
+  const searchFiltered = useMemo(() => {
+    if (!search.trim()) return feed;
+    const q = search.toLowerCase();
+    return feed.filter((i) => i.title.toLowerCase().includes(q));
+  }, [feed, search]);
+
+  // 2) Badge counts computed from searchFiltered (not from the active type)
   const counts = useMemo(() => {
-    const all = feed.length;
-    const company = feed.filter((i) => i.kind === "company").length;
-    const applicants = feed.filter((i) => i.kind === "applicants").length;
-    const members = feed.filter((i) => i.kind === "members").length;
+    const all = searchFiltered.length;
+    const company = searchFiltered.filter((i) => i.kind === "company").length;
+    const applicants = searchFiltered.filter((i) => i.kind === "applicants").length;
+    const members = searchFiltered.filter((i) => i.kind === "members").length;
     return { all, company, applicants, members };
-  }, [feed]);
+  }, [searchFiltered]);
+
+  // 3) Apply the active type filter for the visible list only
+  const filteredFeed = useMemo(() => {
+    if (activityFilter === "all") return searchFiltered;
+    return searchFiltered.filter((i) => i.kind === activityFilter);
+  }, [searchFiltered, activityFilter]);
 
   // Group into timeline sections
   const grouped = useMemo(() => {
@@ -389,7 +404,14 @@ export default function DashboardPage() {
       <CompanySidebar
         org={org}
         user={session.user}
-        onSignOut={handleSignOut}
+        onSignOut={async () => {
+          const { error } = await authClient.signOut();
+          if (error?.code) toast.error(error.code);
+          else {
+            localStorage.removeItem("bearer_token");
+            router.push("/");
+          }
+        }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         active="activities"
       />
@@ -470,97 +492,96 @@ export default function DashboardPage() {
 
             {/* Activities */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            {/* Skeleton while loading */}
-            {loadingOrg || loadingFeed ? (
-              <div className="divide-y divide-gray-100">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <SkeletonRow key={i} />
-                ))}
-              </div>
-            ) : filteredFeed.length === 0 ? (
-              // Empty
-              <div className="text-center py-16 px-6">
-                <div className="mx-auto mb-6 w-16 h-16 rounded-xl border border-gray-200 grid place-items-center">
-                  <div className="w-9 h-9 rounded-lg border border-gray-200 grid place-items-center">
-                    <Bell className="w-5 h-5 text-gray-400" />
+              {loadingOrg || loadingFeed ? (
+                <div className="divide-y divide-gray-100">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="p-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gray-100" />
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-100 rounded w-2/3 mb-2" />
+                          <div className="h-3 bg-gray-100 rounded w-1/3" />
+                        </div>
+                        <div className="w-16 h-3 bg-gray-100 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredFeed.length === 0 ? (
+                <div className="text-center py-16 px-6">
+                  <div className="mx-auto mb-6 w-16 h-16 rounded-xl border border-gray-200 grid place-items-center">
+                    <div className="w-9 h-9 rounded-lg border border-gray-200 grid place-items-center">
+                      <Bell className="w-5 h-5 text-gray-400" />
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    {activityFilter === "all"
+                      ? "No activity yet"
+                      : activityFilter === "company"
+                      ? "No company activity"
+                      : activityFilter === "applicants"
+                      ? "No applicant activity"
+                      : "No member activity"}
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-2">Try broadening the time range or clearing your search.</p>
+                  <div className="text-xs text-gray-400">
+                    Tip: Press <kbd className="px-1 py-0.5 rounded border">/</kbd> to search •{" "}
+                    <kbd className="px-1 py-0.5 rounded border">⌘K</kbd>/<kbd className="px-1 py-0.5 rounded border">Ctrl+K</kbd> opens Command Palette
                   </div>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {activityFilter === "all"
-                    ? "No activity yet"
-                    : activityFilter === "company"
-                    ? "No company activity"
-                    : activityFilter === "applicants"
-                    ? "No applicant activity"
-                    : "No member activity"}
-                </h3>
-                <p className="text-sm text-gray-500 mb-2">
-                  Try broadening the time range or clearing your search.
-                </p>
-                <div className="text-xs text-gray-400">
-                  Tip: Press <kbd className="px-1 py-0.5 rounded border">/</kbd> to search •{" "}
-                  <kbd className="px-1 py-0.5 rounded border">⌘K</kbd>/<kbd className="px-1 py-0.5 rounded border">Ctrl+K</kbd> opens Command Palette
-                </div>
-              </div>
-            ) : (
-              // Timeline groups
-              <div className="divide-y divide-gray-100">
-                {grouped.map(([label, items]) => (
-                  <section key={label} className="p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <h4 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">{label}</h4>
-                    </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {grouped.map(([label, items]) => (
+                    <section key={label} className="p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <h4 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">{label}</h4>
+                      </div>
 
-                    <ul className="space-y-2">
-                      {items.map((item, idx) => (
-                        <li key={`${label}-${idx}`}>
-                          <Link
-                            href={item.href || "#"}
-                            className="group flex items-start gap-3 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                          >
-                            {/* Icon pill */}
-                            <div
-                              className={[
-                                "mt-1 h-8 w-8 shrink-0 rounded-full grid place-items-center",
-                                item.kind === "company"
-                                  ? "bg-green-50 text-green-600"
-                                  : item.kind === "members"
-                                  ? "bg-purple-50 text-purple-600"
-                                  : "bg-blue-50 text-blue-600",
-                              ].join(" ")}
+                      <ul className="space-y-2">
+                        {items.map((item, idx) => (
+                          <li key={`${label}-${idx}`}>
+                            <Link
+                              href={item.href || "#"}
+                              className="group flex items-start gap-3 rounded-lg p-4 hover:bg-gray-50 transition-colors"
                             >
-                              {item.kind === "company" ? (
-                                <Send className="h-4 w-4" />
-                              ) : item.kind === "members" ? (
-                                <Users className="h-4 w-4" />
-                              ) : (
-                                <User className="h-4 w-4" />
-                              )}
-                            </div>
+                              <div
+                                className={[
+                                  "mt-1 h-8 w-8 shrink-0 rounded-full grid place-items-center",
+                                  item.kind === "company"
+                                    ? "bg-green-50 text-green-600"
+                                    : item.kind === "members"
+                                    ? "bg-purple-50 text-purple-600"
+                                    : "bg-blue-50 text-blue-600",
+                                ].join(" ")}
+                              >
+                                {item.kind === "company" ? (
+                                  <Send className="h-4 w-4" />
+                                ) : item.kind === "members" ? (
+                                  <Users className="h-4 w-4" />
+                                ) : (
+                                  <User className="h-4 w-4" />
+                                )}
+                              </div>
 
-                            {/* Title + timestamp */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
                                 <p className="text-sm text-gray-900 group-hover:text-[#6a994e] transition-colors">
                                   {item.title}
                                 </p>
+                                <p className="mt-1 text-xs text-gray-400">{getRelativeTime(item.at)}</p>
                               </div>
-                              <p className="mt-1 text-xs text-gray-400">{getRelativeTime(item.at)}</p>
-                            </div>
 
-                            {/* Chevron */}
-                            {item.href && (
-                              <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-gray-400 transition-colors mt-1" />
-                            )}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ))}
-              </div>
-            )}
+                              {item.href && (
+                                <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-gray-400 transition-colors mt-1" />
+                              )}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -574,7 +595,6 @@ export default function DashboardPage() {
         isOpen={isSettingsOpen}
         onClose={async () => {
           setIsSettingsOpen(false);
-          // Refresh org (logo etc.)
           try {
             const token = localStorage.getItem("bearer_token");
             const orgsResponse = await fetch("/api/organizations?mine=true", {
