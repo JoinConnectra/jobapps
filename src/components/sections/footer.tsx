@@ -1,11 +1,21 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Footer() {
   return (
     <footer className="w-full border-t border-gray-100 bg-white">
       <div className="mx-auto max-w-7xl px-12 lg:px-16 xl:px-20 py-12">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <Link href="/" className="flex items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/images/talentflow-logo.svg"
+              alt="TalentFlow logo"
+              width={36}
+              height={36}
+              className="flex-shrink-0"
+              priority
+              unoptimized
+            />
             <span className="font-display text-2xl font-bold text-gray-900 tracking-tight">
               TalentFlow
             </span>

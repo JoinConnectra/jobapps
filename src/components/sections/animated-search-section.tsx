@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
 
 const jobRoles = [
   'software engineering',
@@ -162,7 +161,15 @@ export default function AnimatedSearchSection() {
                     </span>
                   </div>
                   <button className="ml-1 flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <ArrowRight className="w-5 h-5 sm:w-5 sm:h-5 text-gray-600" />
+                    <Image
+                      src="/images/talentflow-logo.svg"
+                      alt="TalentFlow logo"
+                      width={32}
+                      height={32}
+                      className="w-8 h-8 animate-spin-slow"
+                      priority
+                      unoptimized
+                    />
                   </button>
                 </div>
               </div>
