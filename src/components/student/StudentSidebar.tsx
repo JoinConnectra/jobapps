@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
@@ -12,12 +11,15 @@ import {
   HelpCircle,
   LogOut,
   CalendarDays,
-  ListChecks, // 👈 added
+  ListChecks,
+  Search,
+  UserPlus,
 } from "lucide-react";
-import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSession, authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { useCommandPalette } from "@/hooks/use-command-palette";
 
 /** Helpers */
 function initialsFrom(nameOrEmail?: string) {
@@ -40,6 +42,8 @@ export default function StudentSidebar() {
   const [displayName, setDisplayName] = useState<string>("");
   const [avatarLetter, setAvatarLetter] = useState<string>("U");
 
+  const { open: openCommandPalette } = useCommandPalette();
+
   useEffect(() => {
     let cancelled = false;
     async function loadUser() {
@@ -56,7 +60,9 @@ export default function StudentSidebar() {
           const user = await res.json();
           const name = (user?.name as string | undefined)?.trim();
           const safeName = name && name.length > 0 ? name : email;
-          setDisplayName(name && name.length > 0 ? name : (email?.split("@")[0] ?? "User"));
+          setDisplayName(
+            name && name.length > 0 ? name : (email?.split("@")[0] ?? "User")
+          );
           setAvatarLetter(initialsFrom(safeName));
         } else {
           setDisplayName(email?.split("@")[0] ?? "User");
@@ -68,7 +74,9 @@ export default function StudentSidebar() {
       }
     }
     loadUser();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [email]);
 
   const links = useMemo(
@@ -78,7 +86,7 @@ export default function StudentSidebar() {
       { href: "/student/inbox", label: "Inbox", icon: MessageSquare },
       { href: "/student/events", label: "Events", icon: CalendarDays },
       { href: "/student/applications", label: "Applications", icon: FileText },
-      { href: "/student/assessments", label: "Assessments", icon: ListChecks }, // 👈 NEW
+      { href: "/student/assessments", label: "Assessments", icon: ListChecks },
       { href: "/student/profile", label: "Profile", icon: GraduationCap },
       { href: "/student/settings", label: "Settings", icon: Settings },
       { href: "/student/help", label: "Help", icon: HelpCircle },
@@ -100,62 +108,90 @@ export default function StudentSidebar() {
   };
 
   return (
-    <div className="w-64 bg-[#FEFEFA] border-r border-gray-200 h-screen sticky top-0 flex flex-col">
-      {/* Brand */}
-      <div className="px-6 py-6 border-b border-gray-200">
-        <div className="text-lg font-semibold">JobHunt</div>
-      </div>
+    <aside className="w-64 bg-[#FEFEFA] border-r border-gray-200 flex flex-col h-screen sticky top-0">
+      {/* Brand (match company style) */}
+      <div className="p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="text-xl font-display font-bold text-gray-900">
+            JobHunt
+          </div>
+        </div>
 
-      {/* Nav */}
-      <div className="flex-1 overflow-y-auto">
-        <nav className="p-4 space-y-1">
+        {/* Primary navigation – mirror CompanySidebar buttons */}
+        <nav className="space-y-1">
           {links.map(({ href, label, icon: Icon }) => {
             const active = pathname?.startsWith(href);
             return (
-              <Link
+              <Button
                 key={href}
-                href={href}
-                className={clsx(
-                  "flex items-center gap-3 rounded px-3 py-2 text-sm",
-                  active
-                    ? "bg-[#F5F1E8] text-gray-900"
-                    : "text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
-                )}
+                variant="ghost"
+                className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
+                  active ? "bg-[#F5F1E8] text-gray-900" : ""
+                }`}
+                onClick={() => router.push(href)}
               >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
-              </Link>
+                <Icon className="w-4 h-4 mr-3" />
+                {label}
+              </Button>
             );
           })}
         </nav>
-
-        <div className="px-4 pt-2">
-          <button
-            onClick={signOut}
-            disabled={busy}
-            className={clsx(
-              "w-full flex items-center gap-3 text-sm px-3 py-2 rounded text-left",
-              "text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900",
-              busy && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            <LogOut className="w-4 h-4" />
-            {busy ? "Signing out..." : "Log out"}
-          </button>
-        </div>
       </div>
 
-      {/* Footer user pill */}
+      {/* Footer actions + user pill (match company layout) */}
       <div className="mt-auto p-6 border-t border-gray-200">
-        <div className="flex items-center gap-3">
+        <div className="space-y-3">
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-500 text-sm"
+            onClick={openCommandPalette}
+          >
+            <Search className="w-4 h-4 mr-3" />
+            Search
+            <span className="ml-auto text-xs">⌘K</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-500 text-sm"
+            type="button"
+          >
+            <HelpCircle className="w-4 h-4 mr-3" />
+            Help &amp; Support
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-500 text-sm"
+            type="button"
+          >
+            <UserPlus className="w-4 h-4 mr-3" />
+            Invite people
+          </Button>
+
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-500 text-sm disabled:opacity-50"
+            onClick={signOut}
+            disabled={busy}
+          >
+            <LogOut className="w-4 h-4 mr-3" />
+            {busy ? "Signing out..." : "Log out"}
+          </Button>
+        </div>
+
+        {/* Current user pill */}
+        <div className="mt-6 flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-            <span className="text-white text-sm font-medium">{avatarLetter}</span>
+            <span className="text-white text-sm font-medium">
+              {avatarLetter}
+            </span>
           </div>
           <div className="flex-1 text-sm font-medium text-gray-900">
             {displayName || "User"}
           </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

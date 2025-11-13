@@ -1,13 +1,12 @@
 "use client";
 
 /**
- * AllJobsPage — Hybrid
- * --------------------
- * - TOP: sticky header + KPI + responsive toolbar (from "new" file)
- * - BOTTOM: job list as spaced tiles (cards) so rows don't visually mix
- * - Fix: toolbar never leaks horizontally; wraps cleanly to second line
- * - Change: remove "+ New Job" button from toolbar
- * - Change: removed bottom "Create a Job" panel
+ * AllJobsPage — Hybrid (compact, collapsible filters)
+ * ---------------------------------------------------
+ * - Top KPIs unchanged
+ * - Toolbar: status chips + search/sort/view
+ * - NEW: Filters button toggles compact panel (Time / Seniority / Mode)
+ * - Filters are same as before but smaller and tucked away by default
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -128,14 +127,17 @@ export default function AllJobsPage() {
     skillsCsv: "",
   });
 
-  // ----- Filters / sort / view (top bar shows these; status+search are applied) -----
+  // ----- Filters / sort / view (status+search hit API; others are display-only) -----
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [seniorityFilter, setSeniorityFilter] = useState<SeniorityFilter>("all"); // display only
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("30d"); // display only
-  const [modeFilter, setModeFilter] = useState<ModeFilter>("all"); // display only
-  const [sortKey, setSortKey] = useState<SortKey>("createdAt"); // display only
-  const [sortDir, setSortDir] = useState<SortDir>("desc"); // display only
-  const [viewMode, setViewMode] = useState<ViewMode>("list"); // 🔄 default to LIST
+  const [seniorityFilter, setSeniorityFilter] = useState<SeniorityFilter>("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("30d");
+  const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+
+  // Collapsible filters (like Talent)
+  const [showFilters, setShowFilters] = useState(false);
 
   // Search (simple + immediate)
   const [searchQuery, setSearchQuery] = useState("");
@@ -181,7 +183,7 @@ export default function AllJobsPage() {
         try {
           const token = localStorage.getItem("bearer_token");
           const response = await fetch(`/api/employer/universities?orgId=${orgId}`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: { toString: () => `Bearer ${token}` } as any },
           });
           if (response.ok) {
             const data = await response.json();
@@ -501,13 +503,6 @@ export default function AllJobsPage() {
   };
 
   // Small bits for top
-  const LiveDot = () => (
-    <span className="relative flex h-2.5 w-2.5">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-    </span>
-  );
-
   const StatTile = ({
     icon: Icon,
     label,
@@ -614,13 +609,13 @@ export default function AllJobsPage() {
               </div>
             )}
 
-            {/* Toolbar (WRAPS to 2nd line instead of leaking) - Only show when NOT creating a job */}
+            {/* Toolbar (compact + collapsible filters) */}
             {searchParams?.get("create") !== "1" && (
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-6 sm:px-8 py-3">
-                  {/* Two columns that wrap on small screens */}
+                  {/* Row 1: status chips + search/sort/view + filters toggle */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    {/* LEFT: status chips + filters */}
+                    {/* LEFT: status chips */}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         {/* Status chips with counts */}
@@ -652,39 +647,19 @@ export default function AllJobsPage() {
                           ))}
                         </div>
 
-                        {/* Extra filters (visual only; do not affect API in this hybrid) */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Filter className="h-4 w-4 text-gray-400 hidden md:block" />
-                          <Select value={timeFilter} onValueChange={(v: TimeFilter) => setTimeFilter(v)}>
-                            <SelectTrigger className="w-40"><SelectValue placeholder="Time" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All time</SelectItem>
-                              <SelectItem value="7d">Last 7 days</SelectItem>
-                              <SelectItem value="30d">Last 30 days</SelectItem>
-                              <SelectItem value="90d">Last 90 days</SelectItem>
-                            </SelectContent>
-                          </Select>
-
-                          <Select value={seniorityFilter} onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}>
-                            <SelectTrigger className="w-40"><SelectValue placeholder="Seniority" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All levels</SelectItem>
-                              <SelectItem value="junior">Junior</SelectItem>
-                              <SelectItem value="mid">Mid</SelectItem>
-                              <SelectItem value="senior">Senior</SelectItem>
-                            </SelectContent>
-                          </Select>
-
-                          <Select value={modeFilter} onValueChange={(v: ModeFilter) => setModeFilter(v)}>
-                            <SelectTrigger className="w-40"><SelectValue placeholder="Mode" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All modes</SelectItem>
-                              <SelectItem value="remote">Remote</SelectItem>
-                              <SelectItem value="hybrid">Hybrid</SelectItem>
-                              <SelectItem value="onsite">On-site</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {/* Filters toggle (moves the extra selects out of the main row) */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => setShowFilters((s) => !s)}
+                          aria-expanded={showFilters}
+                          title="Show filters"
+                        >
+                          <Filter className="h-4 w-4" />
+                          Filters
+                          <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+                        </Button>
                       </div>
                     </div>
 
@@ -750,11 +725,71 @@ export default function AllJobsPage() {
                             Grid
                           </button>
                         </div>
-
-                        {/* (Removed) New Job button from toolbar */}
                       </div>
                     </div>
                   </div>
+
+                  {/* Row 2: Collapsible compact filters (like Talent) */}
+                  {showFilters && (
+                    <div className="mt-3">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                        <div>
+                          <Label className="mb-1 block text-xs text-gray-500">Time</Label>
+                          <Select value={timeFilter} onValueChange={(v: TimeFilter) => setTimeFilter(v)}>
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Time" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All time</SelectItem>
+                              <SelectItem value="7d">Last 7 days</SelectItem>
+                              <SelectItem value="30d">Last 30 days</SelectItem>
+                              <SelectItem value="90d">Last 90 days</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label className="mb-1 block text-xs text-gray-500">Seniority</Label>
+                          <Select value={seniorityFilter} onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}>
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Seniority" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All levels</SelectItem>
+                              <SelectItem value="junior">Junior</SelectItem>
+                              <SelectItem value="mid">Mid</SelectItem>
+                              <SelectItem value="senior">Senior</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label className="mb-1 block text-xs text-gray-500">Mode</Label>
+                          <Select value={modeFilter} onValueChange={(v: ModeFilter) => setModeFilter(v)}>
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All modes</SelectItem>
+                              <SelectItem value="remote">Remote</SelectItem>
+                              <SelectItem value="hybrid">Hybrid</SelectItem>
+                              <SelectItem value="onsite">On-site</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Spacer cells to balance grid on md */}
+                        <div className="hidden md:block" />
+                        <div className="hidden md:block" />
+                      </div>
+
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-xs text-gray-500 ml-auto">
+                          {lastRefreshedAt ? `Last refreshed: ${lastRefreshedAt.toLocaleTimeString()}` : ""}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1161,10 +1196,9 @@ export default function AllJobsPage() {
                       </div>
                     </div>
 
-                   <div className="mt-4 text-xs text-gray-600">
-  <span className="font-medium">{job.totalCandidates}</span> candidates
-</div>
-
+                    <div className="mt-4 text-xs text-gray-600">
+                      <span className="font-medium">{job.totalCandidates}</span> candidates
+                    </div>
                   </div>
                 ))}
               </div>
