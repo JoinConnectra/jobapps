@@ -38,11 +38,19 @@ export default function BlogPostPage() {
           {/* Header image with gradient */}
           <div className="mb-8 md:mb-12 rounded-lg overflow-hidden">
             <div 
-              className="w-full h-[300px] md:h-[400px] relative"
+              className="w-full h-[300px] md:h-[400px] relative flex items-center justify-center"
               style={{
                 background: 'linear-gradient(to right, #a8d5ba 0%, #2d5f4f 100%)',
               }}
-            />
+            >
+              <Image
+                src="/images/talentflow-logo.svg"
+                alt="TalentFlow logo"
+                width={120}
+                height={120}
+                className="opacity-90 brightness-0 invert"
+              />
+            </div>
           </div>
 
           {/* Title */}

@@ -9,6 +9,9 @@ import {
 import { eq, inArray, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
+import { gradeCode } from "@/lib/grader";
+
+export const runtime = "nodejs";
 
 /** RFC4122 UUID v5 from a string (deterministic) */
 async function uuidV5FromString(
@@ -26,8 +29,8 @@ async function uuidV5FromString(
   const subtle = globalThis.crypto?.subtle ?? (require("crypto").webcrypto.subtle);
   const hashBuf = await subtle.digest("SHA-1", combined);
   const hash = new Uint8Array(hashBuf).slice(0, 16);
-  hash[6] = (hash[6] & 0x0f) | 0x50; // v5
-  hash[8] = (hash[8] & 0x3f) | 0x80; // variant
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
   const hex: string[] = [];
   for (let i = 0; i < 16; i++) hex.push((hash[i] + 0x100).toString(16).slice(1));
   return [
@@ -38,6 +41,80 @@ async function uuidV5FromString(
     hex.slice(10, 16).join(""),
   ].join("-");
 }
+
+/* ------------------------------ helpers ------------------------------ */
+
+/** safe JSON.parse */
+function tryParseJSON<T = any>(s: string | undefined | null): T | undefined {
+  if (!s || typeof s !== "string") return;
+  try { return JSON.parse(s) as T; } catch { return; }
+}
+
+/** best-effort to coerce options_json to an object */
+function parseOptionsJson(raw: any): any {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  if (typeof raw === "string") return tryParseJSON(raw) ?? {};
+  return {};
+}
+
+/** normalize tests to always use { args?, input?, output } */
+function normalizeTests(tests: any[]): { args?: any[]; input?: string; output: any }[] {
+  if (!Array.isArray(tests)) return [];
+  return tests.map((t: any) => {
+    if (t && typeof t === "object") {
+      const output = Object.prototype.hasOwnProperty.call(t, "output") ? t.output : t.expect;
+      const args = Array.isArray(t.args) ? t.args : undefined;
+      const input = typeof t.input === "string" ? t.input : undefined;
+      return { args, input, output };
+    }
+    return t;
+  });
+}
+
+/** deep search for a string field named "code" anywhere */
+function deepFindCode(obj: any, depth = 0): string | undefined {
+  if (depth > 5 || !obj) return;
+  if (typeof obj === "string") {
+    const trimmed = obj.trim();
+    if (trimmed.startsWith("{") && trimmed.includes('"code"')) {
+      const parsed = tryParseJSON<{ code?: string }>(trimmed);
+      if (parsed?.code && typeof parsed.code === "string") return parsed.code;
+    }
+    // looks like raw JS
+    return obj;
+  }
+  if (typeof obj === "object") {
+    if (typeof obj.code === "string") return obj.code;
+    if (typeof obj.value === "string" || typeof obj.value === "object") {
+      const fromVal = deepFindCode(obj.value, depth + 1);
+      if (fromVal) return fromVal;
+    }
+    for (const k of Object.keys(obj)) {
+      const v = (obj as any)[k];
+      const found = deepFindCode(v, depth + 1);
+      if (found) return found;
+    }
+  }
+  return;
+}
+
+/** Extract student code robustly from many shapes */
+function extractUserCode(userResp: any): string {
+  const found = deepFindCode(userResp);
+  if (typeof found === "string") {
+    // Final safety: if it STILL looks like JSON, peel code out
+    const maybeJson = found.trim();
+    if (maybeJson.startsWith("{") && maybeJson.includes('"code"')) {
+      const parsed = tryParseJSON<{ code?: string }>(maybeJson);
+      if (parsed?.code && typeof parsed.code === "string") return parsed.code;
+    }
+    return found;
+  }
+  return "";
+}
+
+/* -------------------------------------------------------------------- */
 
 export async function POST(
   req: NextRequest,
@@ -68,21 +145,18 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 🚫 Already submitted? Block re-submission.
     if ((attempt as any).status === "submitted") {
       return NextResponse.json({ error: "Attempt already submitted" }, { status: 409 });
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({} as any));
     const answers = body?.answers ?? {};
 
-    // Load questions for scoring
     const qs = await db
       .select()
       .from(assessmentQuestions)
       .where(eq(assessmentQuestions.assessmentId, (attempt as any).assessmentId));
 
-    // Idempotent final submit: wipe answers, then insert final payload
     await db.delete(assessmentAnswers).where(eq(assessmentAnswers.attemptId, atid));
 
     let totalPossible = 0;
@@ -91,19 +165,62 @@ export async function POST(
     for (const q of qs as any[]) {
       const qid = Number(q.id);
       const kind: "mcq" | "short" | "coding" | "case" = q.kind ?? "short";
-      const userResp = (answers as Record<number, any>)?.[qid] ?? null;
-      if (!userResp) continue;
-
-      const correctAnswer = q.correctAnswer ?? q.correct_answer ?? null;
+      const userResp = (answers as Record<any, any>)?.[qid] ?? (answers as Record<any, any>)?.[String(qid)] ?? null;
+      if (userResp == null) continue;
 
       let autoScore: number | null = null;
+
       if (kind === "mcq") {
-        totalPossible += 1;
+        const opts = parseOptionsJson(q.optionsJson ?? q.options_json ?? {});
+        const points = Number(opts?.points ?? 1);
+        totalPossible += points;
+
+        const correctAnswer = q.correctAnswer ?? q.correct_answer ?? null;
         if (correctAnswer != null) {
-          autoScore = userResp?.choice === correctAnswer ? 1 : 0;
-          totalScore += autoScore;
+          autoScore = userResp?.choice === correctAnswer ? points : 0;
+          totalScore += Number(autoScore);
         } else {
           autoScore = 0;
+        }
+      } else if (kind === "coding") {
+        const opts = parseOptionsJson(q.optionsJson ?? q.options_json ?? {});
+        const points = Number(opts?.points ?? 1);
+        totalPossible += points;
+
+        const language = String((opts?.language ?? "javascript")).toLowerCase() as
+          | "javascript"
+          | "python"
+          | "cpp";
+        const entryPoint = String(opts?.entryPoint || "solution");
+        const tests = normalizeTests(Array.isArray(opts?.tests) ? opts.tests : []);
+
+        // 🔒 Extract (and de-JSON) the code
+        let code: string = extractUserCode(userResp);
+
+        // 🔁 Hail-mary: sometimes UI sends { code: "..." } but also double-stringified
+        if (code.trim().startsWith("{") && code.includes('"code"')) {
+          const parsed = tryParseJSON<{ code?: string }>(code.trim());
+          if (parsed?.code) code = parsed.code;
+        }
+
+        if (code.trim().length === 0 || tests.length === 0) {
+          autoScore = 0;
+        } else {
+          try {
+            const res = await gradeCode({
+              language,
+              code,
+              tests,
+              options: { entryPoint, points },
+            });
+            autoScore = Number(res.earned ?? 0);
+            totalScore += Number(autoScore);
+          } catch (e: any) {
+            // If the code was still JSON by mistake, never crash — just zero it and keep going.
+            console.error("[grader] code exec error, first 80 chars:", String(code).slice(0, 80));
+            console.error("[grader] error:", e?.message || e);
+            autoScore = 0;
+          }
         }
       } else {
         autoScore = null;
@@ -122,7 +239,6 @@ export async function POST(
     const autoScoreTotal =
       totalPossible > 0 ? Number(totalScore) / Number(totalPossible) : null;
 
-    // ✅ 1) Mark assessment_attempts as submitted
     await db
       .update(assessmentAttempts)
       .set({
@@ -134,8 +250,6 @@ export async function POST(
       } as any)
       .where(eq(assessmentAttempts.id, atid));
 
-    // ✅ 2) Mark application_assessments as completed for THIS user & THIS assessment
-    // Look up this user's DB id
     const usersRes = await db.execute(sql/* sql */`
       select id from "users" where email = ${authUser.email} limit 1
     `);
@@ -143,7 +257,6 @@ export async function POST(
       usersRes.rows && usersRes.rows[0] ? Number((usersRes.rows[0] as any).id) : null;
 
     if (meId != null) {
-      // find their application ids
       const appsRes = await db.execute(sql/* sql */`
         select id
         from "applications"

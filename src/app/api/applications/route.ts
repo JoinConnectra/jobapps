@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { applications, jobs, organizations, activity, users } from '@/db/schema';
-import { eq, and, asc, or, like, isNull } from 'drizzle-orm';
+import { eq, and, or, like, isNull, sql } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 
 // Email validation helper
@@ -69,7 +69,6 @@ export async function POST(request: NextRequest) {
       graduationYear,
       gpa,
       gpaScale,
-      // coverLetter,
     } = body;
 
     // --- NEW: derive session + DB user
@@ -91,8 +90,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Decide which email to use:
-    // - Prefer body.applicantEmail if provided & valid
-    // - Else fall back to session email (if logged in)
     let effectiveEmail: string | null = null;
     if (applicantEmail && isValidEmail(String(applicantEmail))) {
       effectiveEmail = String(applicantEmail).toLowerCase().trim();
@@ -121,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
     const jobRow = job[0];
 
-    // Prepare application data (existing behavior, extended)
+    // Prepare application data
     const now = new Date();
     const applicationData: any = {
       jobId: parsedJobId,
@@ -131,8 +128,7 @@ export async function POST(request: NextRequest) {
       updatedAt: now,
     };
 
-    // --- NEW: Always attach the current DB user if available
-    // (This does NOT remove your legacy support; it only enriches the row)
+    // Attach the current DB user if available
     if (dbUser?.id) {
       applicationData.applicantUserId = dbUser.id;
       if (!applicantName) {
@@ -140,8 +136,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Optional legacy (kept): if caller provided applicantUserId explicitly, keep it,
-    // but do not clobber a valid session-derived userId
+    // Respect explicit applicantUserId if not already set from session
     if (applicationData.applicantUserId == null && applicantUserId !== undefined && applicantUserId !== null) {
       const parsedUserId = parseInt(applicantUserId);
       if (!isNaN(parsedUserId)) {
@@ -156,7 +151,7 @@ export async function POST(request: NextRequest) {
       if (!isNaN(uniId)) applicationData.applicantUniversityId = uniId;
     }
 
-    // Optional NEW fields — only add if provided to avoid overwriting defaults/nulls
+    // Optional NEW fields — only add if provided
     const setIf = (key: string, val: any) => {
       if (val !== undefined && val !== null && val !== '') {
         applicationData[key] = val;
@@ -205,8 +200,7 @@ export async function POST(request: NextRequest) {
     setIf('gpa', gpa?.toString());
     setIf('gpaScale', gpaScale?.toString());
 
-    // --- NEW: Idempotency & legacy-upgrade handling
-    // 1) If this user already has an application for this job, return that instead of a new row
+    // --- Idempotency & legacy-upgrade handling
     if (applicationData.applicantUserId) {
       const [existingForUser] = await db
         .select({ id: applications.id })
@@ -222,7 +216,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2) If a legacy row exists for same job + email with NULL user id, "claim" it
     const [legacy] = await db
       .select({ id: applications.id })
       .from(applications)
@@ -234,18 +227,15 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (legacy) {
-      // Attach the user id if present; update other fields provided
       await db
         .update(applications)
         .set({
           ...applicationData,
-          // ensure we don't rewrite createdAt on legacy
           createdAt: undefined,
           updatedAt: new Date(),
         })
         .where(eq(applications.id, legacy.id));
 
-      // Write activity (best-effort)
       try {
         let actorUserId: number | null = null;
         if (dbUser?.id) actorUserId = dbUser.id;
@@ -266,38 +256,32 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error('Failed to write activity for upgraded legacy application:', err);
       }
+
       try {
-  const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
-
-  fetch(`${base}/api/ats/applications/${legacy.id}/ingest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  }).catch(() => {});
-} catch (_) {}
-
-
+        const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+        fetch(`${base}/api/ats/applications/${legacy.id}/ingest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }).catch(() => {});
+      } catch (_) {}
 
       return NextResponse.json({ id: legacy.id, ok: true, upgradedLegacy: true }, { status: 200 });
     }
 
-    // 3) Insert a fresh application
+    // Insert fresh application
     const newApplication = await db
       .insert(applications)
       .values(applicationData)
       .returning();
 
     try {
-  const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+      const base = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+      fetch(`${base}/api/ats/applications/${newApplication[0].id}/ingest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }).catch(() => {});
+    } catch (_) {}
 
-  fetch(`${base}/api/ats/applications/${newApplication[0].id}/ingest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  }).catch(() => {});
-} catch (_) {}
-
-
-
-    // Write activity: applicant applied to job (org scoped)
     try {
       let actorUserId: number | null = null;
       if (dbUser?.id) actorUserId = dbUser.id;
@@ -317,7 +301,6 @@ export async function POST(request: NextRequest) {
       });
     } catch (err) {
       console.error('Failed to write activity for application:', err);
-      // non-fatal
     }
 
     return NextResponse.json(newApplication[0], { status: 201 });
@@ -336,9 +319,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
-    // --- NEW: my applications (student portal) without breaking existing filters
+    // --- MY APPLICATIONS (student portal)
     const mine = searchParams.get('mine'); // if "1", return current user's apps (incl. legacy email-only)
-
     if (mine === '1') {
       const dbUser = await getDbUserFromSession(request);
       if (!dbUser) {
@@ -351,6 +333,8 @@ export async function GET(request: NextRequest) {
           jobId: applications.jobId,
           applicantUserId: applications.applicantUserId,
           applicantEmail: applications.applicantEmail,
+          // ✅ expose name (applicant_name OR users.name)
+          applicantName: sql<string>`COALESCE(${applications.applicantName}, ${users.name})`,
           stage: applications.stage,
           source: applications.source,
           createdAt: applications.createdAt,
@@ -360,6 +344,7 @@ export async function GET(request: NextRequest) {
         })
         .from(applications)
         .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .leftJoin(users, eq(applications.applicantUserId, users.id))
         .where(
           or(
             eq(applications.applicantUserId, dbUser.id),
@@ -373,9 +358,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(results, { status: 200 });
     }
 
-    // ---- EXISTING BEHAVIOR BELOW (kept) ----
-
-    // Single application by ID
+    // ---- Single application by ID
     if (id) {
       const parsedId = parseInt(id);
       if (isNaN(parsedId)) {
@@ -450,7 +433,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(application[0], { status: 200 });
     }
 
-    // List applications with filters
+    // ---- List applications with filters (dashboard)
     const jobId = searchParams.get('jobId');
     const orgId = searchParams.get('orgId');
     const stage = searchParams.get('stage');
@@ -458,7 +441,6 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '10'), 100);
     const offset = parseInt(searchParams.get('offset') ?? '0');
 
-    // For search functionality, we don't require jobId or orgId
     if (!search && !jobId && !orgId) {
       return NextResponse.json(
         { error: 'Either jobId, orgId, or search is required', code: 'MISSING_FILTER_PARAMS' },
@@ -466,12 +448,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build query with join to jobs table
+    // Build query with joins
     let query = db.select({
       id: applications.id,
       jobId: applications.jobId,
       applicantUserId: applications.applicantUserId,
       applicantEmail: applications.applicantEmail,
+      // ✅ expose name (applicant_name OR users.name)
+      applicantName: sql<string>`COALESCE(${applications.applicantName}, ${users.name})`,
       stage: applications.stage,
       source: applications.source,
       createdAt: applications.createdAt,
@@ -480,7 +464,8 @@ export async function GET(request: NextRequest) {
       orgId: jobs.orgId,
     })
       .from(applications)
-      .innerJoin(jobs, eq(applications.jobId, jobs.id));
+      .innerJoin(jobs, eq(applications.jobId, jobs.id))
+      .leftJoin(users, eq(applications.applicantUserId, users.id));
 
     // Apply filters
     const conditions: any[] = [];
@@ -516,7 +501,9 @@ export async function GET(request: NextRequest) {
       conditions.push(
         or(
           like(applications.applicantEmail, searchTerm),
-          like(jobs.title, searchTerm)
+          like(jobs.title, searchTerm),
+          // optional: search by name as well
+          like(sql`COALESCE(${applications.applicantName}, ${users.name})`, searchTerm)
         )
       );
 
@@ -529,13 +516,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (conditions.length > 0) {
-      // @ts-ignore
-      query = query.where(and(...conditions)) as any;
+      // @ts-ignore drizzle type widening
+      query = (query as any).where(and(...conditions));
     }
 
-    // const results = await query.orderBy(asc(applications.createdAt)).limit(limit).offset(offset);
-    const results = await query.limit(limit).offset(offset);
-
+    const results = await (query as any).limit(limit).offset(offset);
     return NextResponse.json(results, { status: 200 });
 
   } catch (error) {
