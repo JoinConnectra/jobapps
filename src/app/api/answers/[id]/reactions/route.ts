@@ -9,7 +9,7 @@ export async function POST(
 ) {
   try {
     const { reaction, explanation } = await request.json();
-
+    
     const answerId = parseInt(params.id, 10);
     if (Number.isNaN(answerId)) {
       return NextResponse.json({ error: "Invalid answer ID" }, { status: 400 });
@@ -39,7 +39,7 @@ export async function POST(
     }
 
     const dbUserId = userResult[0].id;
-
+    
     if (!reaction) {
       return NextResponse.json({ error: "Reaction is required" }, { status: 400 });
     }
@@ -121,10 +121,10 @@ export async function POST(
           answerId,
           applicationId,
           jobId,
-          userId: dbUserId,
-          reaction,
+        userId: dbUserId,
+        reaction,
           explanation: trimmedExplanation,
-          createdAt: new Date(),
+        createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning({ id: answerReactions.id });

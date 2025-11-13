@@ -5,7 +5,9 @@ import { useRouter, useParams } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
-  User, Filter, MoreVertical, ChevronDown, RefreshCcw, Clock, Trash2, AlertTriangle, Check
+  ArrowLeft, User, ListChecks, Clock, BarChartIcon, Filter,
+  Briefcase, Search, HelpCircle, UserPlus, LogOut, Bell, Trash2,
+  AlertTriangle, Check, ChevronDown, MoreVertical, Settings, RefreshCcw
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -17,7 +19,6 @@ import { useCommandPalette } from "@/hooks/use-command-palette";
 interface Application {
   id: number;
   applicantEmail: string;
-  applicantName?: string | null; // full name if available
   stage: string;
   source: string | null;
   createdAt: string;
@@ -56,37 +57,13 @@ type RankResponse = {
   ranked: RankItem[];
 };
 
-/** Map backend stage -> human label */
-function formatStageLabel(stage: string): string {
-  const map: Record<string, string> = {
-    applied: "Applied",
-    reviewing: "Reviewing",
-    assessment: "Assessment",
-    phone_screen: "Phone Screen",
-    onsite: "Onsite",
-    offer: "Offer",
-    hired: "Hired",
-    rejected: "Rejected",
-  };
-  if (map[stage]) return map[stage];
-  return stage
-    .split("_")
-    .map(s => s.charAt(0).toUpperCase() + s.slice(1))
-    .join(" ");
-}
-
 export default function JobApplicationsPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session, isPending } = useSession();
   const { isOpen: isCommandPaletteOpen, open: openCommandPalette, close: closeCommandPalette } = useCommandPalette();
-
   const [job, setJob] = useState<Job | null>(null);
-
-  // Keep ALL applications here, always fetched without stage filter
-  const [allApplications, setAllApplications] = useState<Application[]>([]);
-
-  // UI & controls
+  const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
@@ -98,36 +75,30 @@ export default function JobApplicationsPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // ATS scores mapped by application id
   const [atsByApp, setAtsByApp] = useState<Record<number, { score: number; resumeId: number }>>({});
   const [atsLoading, setAtsLoading] = useState(false);
 
-  // ---- Auth gate ----
   useEffect(() => {
     if (!isPending && !session?.user) {
       router.push("/login");
     }
   }, [session, isPending, router]);
 
-  // ---- Initial data ----
   useEffect(() => {
     if (session?.user && params.id) {
-      fetchJobAndOrg();
-      fetchAllApplications(); // always ALL (unfiltered)
+      fetchData();
+      fetchOrg();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, params.id]);
+  }, [session, params.id, filter]);
 
-  // Refresh ATS whenever the dataset changes
   useEffect(() => {
-    if (allApplications.length) {
+    if (applications.length) {
       fetchAtsScores();
     } else {
       setAtsByApp({});
     }
-  }, [allApplications]);
+  }, [applications]);
 
-  // Close actions menu on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
@@ -135,25 +106,18 @@ export default function JobApplicationsPage() {
         setDropdownOpen(false);
       }
     };
-    if (dropdownOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [dropdownOpen]);
 
-  // ---- Fetchers ----
-  const fetchJobAndOrg = async () => {
+  const fetchOrg = async () => {
     try {
       const token = localStorage.getItem("bearer_token");
-
-      // Job
-      const jobResponse = await fetch(`/api/jobs?id=${params.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (jobResponse.ok) {
-        const jobData = await jobResponse.json();
-        setJob(jobData);
-      }
-
-      // Org (for sidebar)
       const orgResp = await fetch("/api/organizations?mine=true", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -164,27 +128,37 @@ export default function JobApplicationsPage() {
         }
       }
     } catch (error) {
-      console.error("Failed to fetch job/org:", error);
+      console.error("Failed to fetch org:", error);
     }
   };
 
-  const fetchAllApplications = async () => {
-    setLoading(true);
+  const fetchData = async () => {
     try {
       const token = localStorage.getItem("bearer_token");
-      // Always pull ALL; let the client filter for view & counts
-      const appsResponse = await fetch(`/api/applications?jobId=${params.id}`, {
+
+      const jobResponse = await fetch(`/api/jobs?id=${params.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (jobResponse.ok) {
+        const jobData = await jobResponse.json();
+        setJob(jobData);
+      }
+
+      const appsUrl =
+        filter === "all"
+          ? `/api/applications?jobId=${params.id}`
+          : `/api/applications?jobId=${params.id}&stage=${filter}`;
+
+      const appsResponse = await fetch(appsUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       if (appsResponse.ok) {
         const appsData = await appsResponse.json();
-        setAllApplications(appsData || []);
-      } else {
-        setAllApplications([]);
+        setApplications(appsData);
       }
     } catch (error) {
-      console.error("Failed to fetch applications:", error);
-      setAllApplications([]);
+      console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
     }
@@ -216,11 +190,11 @@ export default function JobApplicationsPage() {
     }
   };
 
-  // ---- Mutations ----
   const handleSignOut = async () => {
     const { error } = await authClient.signOut();
-    if (error?.code) toast.error(error.code);
-    else {
+    if (error?.code) {
+      toast.error(error.code);
+    } else {
       localStorage.removeItem("bearer_token");
       router.push("/");
     }
@@ -238,7 +212,7 @@ export default function JobApplicationsPage() {
 
       if (response.ok) {
         toast.success("Application deleted successfully");
-        setAllApplications((prev) => prev.filter((app) => app.id !== deleteDialog.applicationId));
+        setApplications((prev) => prev.filter((app) => app.id !== deleteDialog.applicationId));
         setDeleteDialog({ isOpen: false, applicationId: null, applicantEmail: "" });
       } else {
         const errorData = await response.json();
@@ -263,60 +237,7 @@ export default function JobApplicationsPage() {
     );
   };
 
-  // ---- Derived data ----
-  const stageKeys = [
-    "applied",
-    "reviewing",
-    "assessment",
-    "phone_screen",
-    "onsite",
-    "offer",
-    "hired",
-    "rejected",
-  ] as const;
-
-  const viewApps = useMemo(() => {
-    if (filter === "all") return allApplications;
-    return allApplications.filter((a) => a.stage === filter);
-  }, [allApplications, filter]);
-
-  const stageCounts = useMemo(() => {
-    const base: Record<string, number> = { all: allApplications.length };
-    for (const key of stageKeys) {
-      base[key] = allApplications.filter((a) => a.stage === key).length;
-    }
-    return base;
-  }, [allApplications]);
-
-  const formatScore = (score?: number) => {
-    if (typeof score !== "number" || Number.isNaN(score)) return null;
-    const clamped = Math.max(0, Math.min(1, score));
-    return Math.round(clamped * 100);
-  };
-
-  // ---- Loading / auth ----
-  if (isPending || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-  if (!session?.user || !job) return null;
-
-  const stages = [
-    { value: "all", label: "All", count: stageCounts.all },
-    { value: "applied", label: "Applied", count: stageCounts.applied },
-    { value: "reviewing", label: "Reviewing", count: stageCounts.reviewing },
-    { value: "assessment", label: "Assessment", count: stageCounts.assessment },
-    { value: "phone_screen", label: "Phone Screen", count: stageCounts.phone_screen },
-    { value: "onsite", label: "Onsite", count: stageCounts.onsite },
-    { value: "offer", label: "Offer", count: stageCounts.offer },
-    { value: "hired", label: "Hired", count: stageCounts.hired },
-    { value: "rejected", label: "Rejected", count: stageCounts.rejected },
-  ];
-
-  const selectAllApplications = () => setSelectedApplications(viewApps.map((app) => app.id));
+  const selectAllApplications = () => setSelectedApplications(applications.map((app) => app.id));
   const clearSelection = () => setSelectedApplications([]);
 
   const handleBulkStageUpdate = async (newStage: string) => {
@@ -338,8 +259,8 @@ export default function JobApplicationsPage() {
       );
       const successful = results.filter((r) => r.ok).length;
       if (successful === selectedApplications.length) {
-        toast.success(`Successfully updated ${successful} application${successful > 1 ? "s" : ""} to ${formatStageLabel(newStage)}`);
-        setAllApplications((prev) =>
+        toast.success(`Successfully updated ${successful} application${successful > 1 ? "s" : ""} to ${newStage}`);
+        setApplications((prev) =>
           prev.map((app) => (selectedApplications.includes(app.id) ? { ...app, stage: newStage } : app))
         );
         clearSelection();
@@ -355,19 +276,38 @@ export default function JobApplicationsPage() {
     }
   };
 
+  const formatScore = (score?: number) => {
+    if (typeof score !== "number" || Number.isNaN(score)) return null;
+    return Math.round(Math.max(0, Math.min(1, score)) * 100);
+  };
+
+  if (isPending || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+  if (!session?.user || !job) return null;
+
+  const stages = [
+    { value: "all", label: "All", count: applications.length },
+    { value: "applied", label: "Applied", count: applications.filter((a) => a.stage === "applied").length },
+    { value: "reviewing", label: "Reviewing", count: applications.filter((a) => a.stage === "reviewing").length },
+    { value: "assessment", label: "Assessment", count: applications.filter((a) => a.stage === "assessments").length },
+    { value: "phone_screen", label: "Phone Screen", count: applications.filter((a) => a.stage === "phone_screen").length },
+    { value: "onsite", label: "Onsite", count: applications.filter((a) => a.stage === "onsite").length },
+    { value: "offer", label: "Offer", count: applications.filter((a) => a.stage === "offer").length },
+    { value: "hired", label: "Hired", count: applications.filter((a) => a.stage === "hired").length },
+    { value: "rejected", label: "Rejected", count: applications.filter((a) => a.stage === "rejected").length },
+  ];
+
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
       <CompanySidebar
         org={org}
         user={session.user}
-        onSignOut={async () => {
-          const { error } = await authClient.signOut();
-          if (error?.code) toast.error(error.code);
-          else {
-            localStorage.removeItem("bearer_token");
-            router.push("/");
-          }
-        }}
+        onSignOut={handleSignOut}
         onOpenSettings={() => setIsSettingsOpen(true)}
         active="jobs"
       />
@@ -395,7 +335,7 @@ export default function JobApplicationsPage() {
                     {job.title} - Applications
                   </h2>
                   <p className="text-sm text-gray-500">
-                    {allApplications.length} total application{allApplications.length !== 1 ? "s" : ""}
+                    {applications.length} total application{applications.length !== 1 ? "s" : ""}
                   </p>
                 </div>
 
@@ -462,13 +402,13 @@ export default function JobApplicationsPage() {
                         {bulkActionMode && (
                           <>
                             <button
-                              onClick={() => { setSelectedApplications(viewApps.map((a) => a.id)); setDropdownOpen(false); }}
+                              onClick={() => { selectAllApplications(); setDropdownOpen(false); }}
                               className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                             >
-                              Select All (this view)
+                              Select All
                             </button>
                             <button
-                              onClick={() => { setSelectedApplications([]); setDropdownOpen(false); }}
+                              onClick={() => { clearSelection(); setDropdownOpen(false); }}
                               className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                             >
                               Clear Selection
@@ -485,8 +425,8 @@ export default function JobApplicationsPage() {
                             {stages.slice(1).map((stage) => (
                               <button
                                 key={stage.value}
-                                onClick={() => { /* bulk move */ }}
-                                disabled={true /* wired in earlier block */}
+                                onClick={() => { handleBulkStageUpdate(stage.value); setDropdownOpen(false); }}
+                                disabled={bulkActionLoading || selectedApplications.length === 0}
                                 className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Move to {stage.label}
@@ -518,18 +458,16 @@ export default function JobApplicationsPage() {
                 </div>
               )}
 
-              {viewApps.length === 0 ? (
+              {applications.length === 0 ? (
                 <div className="text-center py-12">
                   <User className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-500">No applications found for this filter</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {viewApps.map((app) => {
+                  {applications.map((app) => {
                     const entry = atsByApp[app.id];
-                    const pct = (typeof entry?.score === "number" && !Number.isNaN(entry.score))
-                      ? Math.round(Math.max(0, Math.min(1, entry.score)) * 100)
-                      : null;
+                    const pct = formatScore(entry?.score);
 
                     let ringColor = "stroke-gray-300";
                     let textColor = "text-gray-700";
@@ -539,18 +477,16 @@ export default function JobApplicationsPage() {
                     } else if (pct != null && pct >= 60) {
                       ringColor = "stroke-yellow-500";
                       textColor = "text-yellow-700";
-                    } else if (pct != null && pct >= 30) {
+                    }else if (pct != null && pct >= 30) {
                       ringColor = "stroke-red-500";
                       textColor = "text-red-700";
                     }
-
-                    const displayName = app.applicantName?.trim() || app.applicantEmail;
 
                     return (
                       <div
                         key={app.id}
                         className={`p-5 hover:bg-gray-50 transition-colors ${
-                          selectedApplications.includes(app.id)
+                          bulkActionMode && selectedApplications.includes(app.id)
                             ? "bg-blue-50 border-l-4 border-blue-500"
                             : ""
                         }`}
@@ -574,15 +510,11 @@ export default function JobApplicationsPage() {
                               <div className="w-8 h-8 bg-orange-100 rounded flex items-center justify-center">
                                 <User className="w-4 h-4 text-orange-600" />
                               </div>
-
                               <div>
-                                {/* Name (primary) + ATS badge */}
                                 <div className="flex items-center gap-3">
-                                  <h3 className="text-sm font-medium text-gray-900">
-                                    {displayName}
-                                  </h3>
+                                  <h3 className="text-sm font-medium text-gray-900">{app.applicantEmail}</h3>
 
-                                  {/* ATS SCORE CIRCLE */}
+                                  {/* ✅ NEW: BIG ATS SCORE CIRCLE */}
                                   <div className="flex items-center">
                                     {pct != null ? (
                                       <div className="relative w-10 h-10" title={`ATS ${pct}%`}>
@@ -623,12 +555,6 @@ export default function JobApplicationsPage() {
                                   </div>
                                 </div>
 
-                                {/* Email under the name */}
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                  {app.applicantEmail}
-                                </div>
-
-                                {/* Meta row */}
                                 <div className="flex items-center gap-2 mt-1">
                                   <Clock className="w-3 h-3 text-gray-500" />
                                   <span className="text-xs text-gray-500">
@@ -655,7 +581,7 @@ export default function JobApplicationsPage() {
                                   : "bg-blue-100 text-blue-700"
                               }`}
                             >
-                              {formatStageLabel(app.stage)}
+                              {app.stage}
                             </span>
 
                             {!bulkActionMode && (
@@ -712,7 +638,7 @@ export default function JobApplicationsPage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <Button onClick={() => setDeleteDialog({ isOpen: false, applicationId: null, applicantEmail: "" })} variant="outline" className="flex-1" disabled={deleting}>
+                <Button onClick={closeDeleteDialog} variant="outline" className="flex-1" disabled={deleting}>
                   Cancel
                 </Button>
                 <Button onClick={handleDeleteApplication} variant="destructive" className="flex-1" disabled={deleting}>

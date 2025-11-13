@@ -50,8 +50,6 @@ import {
   Save,
   X,
   Settings,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import CommandPalette from "@/components/CommandPalette";
@@ -85,51 +83,6 @@ interface Job {
   location?: string | null;
   seniority?: "junior" | "mid" | "senior" | null;
   skillsCsv?: string | null;
-}
-
-/** Small, dependency-free collapsible text with gradient fade + toggler */
-function CollapsibleText({
-  text,
-  previewChars = 300,
-}: {
-  text: string;
-  previewChars?: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  if (!text || text.trim().length === 0) return null;
-
-  const needsToggle = text.length > previewChars;
-  const shown = expanded || !needsToggle ? text : text.slice(0, previewChars).trimEnd() + "…";
-
-  return (
-    <div className="relative">
-      <pre className="whitespace-pre-wrap text-sm text-gray-600">{shown}</pre>
-
-      {/* fade overlay only when truncated */}
-      {!expanded && needsToggle && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
-      )}
-
-      {needsToggle && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:text-gray-900"
-        >
-          {expanded ? (
-            <>
-              See less <ChevronUp className="w-3.5 h-3.5" />
-            </>
-          ) : (
-            <>
-              See more <ChevronDown className="w-3.5 h-3.5" />
-            </>
-          )}
-        </button>
-      )}
-    </div>
-  );
 }
 
 export default function JobDetailPage() {
@@ -603,10 +556,9 @@ export default function JobDetailPage() {
                         ) : null}
                       </div>
 
-                      {/* DESCRIPTION: collapsible with "see more / less" */}
                       {job.descriptionMd && (
-                        <div className="mt-3">
-                          <CollapsibleText text={job.descriptionMd} previewChars={400} />
+                        <div className="mt-2 text-sm text-gray-600 max-w-2xl">
+                          {job.descriptionMd}
                         </div>
                       )}
                     </div>

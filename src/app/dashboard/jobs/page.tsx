@@ -42,9 +42,11 @@ import {
   Edit,
   Filter,
   ChevronDown,
+  ChevronRight,
   LayoutGrid,
   Rows,
   ArrowUpDown,
+  Command as CommandIcon,
   Sparkles,
   Loader2,
   GraduationCap,
@@ -135,9 +137,9 @@ export default function AllJobsPage() {
   const [modeFilter, setModeFilter] = useState<ModeFilter>("all"); // display only
   const [sortKey, setSortKey] = useState<SortKey>("createdAt"); // display only
   const [sortDir, setSortDir] = useState<SortDir>("desc"); // display only
-  const [viewMode, setViewMode] = useState<ViewMode>("list"); // 🔄 default to LIST
+  const [viewMode, setViewMode] = useState<ViewMode>("grid"); // display only
 
-  // Search (simple + immediate)
+  // Search (simple + immediate like old code)
   const [searchQuery, setSearchQuery] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -227,7 +229,7 @@ export default function AllJobsPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [openCommandPalette]);
 
-  // Load jobs on session ready or status/search change
+  // Load jobs on session ready or status/search change (old behavior)
   useEffect(() => {
     if (session?.user && orgId) fetchJobs();
   }, [session, orgId, statusFilter, searchQuery]);
@@ -244,12 +246,12 @@ export default function AllJobsPage() {
         orgIdParam = `&orgId=${orgId}`;
       } else {
         const orgResp = await fetch("/api/organizations?mine=true", { headers: { Authorization: `Bearer ${token}` } });
-        if (orgResp.ok) {
-          const orgs = await orgResp.json();
-          if (Array.isArray(orgs) && orgs.length > 0) {
-            setOrgId(orgs[0].id);
-            setOrg(orgs[0]);
-            orgIdParam = `&orgId=${orgs[0].id}`;
+      if (orgResp.ok) {
+        const orgs = await orgResp.json();
+        if (Array.isArray(orgs) && orgs.length > 0) {
+          setOrgId(orgs[0].id);
+          setOrg(orgs[0]);
+          orgIdParam = `&orgId=${orgs[0].id}`;
           }
         }
       }
@@ -264,7 +266,7 @@ export default function AllJobsPage() {
       if (response.ok) {
         const data = await response.json();
 
-        // 4) For each job, fetch applications to compute simple stage counts
+        // 4) For each job, fetch applications to compute simple stage counts (old behavior)
         const jobsWithStats = await Promise.all(
           data.map(async (job: Job) => {
             try {
@@ -290,19 +292,43 @@ export default function AllJobsPage() {
                 const applications = await appsResp.json();
                 totalCandidates = applications.length;
                 applications.forEach((app: any) => {
-                  if (app.source && app.source.trim() !== "") stats.sourced++;
+                  // Count sourced: applications with a non-empty source field
+                  if (app.source && app.source.trim() !== "") {
+                    stats.sourced++;
+                  }
+                  
+                  // Count by stage
                   switch (app.stage) {
-                    case "applied": stats.applied++; break;
-                    case "reviewing": stats.reviewing++; break;
-                    case "phone_screen": stats.phone_screen++; break;
+                    case "applied":
+                      stats.applied++;
+                      break;
+                    case "reviewing":
+                      stats.reviewing++;
+                      break;
+                    case "phone_screen":
+                      stats.phone_screen++;
+                      break;
                     case "assessment":
-                    case "assessments": stats.assessment++; break;
-                    case "onsite": stats.onsite++; break;
-                    case "offer": stats.offer++; break;
-                    case "hired": stats.hired++; break;
-                    case "rejected": stats.rejected++; break;
+                    case "assessments":
+                      stats.assessment++;
+                      break;
+                    case "onsite":
+                      stats.onsite++;
+                      break;
+                    case "offer":
+                      stats.offer++;
+                      break;
+                    case "hired":
+                      stats.hired++;
+                      break;
+                    case "rejected":
+                      stats.rejected++;
+                      break;
                     default:
-                      if (!app.stage || app.stage === "") stats.applied++;
+                      // If stage is not set or unknown, count as applied
+                      if (!app.stage || app.stage === "") {
+                        stats.applied++;
+                      }
                       break;
                   }
                 });
@@ -317,9 +343,16 @@ export default function AllJobsPage() {
             } catch {
               return {
                 ...job,
-                applicationStats: { 
-                  sourced: 0, applied: 0, reviewing: 0, phone_screen: 0,
-                  assessment: 0, onsite: 0, offer: 0, hired: 0, rejected: 0 
+                applicationStats: {
+                  sourced: 0,
+                  applied: 0,
+                  reviewing: 0, 
+                  phone_screen: 0, 
+                  assessment: 0, 
+                  onsite: 0,
+                  offer: 0,
+                  hired: 0,
+                  rejected: 0 
                 },
                 totalCandidates: 0,
                 createdBy: session?.user?.name || "You",
@@ -540,36 +573,12 @@ export default function AllJobsPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="mt-3 text-sm text-muted-foreground">Loading jobs…</p>
         </div>
       </div>
     );
   }
   if (!session?.user) return null;
-
-  // Reusable per-stage counts strip
-  const StageStrip = ({ job }: { job: JobWithStats }) => {
-    const statusConfig = [
-      { key: 'sourced' as const, label: 'SOURCED' },
-      { key: 'applied' as const, label: 'APPLIED' },
-      { key: 'reviewing' as const, label: 'REVIEWING' },
-      { key: 'phone_screen' as const, label: 'PHONE SCREEN' },
-      { key: 'assessment' as const, label: 'ASSESSMENT' },
-      { key: 'onsite' as const, label: 'ON-SITE' },
-      { key: 'offer' as const, label: 'OFFER' },
-      { key: 'hired' as const, label: 'HIRED' },
-      { key: 'rejected' as const, label: 'REJECTED' },
-    ];
-    return (
-      <div className="grid gap-1.5 grid-cols-9 overflow-x-auto">
-        {statusConfig.map(({ key, label }) => (
-          <div key={key} className="text-center min-w-[60px] flex-shrink-0">
-            <div className="text-sm font-semibold text-gray-900">{job.applicationStats[key]}</div>
-            <div className="text-[9px] text-gray-500 leading-tight whitespace-nowrap">{label}</div>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
@@ -602,7 +611,7 @@ export default function AllJobsPage() {
                 <span className="text-gray-400">›</span>
                 <span className="text-gray-900 font-medium">Jobs</span>
               </nav>
-            </div>
+          </div>
 
             {/* KPI Row - Only show when NOT creating a job */}
             {searchParams?.get("create") !== "1" && (
@@ -618,156 +627,156 @@ export default function AllJobsPage() {
             {searchParams?.get("create") !== "1" && (
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-6 sm:px-8 py-3">
-                  {/* Two columns that wrap on small screens */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    {/* LEFT: status chips + filters */}
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Status chips with counts */}
-                        <div className="flex flex-wrap bg-gray-100 rounded-lg p-1">
-                          {([
-                            ["all", countsByStatus.all, "All"],
-                            ["published", countsByStatus.published, "Published"],
-                            ["draft", countsByStatus.draft, "Draft"],
-                            ["archived", countsByStatus.archived, "Archived"],
-                          ] as [StatusFilter, number, string][]).map(([key, count, label]) => (
-                            <button
-                              key={key}
-                              onClick={() => setStatusFilter(key)}
+                {/* Two columns that wrap on small screens */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {/* LEFT: status chips + filters */}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Status chips with counts */}
+                      <div className="flex flex-wrap bg-gray-100 rounded-lg p-1">
+                        {([
+                          ["all", countsByStatus.all, "All"],
+                          ["published", countsByStatus.published, "Published"],
+                          ["draft", countsByStatus.draft, "Draft"],
+                          ["archived", countsByStatus.archived, "Archived"],
+                        ] as [StatusFilter, number, string][]).map(([key, count, label]) => (
+                          <button
+                            key={key}
+                            onClick={() => setStatusFilter(key)}
+                            className={[
+                              "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+                              statusFilter === key ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                            ].join(" ")}
+                          >
+                            <span>{label}</span>
+                            <span
                               className={[
-                                "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                                statusFilter === key ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                                "px-1.5 py-0.5 text-[10px] rounded-md",
+                                statusFilter === key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700",
                               ].join(" ")}
                             >
-                              <span>{label}</span>
-                              <span
-                                className={[
-                                  "px-1.5 py-0.5 text-[10px] rounded-md",
-                                  statusFilter === key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-700",
-                                ].join(" ")}
-                              >
-                                {count}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
+                              {count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
 
-                        {/* Extra filters (visual only; do not affect API in this hybrid) */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Filter className="h-4 w-4 text-gray-400 hidden md:block" />
-                          <Select value={timeFilter} onValueChange={(v: TimeFilter) => setTimeFilter(v)}>
-                            <SelectTrigger className="w-40"><SelectValue placeholder="Time" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All time</SelectItem>
-                              <SelectItem value="7d">Last 7 days</SelectItem>
-                              <SelectItem value="30d">Last 30 days</SelectItem>
-                              <SelectItem value="90d">Last 90 days</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      {/* Extra filters (visual only; do not affect API in this hybrid) */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Filter className="h-4 w-4 text-gray-400 hidden md:block" />
+                        <Select value={timeFilter} onValueChange={(v: TimeFilter) => setTimeFilter(v)}>
+                          <SelectTrigger className="w-40"><SelectValue placeholder="Time" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All time</SelectItem>
+                            <SelectItem value="7d">Last 7 days</SelectItem>
+                            <SelectItem value="30d">Last 30 days</SelectItem>
+                            <SelectItem value="90d">Last 90 days</SelectItem>
+                          </SelectContent>
+                        </Select>
 
-                          <Select value={seniorityFilter} onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}>
-                            <SelectTrigger className="w-40"><SelectValue placeholder="Seniority" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All levels</SelectItem>
-                              <SelectItem value="junior">Junior</SelectItem>
-                              <SelectItem value="mid">Mid</SelectItem>
-                              <SelectItem value="senior">Senior</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <Select value={seniorityFilter} onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}>
+                          <SelectTrigger className="w-40"><SelectValue placeholder="Seniority" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All levels</SelectItem>
+                            <SelectItem value="junior">Junior</SelectItem>
+                            <SelectItem value="mid">Mid</SelectItem>
+                            <SelectItem value="senior">Senior</SelectItem>
+                          </SelectContent>
+                        </Select>
 
-                          <Select value={modeFilter} onValueChange={(v: ModeFilter) => setModeFilter(v)}>
-                            <SelectTrigger className="w-40"><SelectValue placeholder="Mode" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All modes</SelectItem>
-                              <SelectItem value="remote">Remote</SelectItem>
-                              <SelectItem value="hybrid">Hybrid</SelectItem>
-                              <SelectItem value="onsite">On-site</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        <Select value={modeFilter} onValueChange={(v: ModeFilter) => setModeFilter(v)}>
+                          <SelectTrigger className="w-40"><SelectValue placeholder="Mode" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All modes</SelectItem>
+                            <SelectItem value="remote">Remote</SelectItem>
+                            <SelectItem value="hybrid">Hybrid</SelectItem>
+                            <SelectItem value="onsite">On-site</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
+        </div>
 
-                    {/* RIGHT: search, sort, view toggle */}
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 min-w-0">
-                        {/* Search */}
-                        <div className="relative w-full sm:w-72" title="Press / to focus">
-                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                          <Input
-                            ref={searchRef}
-                            placeholder="Search by title, location, owner"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9"
-                          />
-                        </div>
-
-                        {/* Sort (display only) */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="gap-2">
-                              <ArrowUpDown className="h-4 w-4" />
-                              Sort
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuItem onClick={() => setSortKey("createdAt")}>
-                              Created {sortKey === "createdAt" ? "•" : ""}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSortKey("candidates")}>
-                              Candidates {sortKey === "candidates" ? "•" : ""}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}>
-                              Direction: {sortDir.toUpperCase()}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        {/* View toggle */}
-                        <div className="flex bg-gray-100 rounded-lg p-1">
-                          <button
-                            onClick={() => setViewMode("list")}
-                            className={[
-                              "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                              viewMode === "list" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
-                            ].join(" ")}
-                            title="G to toggle"
-                          >
-                            <Rows className="h-4 w-4" />
-                            List
-                          </button>
-                          <button
-                            onClick={() => setViewMode("grid")}
-                            className={[
-                              "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                              viewMode === "grid" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
-                            ].join(" ")}
-                            title="G to toggle"
-                          >
-                            <LayoutGrid className="h-4 w-4" />
-                            Grid
-                          </button>
-                        </div>
-
-                        {/* (Removed) New Job button from toolbar */}
+                  {/* RIGHT: search, sort, view toggle */}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 min-w-0">
+                      {/* Search (full width on mobile to avoid overflow) */}
+                      <div className="relative w-full sm:w-72" title="Press / to focus">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <Input
+                          ref={searchRef}
+                          placeholder="Search by title, location, owner"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-9"
+                        />
                       </div>
-                    </div>
-                  </div>
+
+                      {/* Sort (display only in this hybrid) */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="gap-2">
+                            <ArrowUpDown className="h-4 w-4" />
+                            Sort
+                            <ChevronDown className="h-4 w-4" />
+            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => setSortKey("createdAt")}>
+                            Created {sortKey === "createdAt" ? "•" : ""}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSortKey("candidates")}>
+                            Candidates {sortKey === "candidates" ? "•" : ""}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}>
+                            Direction: {sortDir.toUpperCase()}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      {/* View toggle (display only) */}
+                      <div className="flex bg-gray-100 rounded-lg p-1">
+                        <button
+                          onClick={() => setViewMode("grid")}
+                          className={[
+                            "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+                            viewMode === "grid" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                          ].join(" ")}
+                          title="G to toggle"
+                        >
+                          <LayoutGrid className="h-4 w-4" />
+                          Grid
+                        </button>
+                        <button
+                          onClick={() => setViewMode("list")}
+                          className={[
+                            "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+                            viewMode === "list" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                          ].join(" ")}
+                          title="G to toggle"
+            >
+                          <Rows className="h-4 w-4" />
+                          List
+                        </button>
+          </div>
+
+                      {/* (Removed) New Job button from toolbar */}
+            </div>
+          </div>
+        </div>
                 </div>
               </div>
             )}
           </div>
-        </div>
+            </div>
 
-        {/* CONTENT (Jobs) */}
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-0">
+        {/* CONTENT (Jobs as spaced tiles) */}
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8">
           {/* Job Creation Form - Shows when ?create=1 */}
-          {searchParams?.get("create") === "1" && (
-            <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Create a Job</h2>
+            {searchParams?.get("create") === "1" && (
+              <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Create a Job</h2>
                 <Button
                   variant="ghost"
                   onClick={() => router.push("/dashboard/jobs")}
@@ -775,7 +784,7 @@ export default function AllJobsPage() {
                 >
                   Cancel
                 </Button>
-              </div>
+                </div>
 
               {!orgId ? (
                 <div className="text-center py-8">
@@ -931,6 +940,7 @@ export default function AllJobsPage() {
                     </div>
                   </div>
 
+                  {/* University Selection - Only show when institutions or both is selected */}
                   {(form.visibility === 'institutions' || form.visibility === 'both') && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -1000,181 +1010,137 @@ export default function AllJobsPage() {
                   </div>
                 </form>
               )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* ======= LIST / GRID SWITCH ======= */}
           <div className="">
-            {jobs.length === 0 ? (
-              // Empty state
+              {jobs.length === 0 ? (
+              // Empty state (kept simple)
               <div className="text-center py-16 bg-white rounded-lg shadow-sm">
-                <div className="flex items-center justify-center mb-6">
-                  <div className="w-16 h-16 border-2 border-gray-300 rounded-lg flex items-center justify-center">
-                    <div className="w-8 h-8 border border-gray-300 rounded-sm flex items-center justify-center">
-                      <Plus className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center justify-center mb-6">
+                    <div className="w-16 h-16 border-2 border-gray-300 rounded-lg flex items-center justify-center">
+                      <div className="w-8 h-8 border border-gray-300 rounded-sm flex items-center justify-center">
+                        <Plus className="w-4 h-4 text-gray-400" />
+                      </div>
                     </div>
                   </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Post a job</h3>
+                  <p className="text-sm text-gray-500 mb-6">Once you do, they will sit right here for you</p>
+                  <Button
+                    onClick={() => router.push("/dashboard/jobs?create=1")}
+                    className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
+                  >
+                    Create your first job
+                  </Button>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Post a job</h3>
-                <p className="text-sm text-gray-500 mb-6">Once you do, they will sit right here for you</p>
-                <Button
-                  onClick={() => router.push("/dashboard/jobs?create=1")}
-                  className="bg-[#6a994e] hover:bg-[#5a8a3e] text-white"
-                >
-                  Create your first job
-                </Button>
-              </div>
-            ) : viewMode === "list" ? (
-              // ======= LIST VIEW =======
+              ) : (
+              // Spaced tiles; keep stage counts in ONE LINE (6 columns)
               <ul className="space-y-2 sm:space-y-3">
-                {jobs.map((job) => (
+                  {jobs.map((job) => (
                   <li
                     key={job.id}
                     className="rounded-xl border border-gray-200 bg-white px-5 py-6 md:py-7 shadow-sm hover:shadow transition-shadow"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      {/* Job title / meta */}
+                      <div className="flex items-center justify-between mb-3">
+                        {/* Job title / meta */}
                       <Link href={`/dashboard/jobs/${job.id}`} className="flex-1 cursor-pointer min-w-0">
-                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3">
                           <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
-                            {job.title}
-                          </h3>
+                              {job.title}
+                            </h3>
                           {job.locationMode && <span className="text-xs text-gray-500">{job.locationMode}</span>}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {job.totalCandidates} candidates • {job.createdBy} •{" "}
-                          {new Date(job.createdAt).toLocaleDateString()}
-                        </div>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {job.totalCandidates} candidates • {job.createdBy} •{" "}
+                            {new Date(job.createdAt).toLocaleDateString()}
+                          </div>
 
+                        {/* Location only */}
                         {job.location && (
                           <div className="text-xs text-gray-500 mt-1">
                             <span>📍 {job.location}</span>
                           </div>
                         )}
-                      </Link>
+                        </Link>
 
-                      {/* Status badge + row actions */}
+                        {/* Status badge + row actions */}
                       <div className="flex items-center gap-2 shrink-0 pl-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusPill(job.status)}`}>
                           {job.status === "closed" ? "archived" : job.status}
-                        </span>
+                          </span>
 
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/jobs/${job.id}`)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Job
-                            </DropdownMenuItem>
-
-                            {job.status === "published" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "draft")}>
-                                Move to Draft
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => router.push(`/dashboard/jobs/${job.id}`)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit Job
                               </DropdownMenuItem>
-                            )}
-                            {job.status === "draft" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "published")}>
-                                Publish
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleStatusChange(job.id, "closed")}>
-                              Archive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(job.id)} className="text-red-600">
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
 
-                    <Link href={`/dashboard/jobs/${job.id}`} className="block cursor-pointer">
-                      <StageStrip job={job} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              // ======= GRID VIEW =======
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {jobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow transition-shadow flex flex-col"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <Link href={`/dashboard/jobs/${job.id}`} className="min-w-0">
-                        <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
-                          {job.title}
-                        </h3>
-                        <div className="text-[11px] text-gray-500 mt-1">
-                          {new Date(job.createdAt).toLocaleDateString()} • {job.createdBy}
+                              {job.status === "published" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(job.id, "draft")}>
+                                  Move to Draft
+                                </DropdownMenuItem>
+                              )}
+                              {job.status === "draft" && (
+                                <DropdownMenuItem onClick={() => handleStatusChange(job.id, "published")}>
+                                  Publish
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "closed")}>
+                                Archive
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDelete(job.id)} className="text-red-600">
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        {job.location && (
-                          <div className="text-xs text-gray-500 mt-1 truncate">📍 {job.location}</div>
-                        )}
-                        {job.locationMode && (
-                          <div className="text-[11px] text-gray-500 mt-0.5">{job.locationMode}</div>
-                        )}
-                      </Link>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusPill(job.status)}`}>
-                          {job.status === "closed" ? "archived" : job.status}
-                        </span>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/jobs/${job.id}`)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Job
-                            </DropdownMenuItem>
-                            {job.status === "published" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "draft")}>
-                                Move to Draft
-                              </DropdownMenuItem>
-                            )}
-                            {job.status === "draft" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "published")}>
-                                Publish
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleStatusChange(job.id, "closed")}>
-                              Archive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(job.id)} className="text-red-600">
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
-                    </div>
 
-                   <div className="mt-4 text-xs text-gray-600">
-  <span className="font-medium">{job.totalCandidates}</span> candidates
-</div>
-
-                  </div>
-                ))}
-              </div>
-            )}
+                    {/* Per-stage counts (ONE LINE, dynamic grid based on number of statuses) */}
+                      <Link href={`/dashboard/jobs/${job.id}`} className="block cursor-pointer">
+                      {(() => {
+                        // Define all statuses in pipeline order with display labels
+                        const statusConfig = [
+                          { key: 'sourced' as const, label: 'SOURCED' },
+                          { key: 'applied' as const, label: 'APPLIED' },
+                          { key: 'reviewing' as const, label: 'REVIEWING' },
+                          { key: 'phone_screen' as const, label: 'PHONE SCREEN' },
+                          { key: 'assessment' as const, label: 'ASSESSMENT' },
+                          { key: 'onsite' as const, label: 'ON-SITE' },
+                          { key: 'offer' as const, label: 'OFFER' },
+                          { key: 'hired' as const, label: 'HIRED' },
+                          { key: 'rejected' as const, label: 'REJECTED' },
+                        ];
+                        
+                        return (
+                          <div className="grid gap-1.5 grid-cols-9 overflow-x-auto">
+                            {statusConfig.map(({ key, label }) => (
+                              <div key={key} className="text-center min-w-[60px] flex-shrink-0">
+                                <div className="text-sm font-semibold text-gray-900">{job.applicationStats[key]}</div>
+                                <div className="text-[9px] text-gray-500 leading-tight whitespace-nowrap">{label}</div>
+                          </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      </Link>
+                  </li>
+                  ))}
+              </ul>
+              )}
+            </div>
           </div>
-        </div>
 
         {/* Command palette */}
         <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
-
+        
         {/* Settings modal */}
         <SettingsModal
           isOpen={isSettingsOpen}
@@ -1210,6 +1176,6 @@ export default function AllJobsPage() {
           }
         />
       </main>
-    </div>
-  );
-}
+      </div>
+    );
+  }
