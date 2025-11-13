@@ -2,10 +2,18 @@
 
 import { ArrowRight, Menu } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSession } from '@/lib/auth-client';
+import { useEffect } from 'react';
 
 const HeaderNavigation = () => {
   const { data: session, isPending } = useSession();
+
+  // Preload logo image on mount to eliminate lag
+  useEffect(() => {
+    const logoImg = new window.Image();
+    logoImg.src = '/images/talentflow-logo.svg';
+  }, []);
 
   const navLinks = [
     { href: '/#features', label: 'Features' },
@@ -17,7 +25,16 @@ const HeaderNavigation = () => {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-12 lg:px-16 xl:px-20">
         {/* Left side: Logo + Features */}
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/images/talentflow-logo.svg"
+              alt="TalentFlow logo"
+              width={36}
+              height={36}
+              className="flex-shrink-0"
+              priority
+              unoptimized
+            />
             <span className="font-display text-2xl font-bold text-gray-900 tracking-tight">
               TalentFlow
             </span>
