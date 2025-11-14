@@ -1,6 +1,7 @@
 import HeaderNavigation from '@/components/sections/header-navigation';
 import Footer from '@/components/sections/footer';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function BlogPage() {
   return (
@@ -26,12 +27,25 @@ export default function BlogPage() {
               <div className="flex flex-col md:flex-row h-[180px] md:h-[200px]">
                 {/* Left side - Thumbnail (40%) */}
                 <div className="md:w-[40%] w-full h-full relative flex-shrink-0">
-                  <div 
-                    className="absolute inset-0"
-                    style={{
-                      background: 'linear-gradient(to right, #a8d5ba 0%, #2d5f4f 100%)',
-                    }}
+                  <Image
+                    src="/images/20-questions.png"
+                    alt="20 questions blog post"
+                    fill
+                    className="object-cover"
+                    priority
                   />
+                  {/* Company logo in the middle */}
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <Image
+                      src="/images/talentflow-logo.svg"
+                      alt="Connectra logo"
+                      width={80}
+                      height={80}
+                      className="brightness-0 invert opacity-90"
+                      priority
+                      unoptimized
+                    />
+                  </div>
                 </div>
 
                 {/* Right side - Content (60%) */}

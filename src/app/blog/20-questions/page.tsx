@@ -35,21 +35,28 @@ export default function BlogPostPage() {
       {/* Blog post content */}
       <article className="pt-24 pb-16 md:pt-32 md:pb-20">
         <div className="max-w-3xl mx-auto px-6">
-          {/* Header image with gradient */}
+          {/* Header image */}
           <div className="mb-8 md:mb-12 rounded-lg overflow-hidden">
-            <div 
-              className="w-full h-[300px] md:h-[400px] relative flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(to right, #a8d5ba 0%, #2d5f4f 100%)',
-              }}
-            >
+            <div className="w-full h-[300px] md:h-[400px] relative">
               <Image
-                src="/images/talentflow-logo.svg"
-                alt="Connectra logo"
-                width={120}
-                height={120}
-                className="opacity-90 brightness-0 invert"
+                src="/images/20-questions.png"
+                alt="20 questions blog post"
+                fill
+                className="object-cover"
+                priority
               />
+              {/* Company logo in the middle */}
+              <div className="absolute inset-0 flex items-center justify-center z-10">
+                <Image
+                  src="/images/talentflow-logo.svg"
+                  alt="Connectra logo"
+                  width={120}
+                  height={120}
+                  className="brightness-0 invert opacity-90"
+                  priority
+                  unoptimized
+                />
+              </div>
             </div>
           </div>
 
