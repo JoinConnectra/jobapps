@@ -439,7 +439,7 @@ export default function ActivityFeatureSection() {
               Streamline your hiring process from start to finish
             </h2>
             <p className="text-sm md:text-base text-[#666666] leading-relaxed">
-              TalentFlow Activity enables seamless collaboration throughout the entire recruitment journey. From initial candidate review to team discussions, status updates, automatic notifications, and final hiring decisions—all tracked in one unified timeline.
+              Connectra Activity enables seamless collaboration throughout the entire recruitment journey. From initial candidate review to team discussions, status updates, automatic notifications, and final hiring decisions—all tracked in one unified timeline.
             </p>
           </div>
 

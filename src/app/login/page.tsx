@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { getDashboardUrl } from "@/lib/auth-redirect";
+import Image from "next/image";
 
 /** Helper: fetch accountType for an email (or current session if email omitted) */
 async function fetchAccountType(email?: string | null): Promise<"applicant" | "employer" | "university" | null> {
@@ -172,6 +173,18 @@ export default function LoginPage() {
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: "url('/login/bg-2.png')" }}
         />
+        {/* Logo in top right corner */}
+        <div className="absolute top-6 right-6 z-10">
+          <Image
+            src="/images/talentflow-logo.svg"
+            alt="Connectra logo"
+            width={48}
+            height={48}
+            className="brightness-0 invert"
+            priority
+            unoptimized
+          />
+        </div>
       </div>
 
       {/* Right Side - Login Form */}

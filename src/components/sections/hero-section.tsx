@@ -16,7 +16,7 @@ export default function HeroSection() {
           <br />
           candidates efficiently, and speed up your
           <br />
-          hiring pipeline with TalentFlow.
+          hiring pipeline with Connectra.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

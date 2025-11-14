@@ -118,7 +118,7 @@ export default function AnimatedSearchSection() {
           {/* Right side - Description */}
           <div className="flex items-center">
             <p className="text-sm md:text-base lg:text-lg text-[#666666] leading-relaxed">
-              TalentFlow's AI-powered job description generator helps companies create compelling, accurate job postings in seconds. Simply describe the role you need, and our AI crafts professional job descriptions tailored to your company culture and requirements.
+              Connectra's AI-powered job description generator helps companies create compelling, accurate job postings in seconds. Simply describe the role you need, and our AI crafts professional job descriptions tailored to your company culture and requirements.
             </p>
           </div>
         </div>
@@ -163,7 +163,7 @@ export default function AnimatedSearchSection() {
                   <button className="ml-1 flex-shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-colors">
                     <Image
                       src="/images/talentflow-logo.svg"
-                      alt="TalentFlow logo"
+                      alt="Connectra logo"
                       width={32}
                       height={32}
                       className="w-8 h-8 animate-spin-slow"

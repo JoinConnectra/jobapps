@@ -18,7 +18,7 @@ const FinalCtaSection = () => {
                 Ready to transform your hiring?
               </h2>
               <p className="text-white text-xs md:text-sm leading-relaxed mb-4 md:mb-5">
-                Schedule a call with our team to learn how TalentFlow can transform
+                Schedule a call with our team to learn how Connectra can transform
                 <br />
                 and simplify your hiring process.
               </p>
@@ -34,7 +34,7 @@ const FinalCtaSection = () => {
             <div className="absolute bottom-0 right-0 w-[50%] md:w-[45%] lg:w-[40%] h-[60%] md:h-[70%] overflow-hidden">
               <Image
                 src="/images/activities-section.png"
-                alt="TalentFlow dashboard showcase"
+                alt="Connectra dashboard showcase"
                 fill
                 className="object-cover "
                 style={{

@@ -45,7 +45,7 @@ export default function BlogPostPage() {
             >
               <Image
                 src="/images/talentflow-logo.svg"
-                alt="TalentFlow logo"
+                alt="Connectra logo"
                 width={120}
                 height={120}
                 className="opacity-90 brightness-0 invert"
@@ -64,7 +64,7 @@ export default function BlogPostPage() {
               We've all been in a situation involving the cliché "Where do you see yourself in 5 years' time?" And let's face it, we're tired of it.
             </p>
             <p className="font-sans text-gray-700 text-base md:text-lg leading-relaxed">
-              Here is a list of 20 simple and non-boring questions to get the most out of your application form: Copy them into your Applicant Tracking System, or use them directly from within your TalentFlow Dashboard.
+              Here is a list of 20 simple and non-boring questions to get the most out of your application form: Copy them into your Applicant Tracking System, or use them directly from within your Connectra Dashboard.
             </p>
           </div>
 
@@ -128,7 +128,7 @@ export default function BlogPostPage() {
               <div className="absolute bottom-0 right-0 w-[50%] md:w-[45%] lg:w-[40%] h-[60%] md:h-[70%] overflow-hidden">
                 <Image
                   src="/images/activities-section.png"
-                  alt="TalentFlow dashboard showcase"
+                  alt="Connectra dashboard showcase"
                   fill
                   className="object-cover"
                   style={{

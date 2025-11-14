@@ -28,7 +28,7 @@ const HeaderNavigation = () => {
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/images/talentflow-logo.svg"
-              alt="TalentFlow logo"
+              alt="Connectra logo"
               width={36}
               height={36}
               className="flex-shrink-0"
@@ -36,7 +36,7 @@ const HeaderNavigation = () => {
               unoptimized
             />
             <span className="font-display text-2xl font-bold text-gray-900 tracking-tight">
-              TalentFlow
+              Connectra
             </span>
           </Link>
           

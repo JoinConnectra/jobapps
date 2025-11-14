@@ -9,7 +9,7 @@ export default function Footer() {
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/images/talentflow-logo.svg"
-              alt="TalentFlow logo"
+              alt="Connectra logo"
               width={36}
               height={36}
               className="flex-shrink-0"
@@ -17,13 +17,13 @@ export default function Footer() {
               unoptimized
             />
             <span className="font-display text-2xl font-bold text-gray-900 tracking-tight">
-              TalentFlow
+              Connectra
             </span>
           </Link>
 
 
           <p className="text-sm text-gray-500">
-            © {new Date().getFullYear()} TalentFlow. All rights reserved.
+            © {new Date().getFullYear()} Connectra. All rights reserved.
           </p>
         </div>
       </div>
