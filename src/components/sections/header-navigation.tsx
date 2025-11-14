@@ -31,7 +31,7 @@ const HeaderNavigation = () => {
               alt="Connectra logo"
               width={36}
               height={36}
-              className="flex-shrink-0"
+              className="flex-shrink-0 brightness-0"
               priority
               unoptimized
             />

@@ -109,8 +109,8 @@ interface Application {
 interface Answer {
   id: number;
   questionId: number;
-  audioS3Key: string;
-  durationSec: number;
+  audioS3Key: string | null;
+  durationSec: number | null;
   applicationId: number;
 }
 
@@ -251,33 +251,7 @@ export default function ApplicationDetailPage() {
     };
   }, [audioElements]);
 
-  // Preload audio metadata for all answers to get duration immediately
-  useEffect(() => {
-    if (answers.length === 0) return;
-
-    const audioKeys = Object.keys(audioElements).map(Number);
-    
-    answers.forEach((answer) => {
-      if (!answer.audioS3Key || audioKeys.includes(answer.id)) return;
-
-      const audio = new Audio();
-      audio.preload = "metadata";
-      
-      audio.addEventListener("loadedmetadata", () => {
-        setAudioElements((prev) => ({ ...prev, [answer.id]: audio }));
-      });
-
-      audio.addEventListener("error", () => {
-        // Silently fail - durationSec will be used as fallback
-      });
-
-      audio.src =
-        answer.audioS3Key && answer.audioS3Key.startsWith("/uploads/audio/")
-          ? answer.audioS3Key
-          : `/api/audio/${encodeURIComponent(answer.audioS3Key)}`;
-      audio.load();
-    });
-  }, [answers, audioElements]);
+  // Note: Preloading disabled to avoid src conflicts. Audio elements are created on-demand when play is clicked.
 
   const fetchOrg = async () => {
     try {
@@ -316,6 +290,11 @@ export default function ApplicationDetailPage() {
 
         if (answersResponse.ok) {
           const answersData = await answersResponse.json();
+          console.log("Fetched answers:", answersData);
+          // Log each answer's audioS3Key to debug
+          answersData.forEach((answer: Answer) => {
+            console.log(`Answer ${answer.id} audioS3Key:`, answer.audioS3Key, "type:", typeof answer.audioS3Key, "isNull:", answer.audioS3Key === null, "isEmpty:", answer.audioS3Key === '');
+          });
           setAnswers(answersData);
 
           // Fetch reactions and comments for each answer
@@ -739,8 +718,14 @@ export default function ApplicationDetailPage() {
   };
 
   // Audio
-  const toggleAudio = async (answerId: number, audioS3Key: string) => {
+  const toggleAudio = async (answerId: number, audioS3Key: string | null) => {
     try {
+      // Check if audio key exists
+      if (!audioS3Key || audioS3Key.trim() === '') {
+        toast.error("No audio file available for this answer");
+        return;
+      }
+
       if (playingAnswer === answerId) {
         const audio = audioElements[answerId];
         if (audio) {
@@ -758,37 +743,78 @@ export default function ApplicationDetailPage() {
         }
       }
 
-      let audio = audioElements[answerId];
-      if (!audio) {
-        audio = new Audio();
-        audio.preload = "metadata";
-
-        audio.addEventListener("timeupdate", () => {
-          setCurrentTime((prev) => ({ ...prev, [answerId]: audio.currentTime }));
-        });
-
-        audio.addEventListener("ended", () => {
-          setPlayingAnswer(null);
-          setCurrentTime((prev) => ({ ...prev, [answerId]: 0 }));
-        });
-
-        audio.addEventListener("error", () => {
-          toast.error("Failed to load audio file");
-          setPlayingAnswer(null);
-        });
-
-        setAudioElements((prev) => ({ ...prev, [answerId]: audio }));
+      // Determine the audio source URL FIRST, before creating audio element
+      let audioSrc: string;
+      if (audioS3Key.startsWith("/uploads/audio/")) {
+        audioSrc = audioS3Key;
+      } else {
+        audioSrc = `/api/audio/${encodeURIComponent(audioS3Key)}`;
       }
 
-      audio.src =
-        audioS3Key && audioS3Key.startsWith("/uploads/audio/")
-          ? audioS3Key
-          : `/api/audio/${encodeURIComponent(audioS3Key)}`;
+      // Validate src before doing anything
+      if (!audioSrc || audioSrc.trim() === '' || audioSrc === '/api/audio/') {
+        console.error("Invalid audio file path:", audioSrc, "from audioS3Key:", audioS3Key);
+        toast.error("Invalid audio file path");
+        return;
+      }
 
+      console.log("Loading audio from:", audioSrc, "for answer", answerId, "audioS3Key:", audioS3Key);
+
+      // Always create a fresh audio element to avoid src conflicts
+      let audio = new Audio();
+      audio.preload = "auto";
+
+      // Set src FIRST before anything else
+      try {
+        audio.src = audioSrc;
+        
+        // Immediately verify src was set correctly
+        const actualSrc = audio.src;
+        if (!actualSrc || 
+            actualSrc === window.location.href || 
+            (!actualSrc.includes(audioSrc) && !actualSrc.includes('uploads/audio'))) {
+          console.error("Failed to set audio src. Expected:", audioSrc, "Got:", actualSrc);
+          toast.error("Failed to set audio source");
+          return;
+        }
+        console.log("Successfully set audio src to:", actualSrc, "for answer", answerId);
+      } catch (err) {
+        console.error("Error setting audio src:", err);
+        toast.error("Failed to set audio source");
+        return;
+      }
+
+      // Set up event listeners
+      audio.addEventListener("timeupdate", () => {
+        setCurrentTime((prev) => ({ ...prev, [answerId]: audio.currentTime }));
+      });
+
+      audio.addEventListener("ended", () => {
+        setPlayingAnswer(null);
+        setCurrentTime((prev) => ({ ...prev, [answerId]: 0 }));
+      });
+
+      audio.addEventListener("error", (e) => {
+        console.error("Audio error:", e, audio.error, "src:", audio.src);
+        toast.error(`Failed to load audio file: ${audio.error?.message || 'Unknown error'}`);
+        setPlayingAnswer(null);
+      });
+
+      // Store the audio element in state
+      setAudioElements((prev) => ({ ...prev, [answerId]: audio }));
+      
+      // Set current time
       audio.currentTime = currentTime[answerId] || 0;
 
       await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          cleanup();
+          toast.error("Audio loading timeout");
+          reject(new Error("Timeout"));
+        }, 10000); // 10 second timeout
+
         const onCanPlay = () => {
+          clearTimeout(timeout);
           cleanup();
           audio
             .play()
@@ -796,23 +822,33 @@ export default function ApplicationDetailPage() {
               setPlayingAnswer(answerId);
               resolve();
             })
-            .catch(reject);
+            .catch((playError) => {
+              console.error("Play error:", playError);
+              toast.error("Failed to play audio. Please check your browser's autoplay settings.");
+              reject(playError);
+            });
         };
+        
         const onError = (e: Event) => {
+          clearTimeout(timeout);
           cleanup();
-          toast.error("Failed to load audio file");
+          console.error("Audio load error:", e, audio.error, audio.src);
+          toast.error(`Failed to load audio file: ${audio.error?.message || 'Unknown error'}`);
           setPlayingAnswer(null);
           reject(e);
         };
+        
         const cleanup = () => {
           audio.removeEventListener("canplay", onCanPlay);
           audio.removeEventListener("error", onError);
         };
-        audio.addEventListener("canplay", onCanPlay);
-        audio.addEventListener("error", onError);
+        
+        audio.addEventListener("canplay", onCanPlay, { once: true });
+        audio.addEventListener("error", onError, { once: true });
         audio.load();
       });
-    } catch {
+    } catch (error) {
+      console.error("Toggle audio error:", error);
       toast.error("Failed to play audio");
       setPlayingAnswer(null);
     }
@@ -1191,8 +1227,21 @@ export default function ApplicationDetailPage() {
                       <div key={answer.id} className="bg-gray-50 rounded-lg p-3 flex items-center gap-3">
                         {/* Play Button */}
                         <button
-                          onClick={() => toggleAudio(answer.id, answer.audioS3Key)}
-                          className="w-8 h-8 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                          onClick={() => {
+                            const hasAudio = answer.audioS3Key && 
+                                            typeof answer.audioS3Key === 'string' && 
+                                            answer.audioS3Key.trim() !== '';
+                            if (hasAudio) {
+                              toggleAudio(answer.id, answer.audioS3Key);
+                            } else {
+                              console.warn("No audio file available for answer", answer.id, "audioS3Key:", answer.audioS3Key);
+                              toast.error("No audio file available for this answer");
+                            }
+                          }}
+                          disabled={!answer.audioS3Key || 
+                                   typeof answer.audioS3Key !== 'string' || 
+                                   answer.audioS3Key.trim() === ''}
+                          className="w-8 h-8 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {playingAnswer === answer.id ? (
                             <Pause className="w-3.5 h-3.5 text-gray-700" />
