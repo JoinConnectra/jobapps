@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
@@ -42,6 +43,18 @@ export default function RegisterPage() {
             backgroundPosition: 'right center'
           }}
         />
+        {/* Logo in top right corner */}
+        <div className="absolute top-6 right-6 z-10">
+          <Image
+            src="/images/talentflow-logo.svg"
+            alt="Connectra logo"
+            width={48}
+            height={48}
+            className="brightness-0 invert"
+            priority
+            unoptimized
+          />
+        </div>
       </div>
 
       {/* Right Side - Account Type Selection */}

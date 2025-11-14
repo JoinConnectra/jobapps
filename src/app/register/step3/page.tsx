@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, Check } from "lucide-react";
 
 export default function RegisterStep3Page() {
@@ -153,6 +154,18 @@ export default function RegisterStep3Page() {
             backgroundPosition: 'right center'
           }}
         />
+        {/* Logo in top right corner */}
+        <div className="absolute top-6 right-6 z-10">
+          <Image
+            src="/images/talentflow-logo.svg"
+            alt="Connectra logo"
+            width={48}
+            height={48}
+            className="brightness-0 invert"
+            priority
+            unoptimized
+          />
+        </div>
       </div>
 
       {/* Right Side - Form */}

@@ -27,10 +27,10 @@ const AiAssistantFeature = () => {
             </div>
             <div className="mt-5 text-left">
               <h3 className="text-lg font-semibold text-[#6a994e] leading-tight">
-                Ask TalentFlow and you shall receive
+                Ask Connectra and you shall receive
               </h3>
               <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                TalentFlow can assist with job descriptions, shortlisting applicants and any other back-office task.
+                Connectra can assist with job descriptions, shortlisting applicants and any other back-office task.
               </p>
             </div>
           </div>
@@ -70,7 +70,7 @@ const AiAssistantFeature = () => {
                 Quick commands to move fast
               </h3>
               <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                Navigate your jobs, applicants, and all parts of TalentFlow without ever reaching for your mouse
+                Navigate your jobs, applicants, and all parts of Connectra without ever reaching for your mouse
               </p>
             </div>
           </div>

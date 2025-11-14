@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -167,6 +168,18 @@ export default function UniversityRegisterPage() {
             backgroundPosition: 'right center'
           }}
         />
+        {/* Logo in top right corner */}
+        <div className="absolute top-6 right-6 z-10">
+          <Image
+            src="/images/talentflow-logo.svg"
+            alt="Connectra logo"
+            width={48}
+            height={48}
+            className="brightness-0 invert"
+            priority
+            unoptimized
+          />
+        </div>
       </div>
 
       {/* Right Side - University Registration Form */}

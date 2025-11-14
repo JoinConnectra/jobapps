@@ -18,19 +18,19 @@ const testimonialsData: Testimonial[] = [
   {
     name: "John Li",
     title: "Co-founder & CEO at Vimcal",
-    quote: "What I love about using TalentFlow, is that I feel like I know the applicant already before we jump on a call. We literally are able to consolidate steps and jump straight into.",
+    quote: "What I love about using Connectra, is that I feel like I know the applicant already before we jump on a call. We literally are able to consolidate steps and jump straight into.",
     imgSrc: "https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/test-clones/a8a1e1ed-e161-41df-b141-ad3ac910310b-withrapha-com/assets/icons/DwNeJtsZOLLPektKpU4HMXqueg-8.jpeg",
   },
   {
     name: "One Chowdhury",
     title: "Co-founder & CEO at Octolane",
-    quote: "Thanks to TalentFlow for making hiring feel less like a chore and more like a matchmaking! We were able to quickly identify who knows their stuff technically and matched our culture in the first 30 seconds!",
+    quote: "Thanks to Connectra for making hiring feel less like a chore and more like a matchmaking! We were able to quickly identify who knows their stuff technically and matched our culture in the first 30 seconds!",
     imgSrc: "https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/test-clones/a8a1e1ed-e161-41df-b141-ad3ac910310b-withrapha-com/assets/icons/ibuzm113T5f7h76WnbcYdBKJTk-9.jpeg",
   },
   {
     name: "Viktor Kessler",
     title: "CEO at Notch",
-    quote: "Adding TalentFlow was a no-brainer. We decreased the amount of spam, increased the quality in our talent pool, and was able to hire our next team-member in record time.",
+    quote: "Adding Connectra was a no-brainer. We decreased the amount of spam, increased the quality in our talent pool, and was able to hire our next team-member in record time.",
     imgSrc: "https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/test-clones/a8a1e1ed-e161-41df-b141-ad3ac910310b-withrapha-com/assets/icons/S2a4J2MW9cfxDbmmJYcy0BRAdE-10.jpeg",
   },
 ];
