@@ -11,13 +11,15 @@ export default function StudentTopbar() {
   const [q, setQ] = useState("");
 
   return (
-    <div className="flex h-14 items-center justify-between gap-4 px-6">
-      {/* Search: match company console input height, radius and icon spacing */}
+    <div className="flex items-center justify-between gap-4 px-8 py-3 bg-[#FEFEFA]/90 border-b border-gray-200">
+      {/* Search (company-style density) */}
       <form
         className="relative w-full max-w-lg"
         onSubmit={(e) => {
           e.preventDefault();
-          if (q.trim()) router.push(`/student/jobs?q=${encodeURIComponent(q.trim())}`);
+          if (q.trim()) {
+            router.push(`/student/jobs?q=${encodeURIComponent(q.trim())}`);
+          }
         }}
       >
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -29,10 +31,10 @@ export default function StudentTopbar() {
         />
       </form>
 
-      {/* Right-side actions: same density as employer console */}
+      {/* Right-side actions – match company density */}
       <div className="flex items-center gap-3">
         <button
-          className="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm hover:bg-muted/70"
+          className="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm hover:bg-muted/70 bg-white"
           type="button"
           onClick={() => router.push("/student/applications")}
         >
@@ -40,15 +42,15 @@ export default function StudentTopbar() {
         </button>
 
         <button
-          className="inline-flex size-9 items-center justify-center rounded-md border hover:bg-muted/70"
+          className="inline-flex size-9 items-center justify-center rounded-md border bg-white hover:bg-muted/70"
           aria-label="Notifications"
           type="button"
         >
           <Bell className="size-4" />
         </button>
 
-        {/* Avatar group: matches employer console spacing */}
-        <div className="flex items-center gap-2 rounded-md border px-2 py-1">
+        {/* Avatar pill – compact like company footer pill */}
+        <div className="flex items-center gap-2 rounded-md border bg-white px-2 py-1">
           <Image
             src="/avatar.png"
             alt="User"

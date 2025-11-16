@@ -1,3 +1,4 @@
+//Users/ahmad/Desktop/newjobmain /jobapps/src/components/company/CompanySidebar.tsx
 'use client';
 
 import React from 'react';
