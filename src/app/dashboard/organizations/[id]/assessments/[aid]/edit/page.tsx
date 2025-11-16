@@ -89,15 +89,19 @@ export default function AssessmentEditPage() {
   const [prompt, setPrompt] = useState("");
   const [kind, setKind] = useState<"mcq" | "short" | "coding" | "case">("mcq");
   const [points, setPoints] = useState<number>(1);
+
   const [mcqOptions, setMcqOptions] = useState<McqOption[]>([
     { id: crypto.randomUUID(), value: "" },
     { id: crypto.randomUUID(), value: "" },
   ]);
   const [mcqCorrect, setMcqCorrect] = useState<string>("");
+
   const [lang, setLang] = useState<"python" | "javascript" | "cpp">("javascript");
   const [starterCode, setStarterCode] = useState("");
   const [timeLimitSec, setTimeLimitSec] = useState<number>(60);
   const [tests, setTests] = useState<CodingTest[]>([{ input: "", output: "" }]);
+  const [entryPoint, setEntryPoint] = useState<string>("solution"); // 👈 NEW: function to invoke
+
   const [rubric, setRubric] = useState("");
   const [maxWords, setMaxWords] = useState<number | "">("");
 
@@ -188,56 +192,53 @@ export default function AssessmentEditPage() {
   }, [session, assessmentId]);
 
   /** Save details */
-  /** Save details */
-const save = async (mode?: "draft" | "publish") => {
-  if (!form || !assessmentId) return;
-  setSaving(true);
-  try {
-    // decide final status/visibility
-    let nextStatus = form.status;
-    let nextPublished = form.isPublished;
+  const save = async (mode?: "draft" | "publish") => {
+    if (!form || !assessmentId) return;
+    setSaving(true);
+    try {
+      // decide final status/visibility
+      let nextStatus = form.status;
+      let nextPublished = form.isPublished;
 
-    if (mode === "draft") {
-      nextStatus = "Draft";
-      nextPublished = false;
-    } else if (mode === "publish") {
-      nextStatus = "Published";
-      nextPublished = true;
+      if (mode === "draft") {
+        nextStatus = "Draft";
+        nextPublished = false;
+      } else if (mode === "publish") {
+        nextStatus = "Published";
+        nextPublished = true;
+      }
+      // if mode is undefined, we preserve whatever is already in the form
+
+      const token = localStorage.getItem("bearer_token");
+      const resp = await fetch(`/api/assessments/${assessmentId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: form.title,
+          type: form.type,
+          duration: form.duration,
+          status: nextStatus,
+          descriptionMd: form.descriptionMd ?? null,
+          isPublished: nextPublished,
+        }),
+      });
+
+      if (resp.ok) {
+        toast.success(
+          mode === "publish" ? "Published" : mode === "draft" ? "Saved as draft" : "Saved changes"
+        );
+      } else {
+        toast.error("Failed to update");
+      }
+    } catch (e) {
+      toast.error("An error occurred");
+    } finally {
+      setSaving(false);
     }
-    // if mode is undefined, we preserve whatever is already in the form
-
-    const token = localStorage.getItem("bearer_token");
-    const resp = await fetch(`/api/assessments/${assessmentId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        title: form.title,
-        type: form.type,
-        duration: form.duration,
-        status: nextStatus,
-        descriptionMd: form.descriptionMd ?? null,
-        isPublished: nextPublished,
-      }),
-    });
-
-    if (resp.ok) {
-      toast.success(
-        mode === "publish" ? "Published" : mode === "draft" ? "Saved as draft" : "Saved changes"
-      );
-    } else {
-      toast.error("Failed to update");
-    }
-  } catch (e) {
-    toast.error("An error occurred");
-  } finally {
-    setSaving(false);
-  }
-};
-
-
+  };
 
   /** Sign out */
   const handleSignOut = async () => {
@@ -261,6 +262,7 @@ const save = async (mode?: "draft" | "publish") => {
     setStarterCode("");
     setTimeLimitSec(60);
     setTests([{ input: "", output: "" }]);
+    setEntryPoint("solution");
     setRubric("");
     setMaxWords("");
   };
@@ -274,8 +276,7 @@ const save = async (mode?: "draft" | "publish") => {
   const addTest = () => setTests((t) => [...t, { input: "", output: "" }]);
   const removeTest = (idx: number) => setTests((t) => t.filter((_, i) => i !== idx));
   const updateTest = (idx: number, field: "input" | "output", value: string) =>
-  setTests((t) => t.map((test, i) => (i === idx ? { ...test, [field]: value } : test)));
-
+    setTests((t) => t.map((test, i) => (i === idx ? { ...test, [field]: value } : test)));
 
   const buildPayload = () => {
     const base: any = { prompt: prompt.trim(), kind, optionsJson: null, correctAnswer: null };
@@ -291,6 +292,7 @@ const save = async (mode?: "draft" | "publish") => {
         language: lang,
         starterCode,
         timeLimitSec,
+        entryPoint: (entryPoint || "solution").trim(), // 👈 NEW
         tests: tests
           .map((t) => ({ input: t.input, output: t.output }))
           .filter((t) => t.input || t.output),
@@ -323,8 +325,8 @@ const save = async (mode?: "draft" | "publish") => {
     if (kind === "coding") {
       if (timeLimitSec <= 0) return "Time limit must be positive.";
       const nonEmptyTests = tests.filter((t) => t.input || t.output);
-      if (nonEmptyTests.length === 0)
-        return "Add at least one test case for coding questions.";
+      if (nonEmptyTests.length === 0) return "Add at least one test case for coding questions.";
+      if (!entryPoint.trim()) return "Entry point (function name) is required.";
     }
     if (kind === "case") {
       if (!rubric.trim()) return "Provide a brief rubric/expected approach.";
@@ -419,26 +421,22 @@ const save = async (mode?: "draft" | "publish") => {
                     Questions
                   </Button>
                   <Button
-  variant="outline"
-  size="sm"
-  disabled={saving}
-  onClick={() => save("draft")}
->
-  {saving ? "Saving…" : "Save Draft"}
-</Button>
+                    variant="outline"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => save("draft")}
+                  >
+                    {saving ? "Saving…" : "Save Draft"}
+                  </Button>
 
-<Button
-  variant="default"
-  size="sm"
-  disabled={saving}
-  onClick={() => save("publish")}
->
-  {saving ? "Publishing…" : "Publish"}
-</Button>
-
-
-
-
+                  <Button
+                    variant="default"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => save("publish")}
+                  >
+                    {saving ? "Publishing…" : "Publish"}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -526,11 +524,10 @@ const save = async (mode?: "draft" | "publish") => {
                 </div>
 
                 <div className="flex justify-end">
-  <Button onClick={() => save()} disabled={saving}>
-    {saving ? "Saving…" : "Save changes"}
-  </Button>
-</div>
-
+                  <Button onClick={() => save()} disabled={saving}>
+                    {saving ? "Saving…" : "Save changes"}
+                  </Button>
+                </div>
               </div>
             ) : (
               // ---------- QUESTIONS TAB ----------
@@ -650,6 +647,18 @@ const save = async (mode?: "draft" | "publish") => {
                             />
                           </div>
 
+                          <div className="space-y-1">
+                            <Label>Entry point (function name)</Label>
+                            <Input
+                              placeholder="e.g. twoSum or solution"
+                              value={entryPoint}
+                              onChange={(e) => setEntryPoint(e.target.value)}
+                            />
+                            <p className="text-xs text-gray-500">
+                              We will call <code>{entryPoint || "solution"}</code>(...args) for each test.
+                            </p>
+                          </div>
+
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <Label className="m-0">Test Cases</Label>
@@ -729,6 +738,7 @@ const save = async (mode?: "draft" | "publish") => {
                             <div className="font-medium mb-2">{prompt}</div>
                             <div className="text-xs text-gray-500 mb-2">
                               Language: {lang} • Time limit: {timeLimitSec}s • Points: {points}
+                              {entryPoint ? ` • Entry: ${entryPoint}` : ""}
                             </div>
                             <pre className="bg-gray-100 p-3 rounded text-xs overflow-auto">
 {starterCode || "// starter code"}
@@ -800,6 +810,7 @@ const save = async (mode?: "draft" | "publish") => {
                             <div className="mt-3 text-xs text-gray-700">
                               Language: {q.optionsJson?.language} • Time limit: {q.optionsJson?.timeLimitSec}s • Tests:{" "}
                               {Array.isArray(q.optionsJson?.tests) ? q.optionsJson.tests.length : 0}
+                              {q.optionsJson?.entryPoint ? ` • Entry: ${q.optionsJson.entryPoint}` : ""}
                             </div>
                           )}
 
