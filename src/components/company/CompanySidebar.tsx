@@ -16,6 +16,7 @@ import {
   CalendarDays,
   ListChecks,
   Settings,
+  Users, // <-- added
 } from 'lucide-react';
 import { useCommandPalette } from '@/hooks/use-command-palette';
 
@@ -24,7 +25,7 @@ interface CompanySidebarProps {
   user: { name?: string | null };
   onSignOut: () => void;
   onOpenSettings?: () => void;
-  active?: 'activities' | 'jobs' | 'assessments' | 'events' | 'kpi' | 'inbox';
+  active?: 'activities' | 'jobs' | 'assessments' | 'events' | 'kpi' | 'inbox' | 'talent'; // <-- added 'talent'
 }
 
 export default function CompanySidebar({
@@ -92,6 +93,18 @@ export default function CompanySidebar({
             Jobs
           </Button>
 
+          {/* Talent (reverse search) */}
+          <Button
+            variant="ghost"
+            className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
+              active === 'talent' ? 'bg-[#F5F1E8] text-gray-900' : ''
+            }`}
+            onClick={() => router.push('/dashboard/talent')}
+          >
+            <Users className="w-4 h-4 mr-3" />
+            Talent
+          </Button>
+
           {/* Assessments (org scoped). Disabled until org id is known. */}
           <Button
             variant="ghost"
@@ -109,17 +122,16 @@ export default function CompanySidebar({
           </Button>
 
           <Button
-  variant="ghost"
-  className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
-    active === 'inbox' ? 'bg-[#F5F1E8] text-gray-900' : ''
-  }`}
-  onClick={() => router.push('/dashboard/inbox')}
->
-  <Mail className="w-4 h-4 mr-3" />
-  Inbox
-</Button>
+            variant="ghost"
+            className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
+              active === 'inbox' ? 'bg-[#F5F1E8] text-gray-900' : ''
+            }`}
+            onClick={() => router.push('/dashboard/inbox')}
+          >
+            <Mail className="w-4 h-4 mr-3" />
+            Inbox
+          </Button>
 
-          {/* Events - Commented out for now */}
           <Button
             variant="ghost"
             className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
@@ -129,7 +141,7 @@ export default function CompanySidebar({
           >
             <CalendarDays className="w-4 h-4 mr-3" />
             Events
-          </Button> 
+          </Button>
 
           <Button
             variant="ghost"
