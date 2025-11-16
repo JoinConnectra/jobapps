@@ -2,78 +2,93 @@
 
 import { ArrowRight, Menu } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSession } from '@/lib/auth-client';
+import { useEffect } from 'react';
 
 const HeaderNavigation = () => {
   const { data: session, isPending } = useSession();
 
+  // Preload logo image on mount to eliminate lag
+  useEffect(() => {
+    const logoImg = new window.Image();
+    logoImg.src = '/images/talentflow-logo.svg';
+  }, []);
+
   const navLinks = [
-    { href: '/#rapha-features', label: 'Features' },
+    { href: '/#features', label: 'Features' },
+    { href: '/blog', label: 'Blog' },
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[1000] w-full border-b border-black/5 bg-[rgba(255,250,245,0.95)] backdrop-blur-sm">
-      <div className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-8">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eb442c]">
-            {/* Placeholder for the abstract white logo mark, as no asset was provided and custom SVG is disallowed. */}
-          </div>
-          <span className="font-display text-2xl font-semibold text-black">
-            TalentFlow
-          </span>
-        </Link>
-        
-        <nav className="hidden items-center gap-x-10 md:flex">
-          <div className="flex items-center gap-x-8">
+    <header className="fixed top-0 left-0 right-0 z-[1000] w-full border-b border-gray-100 bg-white/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-12 lg:px-16 xl:px-20">
+        {/* Left side: Logo + Features */}
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/images/talentflow-logo.svg"
+              alt="Connectra logo"
+              width={36}
+              height={36}
+              className="flex-shrink-0 brightness-0"
+              priority
+              unoptimized
+            />
+            <span className="font-display text-2xl font-bold text-gray-900 tracking-tight">
+              Connectra
+            </span>
+          </Link>
+          
+          {/* Navigation links next to logo */}
+          <nav className="hidden items-center gap-6 md:flex">
             {navLinks.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
-                className="font-body text-[15px] font-medium text-[#333333] transition-colors hover:text-black"
+                className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
               >
                 {link.label}
               </a>
             ))}
-            {!isPending && !session?.user && (
+          </nav>
+        </div>
+
+        {/* Right side: Login/CTA Button */}
+        <div className="hidden items-center gap-3 md:flex">
+          {!isPending && !session?.user && (
+            <>
               <Link
                 href="/login"
-                className="font-body text-[15px] font-medium text-[#333333] transition-colors hover:text-black"
+                className="rounded bg-[#f5f5f0] px-5 py-2.5 text-sm font-medium text-gray-900 transition-colors hover:bg-[#ebebe5]"
               >
                 Login
               </Link>
-            )}
-            {!isPending && session?.user && (
               <Link
-                href="/dashboard"
-                className="font-body text-[15px] font-medium text-[#333333] transition-colors hover:text-black"
+                href="/register"
+                className="inline-flex items-center justify-center rounded bg-[#3d6a4a] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2f5239]"
               >
-                Dashboard
+                Get started
               </Link>
-            )}
-          </div>
-          
-          {!isPending && !session?.user ? (
-            <Link
-              href="/register"
-              className="group flex items-center gap-2 rounded-[8px] bg-black py-2.5 px-5 font-medium text-white transition-transform duration-200 ease-in-out hover:scale-[1.02]"
-            >
-              <span className="font-body text-[15px]">Get started - it's free</span>
-              <ArrowRight className="h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out group-hover:translate-x-1" />
-            </Link>
-          ) : (
+            </>
+          )}
+          {!isPending && session?.user && (
             <Link
               href="/dashboard"
-              className="group flex items-center gap-2 rounded-[8px] bg-black py-2.5 px-5 font-medium text-white transition-transform duration-200 ease-in-out hover:scale-[1.02]"
+              className="inline-flex items-center justify-center rounded bg-[#3d6a4a] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2f5239]"
             >
-              <span className="font-body text-[15px]">Go to Dashboard</span>
-              <ArrowRight className="h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out group-hover:translate-x-1" />
+              Dashboard
             </Link>
           )}
-        </nav>
+        </div>
 
+        {/* Mobile Menu */}
         <div className="md:hidden">
-          <button aria-label="Open menu" className="p-2">
-            <Menu className="h-6 w-6 text-black" />
+          <button 
+            aria-label="Open menu" 
+            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <Menu className="h-5 w-5" />
           </button>
         </div>
       </div>

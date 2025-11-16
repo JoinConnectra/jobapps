@@ -1,50 +1,33 @@
-import { Linkedin, Twitter, Mail } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
-const Footer = () => {
+export default function Footer() {
   return (
-    <footer className="w-full bg-[#FFF9F1]">
-      <div className="mx-auto max-w-[1200px] px-16 py-12">
-        <div>
-          <Link href="/" className="inline-flex items-center gap-x-3">
-            {/* As per instruction "red circular icon (48px)", using secondary theme color for the red/coral circle. */}
-            <div className="h-12 w-12 rounded-full bg-secondary" />
-            <span className="font-display text-[2rem] font-bold leading-none text-foreground">
-              TalentFlow
+    <footer className="w-full border-t border-gray-100 bg-white">
+      <div className="mx-auto max-w-7xl px-12 lg:px-16 xl:px-20 py-12">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/images/talentflow-logo.svg"
+              alt="Connectra logo"
+              width={36}
+              height={36}
+              className="flex-shrink-0 brightness-0"
+              priority
+              unoptimized
+            />
+            <span className="font-display text-2xl font-bold text-gray-900 tracking-tight">
+              Connectra
             </span>
           </Link>
 
-          <p className="mt-2 text-base text-[#666666]">
-            Let's capture origin stories together
-          </p>
 
-          <div className="mt-6 flex items-center gap-4">
-            <a
-              href="#"
-              aria-label="LinkedIn"
-              className="text-[#333333] transition-colors hover:text-black"
-            >
-              <Linkedin size={24} />
-            </a>
-            <a
-              href="#"
-              aria-label="Twitter"
-              className="text-[#333333] transition-colors hover:text-black"
-            >
-              <Twitter size={24} />
-            </a>
-            <a
-              href="#"
-              aria-label="Email"
-              className="text-[#333333] transition-colors hover:text-black"
-            >
-              <Mail size={24} />
-            </a>
-          </div>
+          <p className="text-sm text-gray-500">
+            © {new Date().getFullYear()} Connectra. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>
   );
-};
+}
 
-export default Footer;

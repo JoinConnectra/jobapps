@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 export async function GET(
   request: NextRequest,
@@ -6,55 +9,69 @@ export async function GET(
 ) {
   try {
     const { key } = params;
-    console.log('Audio API called with key:', key);
+    if (!key || key.trim() === '') {
+      console.error('Audio API called with empty key');
+      return NextResponse.json(
+        { error: 'Audio key is required' },
+        { status: 400 }
+      );
+    }
+
+    const decodedKey = decodeURIComponent(key);
+    console.log('Audio API called with key:', decodedKey);
     
-    // Create a proper WAV file with actual audio data (1 second of silence)
-    const sampleRate = 44100;
-    const duration = 1; // 1 second
-    const numSamples = sampleRate * duration;
-    const dataSize = numSamples * 2; // 16-bit samples
-    const fileSize = 36 + dataSize;
+    let filePath: string;
     
-    const wavFile = new Uint8Array(44 + dataSize);
-    const view = new DataView(wavFile.buffer);
-    
-    // RIFF header
-    view.setUint32(0, 0x52494646, false); // "RIFF" (correct byte order)
-    view.setUint32(4, fileSize, true); // File size - 8
-    view.setUint32(8, 0x57415645, false); // "WAVE" (correct byte order)
-    
-    // fmt chunk
-    view.setUint32(12, 0x666d7420, false); // "fmt " (correct byte order)
-    view.setUint32(16, 16, true); // fmt chunk size
-    view.setUint16(20, 1, true); // PCM format
-    view.setUint16(22, 1, true); // mono
-    view.setUint32(24, sampleRate, true); // sample rate
-    view.setUint32(28, sampleRate * 2, true); // byte rate
-    view.setUint16(32, 2, true); // block align
-    view.setUint16(34, 16, true); // bits per sample
-    
-    // data chunk
-    view.setUint32(36, 0x64617461, false); // "data" (correct byte order)
-    view.setUint32(40, dataSize, true); // data size
-    
-    // Fill with silence (zeros)
-    for (let i = 44; i < wavFile.length; i++) {
-      wavFile[i] = 0;
+    // Check if it's a local file path (starts with /uploads/audio/)
+    if (decodedKey.startsWith('/uploads/audio/')) {
+      // Remove leading slash and serve from public directory
+      filePath = join(process.cwd(), 'public', decodedKey);
+    } else {
+      // Assume it's just a filename, try to find it in uploads/audio directory
+      filePath = join(process.cwd(), 'public', 'uploads', 'audio', decodedKey);
     }
     
-    return new NextResponse(wavFile, {
+    console.log('Looking for audio file at:', filePath);
+    
+    if (!existsSync(filePath)) {
+      console.error('Audio file not found at path:', filePath);
+      // Try to list what files exist in the directory for debugging
+      const uploadsDir = join(process.cwd(), 'public', 'uploads', 'audio');
+      if (existsSync(uploadsDir)) {
+        const fs = require('fs');
+        const files = fs.readdirSync(uploadsDir);
+        console.log('Files in uploads/audio directory:', files.slice(0, 10));
+      }
+      return NextResponse.json(
+        { error: `Audio file not found: ${decodedKey}` },
+        { status: 404 }
+      );
+    }
+    
+    const fileBuffer = await readFile(filePath);
+    const ext = decodedKey.split('.').pop()?.toLowerCase() || 'webm';
+    const contentType = ext === 'webm' ? 'audio/webm' : 
+                       ext === 'wav' ? 'audio/wav' :
+                       ext === 'mp3' ? 'audio/mpeg' :
+                       ext === 'ogg' ? 'audio/ogg' :
+                       'audio/webm';
+    
+    console.log('Serving audio file:', filePath, 'Content-Type:', contentType, 'Size:', fileBuffer.length);
+    
+    return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        'Content-Type': 'audio/wav',
-        'Content-Length': wavFile.length.toString(),
+        'Content-Type': contentType,
+        'Content-Length': fileBuffer.length.toString(),
         'Cache-Control': 'public, max-age=31536000',
+        'Accept-Ranges': 'bytes',
       },
     });
     
   } catch (error) {
     console.error('GET /api/audio/[key] error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch audio file' },
+      { error: `Failed to fetch audio file: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }

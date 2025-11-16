@@ -3,8 +3,8 @@ import { Sparkles, UserCheck, UserX, Mail } from 'lucide-react';
 const AiAssistantFeature = () => {
   return (
     <section className="bg-white pt-8 lg:pt-12 pb-8 lg:pb-12">
-      <div className="container mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-12 items-start max-w-6xl mx-auto">
+      <div className="container mx-auto px-6 max-w-5xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-12 items-start max-w-5xl mx-auto">
           {/* Column 1: AI Assistant */}
           <div className="flex flex-col">
             <div className="rounded-xl bg-white border border-gray-200 p-4 shadow-sm">
@@ -27,10 +27,10 @@ const AiAssistantFeature = () => {
             </div>
             <div className="mt-5 text-left">
               <h3 className="text-lg font-semibold text-[#6a994e] leading-tight">
-                Ask TalentFlow and you shall receive
+                Ask Connectra and you shall receive
               </h3>
               <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                TalentFlow can assist with job descriptions, shortlisting applicants and any other back-office task.
+                Connectra can assist with job descriptions, shortlisting applicants and any other back-office task.
               </p>
             </div>
           </div>
@@ -70,7 +70,7 @@ const AiAssistantFeature = () => {
                 Quick commands to move fast
               </h3>
               <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                Navigate your jobs, applicants, and all parts of TalentFlow without ever reaching for your mouse
+                Navigate your jobs, applicants, and all parts of Connectra without ever reaching for your mouse
               </p>
             </div>
           </div>

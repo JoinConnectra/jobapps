@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -161,79 +162,134 @@ export default function UniversityRegisterPage() {
       {/* Left Side - Background Image */}
       <div className="w-1/2 h-screen relative overflow-hidden">
         <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: "url('/register_bg.png')" }}
+          className="absolute inset-0 bg-cover bg-no-repeat"
+          style={{ 
+            backgroundImage: "url('/register_bg.png')",
+            backgroundPosition: 'right center'
+          }}
         />
+        {/* Logo in top right corner */}
+        <div className="absolute top-6 right-6 z-10">
+          <Image
+            src="/images/talentflow-logo.svg"
+            alt="Connectra logo"
+            width={48}
+            height={48}
+            className="brightness-0 invert"
+            priority
+            unoptimized
+          />
+        </div>
       </div>
 
       {/* Right Side - University Registration Form */}
       <div className="w-1/2 h-screen flex items-center justify-center bg-white">
-        <div className="w-[360px] space-y-6">
-          {/* Header */}
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold text-foreground mb-2">Create your university account</h1>
-            <p className="text-sm text-muted-foreground">Institution portal for managing company partnerships</p>
-          </div>
+        <div className="w-full max-w-md px-6">
+          {/* Card Container */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 space-y-6">
+            {/* Header */}
+            <div className="text-center">
+              <h1 className="font-display font-semibold text-[#1A1A1A] text-3xl md:text-4xl mb-2">Create your university account</h1>
+              <p className="text-sm text-gray-500">Institution portal for managing company partnerships</p>
+            </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>University name</Label>
-              <Input value={form.universityName} onChange={e => update('universityName', e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label>Domain</Label>
-              <Input placeholder="lums.edu.pk" value={form.domain} onChange={e => update('domain', e.target.value)} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>Admin name</Label>
-                <Input value={form.adminName} onChange={e => update('adminName', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Contact email</Label>
+                <Label className="text-gray-700">University name</Label>
                 <Input 
-                  type="email" 
-                  value={form.contactEmail} 
-                  onChange={e => update('contactEmail', e.target.value)} 
-                  onBlur={handleEmailBlur}
-                  className={emailError ? "border-red-500 focus:ring-red-500" : ""}
-                  disabled={isCheckingEmail}
+                  value={form.universityName} 
+                  onChange={e => update('universityName', e.target.value)} 
+                  className="border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
                   required 
                 />
-                {emailError && (
-                  <p className="text-sm text-red-600 flex items-center gap-1">
-                    <span>⚠️</span>
-                    <span>{emailError}</span>
-                  </p>
-                )}
-                {isCheckingEmail && !emailError && (
-                  <p className="text-xs text-muted-foreground">Checking email...</p>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Password</Label>
-                <Input type="password" value={form.password} onChange={e => update('password', e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Location</Label>
-                <Input value={form.location} onChange={e => update('location', e.target.value)} />
+                <Label className="text-gray-700">Domain</Label>
+                <Input 
+                  placeholder="lums.edu.pk" 
+                  value={form.domain} 
+                  onChange={e => update('domain', e.target.value)} 
+                  className="border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
+                />
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Input value={form.type} onChange={e => update('type', e.target.value)} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-gray-700">Admin name</Label>
+                  <Input 
+                    value={form.adminName} 
+                    onChange={e => update('adminName', e.target.value)} 
+                    className="border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-700">Contact email</Label>
+                  <Input 
+                    type="email" 
+                    value={form.contactEmail} 
+                    onChange={e => update('contactEmail', e.target.value)} 
+                    onBlur={handleEmailBlur}
+                    className={emailError ? "border-red-500 focus:ring-red-500" : "border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"}
+                    disabled={isCheckingEmail}
+                    required 
+                  />
+                  {emailError && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <span>⚠️</span>
+                      <span>{emailError}</span>
+                    </p>
+                  )}
+                  {isCheckingEmail && !emailError && (
+                    <p className="text-xs text-gray-500">Checking email...</p>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input value={form.description} onChange={e => update('description', e.target.value)} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-gray-700">Password</Label>
+                  <Input 
+                    type="password" 
+                    value={form.password} 
+                    onChange={e => update('password', e.target.value)} 
+                    className="border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-700">Location</Label>
+                  <Input 
+                    value={form.location} 
+                    onChange={e => update('location', e.target.value)} 
+                    className="border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
+                  />
+                </div>
               </div>
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-gray-700">Type</Label>
+                  <Input 
+                    value={form.type} 
+                    onChange={e => update('type', e.target.value)} 
+                    className="border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-700">Description</Label>
+                  <Input 
+                    value={form.description} 
+                    onChange={e => update('description', e.target.value)} 
+                    className="border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
+                  />
+                </div>
+              </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Creating…' : 'Create account'}</Button>
-          </form>
+              <button 
+                type="submit" 
+                className="w-full rounded bg-[#3d6a4a] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2f5239] disabled:opacity-50 disabled:cursor-not-allowed" 
+                disabled={loading}
+              >
+                {loading ? 'Creating…' : 'Create account'}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

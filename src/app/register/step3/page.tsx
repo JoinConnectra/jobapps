@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, Check } from "lucide-react";
 
 export default function RegisterStep3Page() {
@@ -147,59 +148,76 @@ export default function RegisterStep3Page() {
       {/* Left Side - BG */}
       <div className="w-1/2 h-screen relative overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: "url('/register_bg.png')" }}
+          className="absolute inset-0 bg-cover bg-no-repeat"
+          style={{ 
+            backgroundImage: "url('/register_bg.png')",
+            backgroundPosition: 'right center'
+          }}
         />
+        {/* Logo in top right corner */}
+        <div className="absolute top-6 right-6 z-10">
+          <Image
+            src="/images/talentflow-logo.svg"
+            alt="Connectra logo"
+            width={48}
+            height={48}
+            className="brightness-0 invert"
+            priority
+            unoptimized
+          />
+        </div>
       </div>
 
       {/* Right Side - Form */}
       <div className="w-1/2 h-screen flex items-center justify-center bg-white">
-        <div className="w-[420px] space-y-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold mb-1">
-              {accountType === "applicant" ? "Student Details" : "Organization Details"}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {accountType === "applicant" ? "Finish setting up your student profile" : "Finish setting up your employer account"}
-            </p>
-          </div>
+        <div className="w-full max-w-md px-6">
+          {/* Card Container */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 space-y-6">
+            <div className="text-center">
+              <h1 className="font-display font-semibold text-[#1A1A1A] text-3xl md:text-4xl mb-2">
+                {accountType === "applicant" ? "Student Details" : "Organization Details"}
+              </h1>
+              <p className="text-sm text-gray-500">
+                {accountType === "applicant" ? "Finish setting up your student profile" : "Finish setting up your employer account"}
+              </p>
+            </div>
 
-          <div className="space-y-4">
-            {accountType === "applicant" ? (
-              <>
-                {/* University (optional for now) */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">University (optional)</label>
-                  <input
-                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-                    placeholder="Enter university ID or leave blank"
-                    value={universityId ?? ""}
-                    onChange={(e) => setUniversityId(e.target.value || null)}
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Company Name</label>
-                  <input
-                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-                    placeholder="e.g. Packages Ltd."
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Company URL</label>
-                  <input
-                    className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-                    placeholder="https://example.com"
-                    value={companyUrl}
-                    onChange={(e) => setCompanyUrl(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Company Logo (optional)</label>
+            <div className="space-y-4">
+              {accountType === "applicant" ? (
+                <>
+                  {/* University (optional for now) */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">University (optional)</label>
+                    <input
+                      className="w-full h-10 rounded border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all"
+                      placeholder="Enter university ID or leave blank"
+                      value={universityId ?? ""}
+                      onChange={(e) => setUniversityId(e.target.value || null)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Company Name</label>
+                    <input
+                      className="w-full h-10 rounded border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all"
+                      placeholder="e.g. Packages Ltd."
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Company URL</label>
+                    <input
+                      className="w-full h-10 rounded border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all"
+                      placeholder="https://example.com"
+                      value={companyUrl}
+                      onChange={(e) => setCompanyUrl(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Company Logo (optional)</label>
                   <div className="flex items-center gap-4">
                     {logoPreview ? (
                       <div className="relative">
@@ -226,7 +244,7 @@ export default function RegisterStep3Page() {
                     )}
                     <label
                       htmlFor="logo-upload"
-                      className="cursor-pointer inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-sm"
+                      className="cursor-pointer inline-flex items-center justify-center rounded bg-[#3d6a4a] text-white hover:bg-[#2f5239] h-10 px-4 text-sm transition-colors"
                     >
                       {logoPreview ? "Change Logo" : "Upload Logo"}
                     </label>
@@ -259,23 +277,24 @@ export default function RegisterStep3Page() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Max size: 5MB. Supported: JPEG, PNG, GIF, WebP</p>
-                </div>
-              </>
-            )}
+                    <p className="text-xs text-gray-500">Max size: 5MB. Supported: JPEG, PNG, GIF, WebP</p>
+                  </div>
+                </>
+              )}
 
-            <button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="w-full h-10 inline-flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              <Check className="h-4 w-4" />
-              {isLoading ? "Creating your account..." : "Create account"}
-            </button>
+              <button
+                onClick={handleSubmit}
+                disabled={isLoading}
+                className="w-full rounded bg-[#3d6a4a] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2f5239] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+              >
+                <Check className="h-4 w-4" />
+                {isLoading ? "Creating your account..." : "Create account"}
+              </button>
 
-            <p className="text-xs text-muted-foreground text-center">
-              By continuing, you agree to our Terms and acknowledge our Privacy Policy.
-            </p>
+              <p className="text-xs text-gray-500 text-center">
+                By continuing, you agree to our Terms and acknowledge our Privacy Policy.
+              </p>
+            </div>
           </div>
         </div>
       </div>

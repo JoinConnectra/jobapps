@@ -40,7 +40,7 @@ const GlobalTeamSection = () => {
           Hire globally
         </Link>
         <h2 className="font-display mb-12 max-w-4xl text-5xl font-bold text-foreground">
-          TalentFlow is designed for distributed teams
+          Connectra is designed for distributed teams
         </h2>
 
         <div className="relative mx-auto mb-8 w-full max-w-[1000px] aspect-[2/1]">
@@ -69,7 +69,7 @@ const GlobalTeamSection = () => {
         </div>
 
         <p className="text-[1.125rem] leading-relaxed text-muted-foreground">
-          TalentFlow supports global hiring and multi-languages
+          Connectra supports global hiring and multi-languages
         </p>
       </div>
     </section>

@@ -5,21 +5,16 @@ import Image from 'next/image';
 
 const FeaturesOverviewSection = () => {
   return (
-    <section id="rapha-features" className="bg-[#FEFEFA] pt-24 sm:pt-32 pb-8 lg:pb-12">
-      <div className="container mx-auto px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="flex justify-center">
-             <div className="relative rounded-full px-4 py-1 text-sm leading-6 text-primary ring-1 ring-primary/20 hover:ring-primary/30">
-              You'll never recruit alone
-            </div>
-          </div>
-          <h2 className="mt-6 font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-text-primary">
+    <section id="rapha-features" className="bg-white pt-24 sm:pt-32 pb-8 lg:pb-12">
+      <div className="container mx-auto px-6 lg:px-8 max-w-5xl">
+        <div className="mx-auto max-w-5xl text-center">
+          <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-text-primary">
             What's under the hood
           </h2>
         </div>
 
         <div className="mt-16 sm:mt-20 lg:mt-24">
-          <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-12 items-start max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-12 items-start max-w-5xl mx-auto">
             {/* Card 1: Let your applicants sell themselves */}
             <div className="flex flex-col">
               <div className="rounded-xl bg-white border border-gray-200 p-4 shadow-sm">

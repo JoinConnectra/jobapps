@@ -44,6 +44,7 @@ import {
   LayoutGrid,
   Rows,
   ArrowUpDown,
+  Command as CommandIcon,
   Sparkles,
   Loader2,
   GraduationCap,
@@ -111,7 +112,7 @@ export default function AllJobsPage() {
   // ----- Job creation form state -----
   const [creating, setCreating] = useState(false);
   const [generatingJD, setGeneratingJD] = useState(false);
-  const [universities, setUniversities] = useState<{id: number; name: string; approved: boolean}[]>([]);
+  const [universities, setUniversities] = useState<{ id: number; name: string; approved: boolean }[]>([]);
   const [loadingUniversities, setLoadingUniversities] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -129,17 +130,17 @@ export default function AllJobsPage() {
 
   // ----- Filters / sort / view (status+search hit API; others are display-only) -----
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [seniorityFilter, setSeniorityFilter] = useState<SeniorityFilter>("all");
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("30d");
-  const [modeFilter, setModeFilter] = useState<ModeFilter>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [seniorityFilter, setSeniorityFilter] = useState<SeniorityFilter>("all"); // display only
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("30d"); // display only
+  const [modeFilter, setModeFilter] = useState<ModeFilter>("all"); // display only
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt"); // display only
+  const [sortDir, setSortDir] = useState<SortDir>("desc"); // display only
+  const [viewMode, setViewMode] = useState<ViewMode>("list"); // display only
 
   // Collapsible filters (like Talent)
   const [showFilters, setShowFilters] = useState(false);
 
-  // Search (simple + immediate)
+  // Search (simple + immediate like old code)
   const [searchQuery, setSearchQuery] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -229,7 +230,7 @@ export default function AllJobsPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [openCommandPalette]);
 
-  // Load jobs on session ready or status/search change
+  // Load jobs on session ready or status/search change (old behavior)
   useEffect(() => {
     if (session?.user && orgId) fetchJobs();
   }, [session, orgId, statusFilter, searchQuery]);
@@ -245,7 +246,9 @@ export default function AllJobsPage() {
       if (orgId) {
         orgIdParam = `&orgId=${orgId}`;
       } else {
-        const orgResp = await fetch("/api/organizations?mine=true", { headers: { Authorization: `Bearer ${token}` } });
+        const orgResp = await fetch("/api/organizations?mine=true", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (orgResp.ok) {
           const orgs = await orgResp.json();
           if (Array.isArray(orgs) && orgs.length > 0) {
@@ -266,7 +269,7 @@ export default function AllJobsPage() {
       if (response.ok) {
         const data = await response.json();
 
-        // 4) For each job, fetch applications to compute simple stage counts
+        // 4) For each job, fetch applications to compute simple stage counts (old behavior)
         const jobsWithStats = await Promise.all(
           data.map(async (job: Job) => {
             try {
@@ -292,19 +295,43 @@ export default function AllJobsPage() {
                 const applications = await appsResp.json();
                 totalCandidates = applications.length;
                 applications.forEach((app: any) => {
-                  if (app.source && app.source.trim() !== "") stats.sourced++;
+                  // Count sourced: applications with a non-empty source field
+                  if (app.source && app.source.trim() !== "") {
+                    stats.sourced++;
+                  }
+
+                  // Count by stage
                   switch (app.stage) {
-                    case "applied": stats.applied++; break;
-                    case "reviewing": stats.reviewing++; break;
-                    case "phone_screen": stats.phone_screen++; break;
+                    case "applied":
+                      stats.applied++;
+                      break;
+                    case "reviewing":
+                      stats.reviewing++;
+                      break;
+                    case "phone_screen":
+                      stats.phone_screen++;
+                      break;
                     case "assessment":
-                    case "assessments": stats.assessment++; break;
-                    case "onsite": stats.onsite++; break;
-                    case "offer": stats.offer++; break;
-                    case "hired": stats.hired++; break;
-                    case "rejected": stats.rejected++; break;
+                    case "assessments":
+                      stats.assessment++;
+                      break;
+                    case "onsite":
+                      stats.onsite++;
+                      break;
+                    case "offer":
+                      stats.offer++;
+                      break;
+                    case "hired":
+                      stats.hired++;
+                      break;
+                    case "rejected":
+                      stats.rejected++;
+                      break;
                     default:
-                      if (!app.stage || app.stage === "") stats.applied++;
+                      // If stage is not set or unknown, count as applied
+                      if (!app.stage || app.stage === "") {
+                        stats.applied++;
+                      }
                       break;
                   }
                 });
@@ -319,9 +346,16 @@ export default function AllJobsPage() {
             } catch {
               return {
                 ...job,
-                applicationStats: { 
-                  sourced: 0, applied: 0, reviewing: 0, phone_screen: 0,
-                  assessment: 0, onsite: 0, offer: 0, hired: 0, rejected: 0 
+                applicationStats: {
+                  sourced: 0,
+                  applied: 0,
+                  reviewing: 0,
+                  phone_screen: 0,
+                  assessment: 0,
+                  onsite: 0,
+                  offer: 0,
+                  hired: 0,
+                  rejected: 0,
                 },
                 totalCandidates: 0,
                 createdBy: session?.user?.name || "You",
@@ -389,7 +423,10 @@ export default function AllJobsPage() {
     if (!confirm("Are you sure you want to delete this job? This action cannot be undone.")) return;
     try {
       const token = localStorage.getItem("bearer_token");
-      const resp = await fetch(`/api/jobs/${jobId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      const resp = await fetch(`/api/jobs/${jobId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (resp.ok) {
         toast.success("Job deleted");
         fetchJobs(true);
@@ -434,13 +471,9 @@ export default function AllJobsPage() {
         form.dept ? ` in the ${form.dept} department` : ""
       }. Location mode: ${form.locationMode}${
         form.location ? `, Work location: ${form.location}` : ""
-      }${
-        form.seniority ? `. Seniority: ${form.seniority}` : ""
-      }${
+      }${form.seniority ? `. Seniority: ${form.seniority}` : ""}${
         form.skillsCsv ? `. Required skills: ${form.skillsCsv}` : ""
-      }${
-        form.salaryRange ? `. Salary: ${form.salaryRange}` : ""
-      }. Make it suitable for the Pakistan job market with both English and Urdu context. Provide clear responsibilities and qualifications, and a short application CTA.`;
+      }${form.salaryRange ? `. Salary: ${form.salaryRange}` : ""}. Make it suitable for the Pakistan job market with both English and Urdu context. Provide clear responsibilities and qualifications, and a short application CTA.`;
 
       const jdResp = await fetch("/api/ai/generate-jd", {
         method: "POST",
@@ -535,36 +568,12 @@ export default function AllJobsPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="mt-3 text-sm text-muted-foreground">Loading jobs…</p>
         </div>
       </div>
     );
   }
   if (!session?.user) return null;
-
-  // Reusable per-stage counts strip
-  const StageStrip = ({ job }: { job: JobWithStats }) => {
-    const statusConfig = [
-      { key: 'sourced' as const, label: 'SOURCED' },
-      { key: 'applied' as const, label: 'APPLIED' },
-      { key: 'reviewing' as const, label: 'REVIEWING' },
-      { key: 'phone_screen' as const, label: 'PHONE SCREEN' },
-      { key: 'assessment' as const, label: 'ASSESSMENT' },
-      { key: 'onsite' as const, label: 'ON-SITE' },
-      { key: 'offer' as const, label: 'OFFER' },
-      { key: 'hired' as const, label: 'HIRED' },
-      { key: 'rejected' as const, label: 'REJECTED' },
-    ];
-    return (
-      <div className="grid gap-1.5 grid-cols-9 overflow-x-auto">
-        {statusConfig.map(({ key, label }) => (
-          <div key={key} className="text-center min-w-[60px] flex-shrink-0">
-            <div className="text-sm font-semibold text-gray-900">{job.applicationStats[key]}</div>
-            <div className="text-[9px] text-gray-500 leading-tight whitespace-nowrap">{label}</div>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
@@ -631,7 +640,9 @@ export default function AllJobsPage() {
                               onClick={() => setStatusFilter(key)}
                               className={[
                                 "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                                statusFilter === key ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                                statusFilter === key
+                                  ? "bg-[#6a994e] text-white shadow-sm"
+                                  : "text-gray-700 hover:bg-gray-200/60",
                               ].join(" ")}
                             >
                               <span>{label}</span>
@@ -666,7 +677,7 @@ export default function AllJobsPage() {
                     {/* RIGHT: search, sort, view toggle */}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 min-w-0">
-                        {/* Search */}
+                        {/* Search (full width on mobile to avoid overflow) */}
                         <div className="relative w-full sm:w-72" title="Press / to focus">
                           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                           <Input
@@ -678,7 +689,7 @@ export default function AllJobsPage() {
                           />
                         </div>
 
-                        {/* Sort (display only) */}
+                        {/* Sort (display only in this hybrid) */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="gap-2">
@@ -700,19 +711,8 @@ export default function AllJobsPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {/* View toggle */}
+                        {/* View toggle (display only) */}
                         <div className="flex bg-gray-100 rounded-lg p-1">
-                          <button
-                            onClick={() => setViewMode("list")}
-                            className={[
-                              "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                              viewMode === "list" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
-                            ].join(" ")}
-                            title="G to toggle"
-                          >
-                            <Rows className="h-4 w-4" />
-                            List
-                          </button>
                           <button
                             onClick={() => setViewMode("grid")}
                             className={[
@@ -723,6 +723,17 @@ export default function AllJobsPage() {
                           >
                             <LayoutGrid className="h-4 w-4" />
                             Grid
+                          </button>
+                          <button
+                            onClick={() => setViewMode("list")}
+                            className={[
+                              "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
+                              viewMode === "list" ? "bg-[#6a994e] text-white shadow-sm" : "text-gray-700 hover:bg-gray-200/60",
+                            ].join(" ")}
+                            title="G to toggle"
+                          >
+                            <Rows className="h-4 w-4" />
+                            List
                           </button>
                         </div>
                       </div>
@@ -750,7 +761,10 @@ export default function AllJobsPage() {
 
                         <div>
                           <Label className="mb-1 block text-xs text-gray-500">Seniority</Label>
-                          <Select value={seniorityFilter} onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}>
+                          <Select
+                            value={seniorityFilter}
+                            onValueChange={(v: SeniorityFilter) => setSeniorityFilter(v)}
+                          >
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder="Seniority" />
                             </SelectTrigger>
@@ -796,8 +810,8 @@ export default function AllJobsPage() {
           </div>
         </div>
 
-        {/* CONTENT (Jobs) */}
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-0">
+        {/* CONTENT (Jobs as spaced tiles) */}
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-8">
           {/* Job Creation Form - Shows when ?create=1 */}
           {searchParams?.get("create") === "1" && (
             <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
@@ -966,7 +980,8 @@ export default function AllJobsPage() {
                     </div>
                   </div>
 
-                  {(form.visibility === 'institutions' || form.visibility === 'both') && (
+                  {/* University Selection - Only show when institutions or both is selected */}
+                  {(form.visibility === "institutions" || form.visibility === "both") && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <GraduationCap className="w-4 h-4 text-[#6a994e]" />
@@ -975,7 +990,7 @@ export default function AllJobsPage() {
                       <p className="text-xs text-muted-foreground mb-3">
                         Choose which universities can see this job posting.
                       </p>
-                      
+
                       {loadingUniversities ? (
                         <div className="p-4 text-center text-sm text-muted-foreground">
                           Loading universities...
@@ -991,12 +1006,12 @@ export default function AllJobsPage() {
                                   if (checked) {
                                     setForm({
                                       ...form,
-                                      universityIds: [...form.universityIds, university.id]
+                                      universityIds: [...form.universityIds, university.id],
                                     });
                                   } else {
                                     setForm({
                                       ...form,
-                                      universityIds: form.universityIds.filter(id => id !== university.id)
+                                      universityIds: form.universityIds.filter((id) => id !== university.id),
                                     });
                                   }
                                 }}
@@ -1012,7 +1027,8 @@ export default function AllJobsPage() {
                         </div>
                       ) : (
                         <div className="p-4 text-center text-sm text-muted-foreground border border-[#d4d4d8] rounded-md">
-                          No approved universities available. Please request access to universities in your organization settings first.
+                          No approved universities available. Please request access to universities in your organization
+                          settings first.
                         </div>
                       )}
                     </div>
@@ -1038,10 +1054,9 @@ export default function AllJobsPage() {
             </div>
           )}
 
-          {/* ======= LIST / GRID SWITCH ======= */}
-          <div className="">
+          <div>
             {jobs.length === 0 ? (
-              // Empty state
+              // Empty state (kept simple)
               <div className="text-center py-16 bg-white rounded-lg shadow-sm">
                 <div className="flex items-center justify-center mb-6">
                   <div className="w-16 h-16 border-2 border-gray-300 rounded-lg flex items-center justify-center">
@@ -1059,8 +1074,8 @@ export default function AllJobsPage() {
                   Create your first job
                 </Button>
               </div>
-            ) : viewMode === "list" ? (
-              // ======= LIST VIEW =======
+            ) : (
+              // Spaced tiles; keep stage counts in ONE LINE
               <ul className="space-y-2 sm:space-y-3">
                 {jobs.map((job) => (
                   <li
@@ -1081,6 +1096,7 @@ export default function AllJobsPage() {
                           {new Date(job.createdAt).toLocaleDateString()}
                         </div>
 
+                        {/* Location only */}
                         {job.location && (
                           <div className="text-xs text-gray-500 mt-1">
                             <span>📍 {job.location}</span>
@@ -1128,121 +1144,82 @@ export default function AllJobsPage() {
                       </div>
                     </div>
 
+                    {/* Per-stage counts (ONE LINE, dynamic grid based on number of statuses) */}
                     <Link href={`/dashboard/jobs/${job.id}`} className="block cursor-pointer">
-                      <StageStrip job={job} />
+                      {(() => {
+                        // Define all statuses in pipeline order with display labels
+                        const statusConfig = [
+                          { key: "sourced" as const, label: "SOURCED" },
+                          { key: "applied" as const, label: "APPLIED" },
+                          { key: "reviewing" as const, label: "REVIEWING" },
+                          { key: "phone_screen" as const, label: "PHONE SCREEN" },
+                          { key: "assessment" as const, label: "ASSESSMENT" },
+                          { key: "onsite" as const, label: "ON-SITE" },
+                          { key: "offer" as const, label: "OFFER" },
+                          { key: "hired" as const, label: "HIRED" },
+                          { key: "rejected" as const, label: "REJECTED" },
+                        ];
+
+                        return (
+                          <div className="grid gap-1.5 grid-cols-9 overflow-x-auto">
+                            {statusConfig.map(({ key, label }) => (
+                              <div key={key} className="text-center min-w-[60px] flex-shrink-0">
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {job.applicationStats[key]}
+                                </div>
+                                <div className="text-[9px] text-gray-500 leading-tight whitespace-nowrap">
+                                  {label}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </Link>
                   </li>
                 ))}
               </ul>
-            ) : (
-              // ======= GRID VIEW =======
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {jobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow transition-shadow flex flex-col"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <Link href={`/dashboard/jobs/${job.id}`} className="min-w-0">
-                        <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
-                          {job.title}
-                        </h3>
-                        <div className="text-[11px] text-gray-500 mt-1">
-                          {new Date(job.createdAt).toLocaleDateString()} • {job.createdBy}
-                        </div>
-                        {job.location && (
-                          <div className="text-xs text-gray-500 mt-1 truncate">📍 {job.location}</div>
-                        )}
-                        {job.locationMode && (
-                          <div className="text-[11px] text-gray-500 mt-0.5">{job.locationMode}</div>
-                        )}
-                      </Link>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusPill(job.status)}`}>
-                          {job.status === "closed" ? "archived" : job.status}
-                        </span>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/jobs/${job.id}`)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Job
-                            </DropdownMenuItem>
-                            {job.status === "published" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "draft")}>
-                                Move to Draft
-                              </DropdownMenuItem>
-                            )}
-                            {job.status === "draft" && (
-                              <DropdownMenuItem onClick={() => handleStatusChange(job.id, "published")}>
-                                Publish
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleStatusChange(job.id, "closed")}>
-                              Archive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDelete(job.id)} className="text-red-600">
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 text-xs text-gray-600">
-                      <span className="font-medium">{job.totalCandidates}</span> candidates
-                    </div>
-                  </div>
-                ))}
-              </div>
             )}
           </div>
-        </div>
 
-        {/* Command palette */}
-        <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
+          {/* Command palette */}
+          <CommandPalette isOpen={isCommandPaletteOpen} onClose={closeCommandPalette} orgId={org?.id} />
 
-        {/* Settings modal */}
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={async () => {
-            setIsSettingsOpen(false);
-            try {
-              const token = localStorage.getItem("bearer_token");
-              const orgResp = await fetch("/api/organizations?mine=true", {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              if (orgResp.ok) {
-                const orgs = await orgResp.json();
-                if (Array.isArray(orgs) && orgs.length > 0) setOrg(orgs[0]);
-              }
-            } catch (error) {
-              console.error("Failed to refresh org data:", error);
-            }
-          }}
-          organization={
-            org
-              ? {
-                  id: org.id,
-                  name: org.name,
-                  slug: "",
-                  type: "company",
-                  plan: "free",
-                  seatLimit: 5,
-                  logoUrl: org.logoUrl,
-                  createdAt: "",
-                  updatedAt: "",
+          {/* Settings modal */}
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={async () => {
+              setIsSettingsOpen(false);
+              try {
+                const token = localStorage.getItem("bearer_token");
+                const orgResp = await fetch("/api/organizations?mine=true", {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (orgResp.ok) {
+                  const orgs = await orgResp.json();
+                  if (Array.isArray(orgs) && orgs.length > 0) setOrg(orgs[0]);
                 }
-              : null
-          }
-        />
+              } catch (error) {
+                console.error("Failed to refresh org data:", error);
+              }
+            }}
+            organization={
+              org
+                ? {
+                    id: org.id,
+                    name: org.name,
+                    slug: "",
+                    type: "company",
+                    plan: "free",
+                    seatLimit: 5,
+                    logoUrl: org.logoUrl,
+                    createdAt: "",
+                    updatedAt: "",
+                  }
+                : null
+            }
+          />
+        </div>
       </main>
     </div>
   );

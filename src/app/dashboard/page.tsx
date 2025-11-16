@@ -174,7 +174,7 @@ export default function DashboardPage() {
 
         const lookbackDays =
           timeRange === "today"
-            ? 2 // today + yesterday (as you had)
+            ? 0 // today only, starting from midnight today
             : timeRange === "7d"
             ? 7
             : timeRange === "30d"
