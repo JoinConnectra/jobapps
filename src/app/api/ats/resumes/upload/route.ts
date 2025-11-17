@@ -72,7 +72,7 @@ async function tryPdfJs(buf: Buffer): Promise<{ text: string; pages: number } | 
     const g: any = globalThis as any;
     if (typeof g.DOMMatrix === "undefined") { g.DOMMatrix = class { multiplySelf() { return this; } }; }
     // legacy ESM build (no 'canvas' import)
-    const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      const pdfjs: any = await import("pdfjs-dist/build/pdf.mjs");
     if (pdfjs?.GlobalWorkerOptions) pdfjs.GlobalWorkerOptions.workerSrc = undefined;
 
     const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buf) });

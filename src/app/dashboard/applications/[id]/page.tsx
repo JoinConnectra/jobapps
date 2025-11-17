@@ -110,6 +110,7 @@ interface Answer {
   id: number;
   questionId: number;
   audioS3Key: string | null;
+  textAnswer: string | null;
   durationSec: number | null;
   applicationId: number;
 }
@@ -1223,49 +1224,67 @@ export default function ApplicationDetailPage() {
                         ? reactionDialog.reaction
                         : currentUserReaction?.reaction ?? null;
 
+                    const hasAudio = answer.audioS3Key && 
+                                    typeof answer.audioS3Key === 'string' && 
+                                    answer.audioS3Key.trim() !== '';
+                    const hasText = answer.textAnswer && 
+                                   typeof answer.textAnswer === 'string' && 
+                                   answer.textAnswer.trim() !== '';
+
                     return (
-                      <div key={answer.id} className="bg-gray-50 rounded-lg p-3 flex items-center gap-3">
-                        {/* Play Button */}
-                        <button
-                          onClick={() => {
-                            const hasAudio = answer.audioS3Key && 
-                                            typeof answer.audioS3Key === 'string' && 
-                                            answer.audioS3Key.trim() !== '';
-                            if (hasAudio) {
-                              toggleAudio(answer.id, answer.audioS3Key);
-                            } else {
-                              console.warn("No audio file available for answer", answer.id, "audioS3Key:", answer.audioS3Key);
-                              toast.error("No audio file available for this answer");
-                            }
-                          }}
-                          disabled={!answer.audioS3Key || 
-                                   typeof answer.audioS3Key !== 'string' || 
-                                   answer.audioS3Key.trim() === ''}
-                          className="w-8 h-8 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {playingAnswer === answer.id ? (
-                            <Pause className="w-3.5 h-3.5 text-gray-700" />
+                      <div key={answer.id} className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-start gap-3">
+                          {/* Play Button - only show if audio exists */}
+                          {hasAudio ? (
+                            <button
+                              onClick={() => {
+                                toggleAudio(answer.id, answer.audioS3Key);
+                              }}
+                              className="w-8 h-8 bg-white rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors flex-shrink-0"
+                            >
+                              {playingAnswer === answer.id ? (
+                                <Pause className="w-3.5 h-3.5 text-gray-700" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5 text-gray-700 ml-0.5" />
+                              )}
+                            </button>
                           ) : (
-                            <Play className="w-3.5 h-3.5 text-gray-700 ml-0.5" />
+                            <div className="w-8 h-8 flex-shrink-0" />
                           )}
-                        </button>
 
-                        {/* Question Content */}
-                        <div className="flex-1">
-                          <h3 className="text-xs font-semibold text-gray-900 mb-0.5">
-                            {question?.prompt || "Question not found"}
-                          </h3>
-                          <p className="text-[10px] text-gray-600">Feel free to get technical here!</p>
-                        </div>
+                          {/* Question and Answer Content */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-xs font-semibold text-gray-900 mb-1">
+                              {question?.prompt || "Question not found"}
+                            </h3>
+                            
+                            {/* Display text answer if exists */}
+                            {hasText && (
+                              <div className="mb-2">
+                                <p className="text-xs text-gray-700 whitespace-pre-wrap bg-white rounded p-2 border border-gray-200">
+                                  {answer.textAnswer}
+                                </p>
+                              </div>
+                            )}
 
-                        {/* Duration and Actions */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-500">
-                            {formatTime(currentTime[answer.id] || 0)} /{" "}
-                            {formatTime(answer.durationSec || audioElements[answer.id]?.duration || 0)}
-                          </span>
+                            {/* Display audio duration if audio exists */}
+                            {hasAudio && (
+                              <div className="mb-1">
+                                <span className="text-[10px] text-gray-500">
+                                  {formatTime(currentTime[answer.id] || 0)} /{" "}
+                                  {formatTime(answer.durationSec || audioElements[answer.id]?.duration || 0)}
+                                </span>
+                              </div>
+                            )}
 
-                          <div className="flex items-center gap-1.5">
+                            {/* Show placeholder if neither audio nor text */}
+                            {!hasAudio && !hasText && (
+                              <p className="text-[10px] text-gray-400 italic">No answer provided</p>
+                            )}
+                          </div>
+
+                          {/* Reaction Buttons */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
                             <button
                               onClick={() => openReactionDialog(answer.id, "like")}
                               className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${

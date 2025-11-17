@@ -1236,7 +1236,7 @@ export default function AllJobsPage() {
                   type: "company",
                   plan: "free",
                   seatLimit: 5,
-                  logoUrl: org.logoUrl,
+                  logoUrl: org.logoUrl ?? undefined,
                   createdAt: "",
                   updatedAt: "",
                 }
