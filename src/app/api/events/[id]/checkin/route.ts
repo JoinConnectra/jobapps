@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseService } from '@/lib/supabase';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'userEmail is required' }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseService
       .from('event_checkins')
       .insert({ event_id: id, user_email: userEmail })
       .select('*')

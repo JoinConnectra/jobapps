@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseService } from '@/lib/supabase';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     // Create registration
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseService
       .from('event_registrations')
       .insert({ event_id: id, user_email: userEmail })
       .select('*')
@@ -24,8 +24,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    // Best-effort bump (no `.catch` — use returned error)
-    const { error: incErr } = await supabaseAdmin.rpc('increment_attendees', { p_event_id: id });
+    // Best-effort bump attendees_count via RPC
+    const { error: incErr } = await supabaseService.rpc('increment_attendees', {
+      p_event_id: id,
+    });
     if (incErr) {
       console.warn('increment_attendees failed:', incErr.message);
     }

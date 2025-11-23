@@ -3,7 +3,7 @@ import { supabaseService } from "@/lib/supabase";
 
 /**
  * GET /api/university/events?orgId=123&status=upcoming|past|all&q=...
- * Reads from the single `events` table.
+ * Reads from `event_aggregates` so we get reg_count/checkins_count/capacity/etc.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -16,9 +16,9 @@ export async function GET(request: NextRequest) {
       | "past"
       | "all";
 
-    // 1) employer-hosted, published (global feed)
+    // 1) Employer-hosted, published (global feed) from event_aggregates
     const { data: employerRows, error: employerErr } = await supabaseService
-      .from("events")
+      .from("event_aggregates")
       .select("*")
       .eq("is_employer_hosted", true)
       .eq("status", "published");
@@ -27,14 +27,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: employerErr.message }, { status: 500 });
     }
 
-    // 2) this university’s own events (same table), optional
+    // 2) This university’s own events (same underlying events, but uni-hosted)
     let uniRows: any[] = [];
     if (orgId) {
       const { data, error } = await supabaseService
-        .from("events")
+        .from("event_aggregates")
         .select("*")
         .eq("is_employer_hosted", false)
         .eq("org_id", orgId);
+
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     type Host = "EMPLOYER" | "UNIVERSITY";
+
     const mapRow = (e: any, host: Host) => ({
       id: e.id,
       title: e.title,
@@ -50,11 +52,21 @@ export async function GET(request: NextRequest) {
       startsAt: e.start_at,
       endsAt: e.end_at ?? null,
       medium: e.medium ?? null,
-      tags: e.tags ?? null,
-      categories: e.categories ?? null,
+      tags: e.tags ?? [],
+      categories: null, // event_aggregates doesn’t have categories; can be enriched later
       featured: !!e.featured,
       status: e.status ?? null,
       is_employer_hosted: !!e.is_employer_hosted,
+
+      // aggregate metrics
+      reg_count: e.reg_count ?? null,
+      checkins_count: e.checkins_count ?? null,
+      attendees_count: e.attendees_count ?? null,
+
+      // capacity & external registration
+      capacity: e.capacity ?? null,
+      registration_url: e.registration_url ?? null,
+
       _host: host,
     });
 
@@ -63,7 +75,7 @@ export async function GET(request: NextRequest) {
       ...uniRows.map((e) => mapRow(e, "UNIVERSITY")),
     ];
 
-    // status filter
+    // status filter (upcoming vs past vs all)
     if (status !== "all") {
       const now = new Date();
       merged =
@@ -72,21 +84,31 @@ export async function GET(request: NextRequest) {
           : merged.filter((r) => new Date(r.startsAt) < now);
     }
 
-    // q filter
+    // free-text search
     if (q) {
       const match = (s?: string | null) => (s || "").toLowerCase().includes(q);
-      merged = merged.filter(
-        (r) => match(r.title) || match(r.description) || match(r.location)
-      );
+      merged = merged.filter((r) => {
+        const tagStr = Array.isArray(r.tags) ? r.tags.join(" ").toLowerCase() : "";
+        return (
+          match(r.title) ||
+          match(r.description) ||
+          match(r.location) ||
+          tagStr.includes(q)
+        );
+      });
     }
 
-    // sort by start time
+    // sort by start time (soonest first)
     merged.sort(
       (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
     );
 
     return NextResponse.json(merged);
-  } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("GET /api/university/events error:", e);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

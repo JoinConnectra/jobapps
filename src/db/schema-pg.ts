@@ -545,6 +545,8 @@ export const organizationInvites = pgTable('organization_invites', {
 }));
 
 // ---- Events core ----
+// ---- Events core ----
+// ---- Events core ----
 export const events = pgTable('events', {
   id: serial('id').primaryKey(),
   orgId: integer('org_id').notNull(), // FK → organizations.id (enforce via SQL migration if needed)
@@ -552,18 +554,71 @@ export const events = pgTable('events', {
   description: text('description'),
   location: text('location'),
   medium: text('medium').$type<'VIRTUAL' | 'IN_PERSON'>().default('IN_PERSON'),
+
+  // Note: in Supabase this is `text[]` NULL DEFAULT '{}'
   categories: text('categories').array().notNull().default(sql`'{}'`),
+
+  // `tags text[] NOT NULL DEFAULT '{}'::text[]`
   tags: text('tags').array().notNull().default(sql`'{}'`),
+
+  // timestamptz in Supabase; we keep withTimezone: false here for backwards-compat
   startAt: timestamp('start_at', { withTimezone: false }).notNull(),
   endAt: timestamp('end_at', { withTimezone: false }),
+
   featured: boolean('featured').default(false).notNull(),
   isEmployerHosted: boolean('is_employer_hosted').default(true).notNull(),
-  status: text('status').$type<'draft' | 'published' | 'past'>().default('draft').notNull(),
+  status: text('status')
+    .$type<'draft' | 'published' | 'past'>()
+    .default('draft')
+    .notNull(),
+
   attendeesCount: integer('attendees_count').default(0).notNull(),
+
+  // 🔹 NEW: capacity + registration_url
+  capacity: integer('capacity'),                 // matches: integer, nullable
+  registrationUrl: text('registration_url'),     // matches: text, nullable
+
   createdBy: text('created_by'),
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
+// ---- Event aggregates VIEW (read-only) ----
+// This mirrors the Supabase SQL view: event_aggregates
+
+export const eventAggregates = pgTable('event_aggregates', {
+  id: integer('id'),
+  orgId: integer('org_id'),
+  title: text('title'),
+
+  startAt: timestamp('start_at', { withTimezone: false }),
+  endAt: timestamp('end_at', { withTimezone: false }),
+
+  attendeesCount: integer('attendees_count'),
+
+  createdAt: timestamp('created_at', { withTimezone: false }),
+  updatedAt: timestamp('updated_at', { withTimezone: false }),
+
+  description: text('description'),
+  location: text('location'),
+  medium: text('medium'),
+
+  tags: text('tags').array(),
+
+  featured: boolean('featured'),
+  isEmployerHosted: boolean('is_employer_hosted'),
+  status: text('status'),
+
+  // Aggregated metrics
+  regCount: integer('reg_count'),
+  checkinsCount: integer('checkins_count'),
+
+  // New fields we added
+  capacity: integer('capacity'),
+  registrationUrl: text('registration_url'),
+});
+
+
 
 export const eventRegistrations = pgTable('event_registrations', {
   id: serial('id').primaryKey(),
