@@ -14,6 +14,7 @@ import {
   Settings,
   Calendar,
   GraduationCap,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -41,7 +42,9 @@ export default function UniversityDashboardShell({
             : null;
           if (uni) setOrg(uni);
         }
-      } catch {}
+      } catch {
+        // no-op
+      }
     })();
   }, []);
 
@@ -63,7 +66,7 @@ export default function UniversityDashboardShell({
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="mt-4 text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -109,6 +112,19 @@ export default function UniversityDashboardShell({
               onClick={() => router.push("/university/dashboard/students")}
             >
               <GraduationCap className="w-4 h-4 mr-3" /> Students
+            </Button>
+
+            {/* Jobs */}
+            <Button
+              variant="ghost"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/jobs")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
+              onClick={() => router.push("/university/dashboard/jobs")}
+            >
+              <Briefcase className="w-4 h-4 mr-3" /> Jobs
             </Button>
 
             {/* Partner Requests */}
