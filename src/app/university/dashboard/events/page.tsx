@@ -1,7 +1,13 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 import Link from "next/link";
+
 import UniversityDashboardShell from "@/components/university/UniversityDashboardShell";
 import { EventItem } from "@/components/events/types";
 import { useSession } from "@/lib/auth-client";
@@ -33,7 +39,7 @@ import { EventCard } from "@/components/events/EventCard";
 import { UniversityEventCard } from "./_components/UniversityEventCard";
 
 // -------------------------------------------------
-// Types / helpers (similar to student + company pages)
+// Types / helpers
 // -------------------------------------------------
 type ViewMode = "grid" | "list";
 type SortKey = "soonest" | "mostPopular" | "featured";
@@ -173,7 +179,7 @@ export default function UniversityEventsPage() {
     // medium filter
     if (filters.medium !== "ANY") {
       list = list.filter(
-        (ev) => (ev.medium ?? "IN_PERSON") === filters.medium
+        (ev) => (ev.medium ?? "IN_PERSON") === filters.medium,
       );
     }
 
@@ -185,7 +191,7 @@ export default function UniversityEventsPage() {
       const startOfNextMonth = new Date(
         now.getFullYear(),
         now.getMonth() + 1,
-        1
+        1,
       );
       list = list.filter((ev) => {
         const d = new Date(ev.startsAt);
@@ -200,7 +206,7 @@ export default function UniversityEventsPage() {
     // sort
     if (sort === "soonest") {
       list.sort(
-        (a, b) => +new Date(a.startsAt) - +new Date(b.startsAt)
+        (a, b) => +new Date(a.startsAt) - +new Date(b.startsAt),
       );
     } else if (sort === "mostPopular") {
       const ac = (e: EventItem) =>
@@ -208,7 +214,7 @@ export default function UniversityEventsPage() {
       list.sort((a, b) => ac(b) - ac(a));
     } else if (sort === "featured") {
       list.sort(
-        (a, b) => Number(!!b.featured) - Number(!!a.featured)
+        (a, b) => Number(!!b.featured) - Number(!!a.featured),
       );
     }
 
@@ -230,17 +236,15 @@ export default function UniversityEventsPage() {
 
   return (
     <UniversityDashboardShell title="Events">
-      {/* Top actions row – similar placement to company page */}
+      {/* Top actions row */}
       <div className="mb-4 flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {/* simple “breadcrumb-lite” */}
           <span className="font-medium">Dashboard</span>
           <span className="mx-1">›</span>
           <span>Events</span>
         </div>
 
         <div className="flex gap-2">
-          {/* you can add more actions here later (e.g., import) */}
           <Button
             size="sm"
             asChild
@@ -317,7 +321,7 @@ export default function UniversityEventsPage() {
             </Button>
           </div>
 
-          {/* Tabs (only All for now, like company has status tabs) */}
+          {/* Tabs (only All for now) */}
           <Tabs value="all">
             <TabsList className="grid grid-cols-1">
               <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
@@ -390,14 +394,12 @@ export default function UniversityEventsPage() {
         </CardContent>
       </Card>
 
-      {/* Featured strip (read-only, using student EventCard) */}
+      {/* Featured strip */}
       {featured.length > 0 && (
         <section className="mt-4">
           <div className="mb-2 flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold">
-              Featured this month
-            </h2>
+            <h2 className="text-sm font-semibold">Featured this month</h2>
           </div>
           <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
             {featured.map((ev) => (
@@ -417,7 +419,7 @@ export default function UniversityEventsPage() {
         </section>
       )}
 
-      {/* Results – now using admin-ish card with View / Edit buttons */}
+      {/* Buckets */}
       <section className="mt-4 space-y-6">
         <Bucket title="Today" items={today} view={view} />
         <Bucket title="This week" items={thisWeek} view={view} />

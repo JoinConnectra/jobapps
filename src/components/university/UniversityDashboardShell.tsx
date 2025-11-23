@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import {
   Bell,
@@ -14,6 +13,7 @@ import {
   LogOut,
   Settings,
   Calendar,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ export default function UniversityDashboardShell({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, isPending } = useSession();
   const [org, setOrg] = useState<{ id: number; name: string } | null>(null);
 
@@ -53,7 +54,23 @@ export default function UniversityDashboardShell({
     }
   };
 
-  if (!session?.user && !isPending) {
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    return pathname === href || pathname.startsWith(href + "/");
+  };
+
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
     router.push("/login");
     return null;
   }
@@ -68,33 +85,66 @@ export default function UniversityDashboardShell({
           </div>
 
           <nav className="space-y-1">
+            {/* Overview */}
             <Button
               variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
               onClick={() => router.push("/university/dashboard")}
             >
               <Bell className="w-4 h-4 mr-3" /> Overview
             </Button>
 
+            {/* Students */}
             <Button
               variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/students")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
+              onClick={() => router.push("/university/dashboard/students")}
+            >
+              <GraduationCap className="w-4 h-4 mr-3" /> Students
+            </Button>
+
+            {/* Partner Requests */}
+            <Button
+              variant="ghost"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/requests")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
               onClick={() => router.push("/university/dashboard/requests")}
             >
               <Users2 className="w-4 h-4 mr-3" /> Partner Requests
             </Button>
 
+            {/* Approved Companies */}
             <Button
               variant="ghost"
-              className="w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/partners")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
               onClick={() => router.push("/university/dashboard/partners")}
             >
               <Building2 className="w-4 h-4 mr-3" /> Approved Companies
             </Button>
 
+            {/* Events */}
             <Button
               variant="ghost"
-              className="w-full justify-start text-gray-900 bg-[#F5F1E8]"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/events")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
               onClick={() => router.push("/university/dashboard/events")}
             >
               <Calendar className="w-4 h-4 mr-3" /> Events
@@ -102,15 +152,26 @@ export default function UniversityDashboardShell({
           </nav>
         </div>
 
+        {/* FOOTER */}
         <div className="mt-auto p-6 border-t border-gray-200">
           <div className="space-y-3">
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
-              <Search className="w-4 h-4 mr-3" /> Search <span className="ml-auto text-xs">⌘K</span>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-gray-500 text-sm"
+            >
+              <Search className="w-4 h-4 mr-3" /> Search{" "}
+              <span className="ml-auto text-xs">⌘K</span>
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-gray-500 text-sm"
+            >
               <HelpCircle className="w-4 h-4 mr-3" /> Help & Support
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-500 text-sm">
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-gray-500 text-sm"
+            >
               <UserPlus className="w-4 h-4 mr-3" /> Invite People
             </Button>
 
