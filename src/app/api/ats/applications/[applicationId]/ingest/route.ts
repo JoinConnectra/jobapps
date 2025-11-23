@@ -79,7 +79,8 @@ async function extractTextFromBuffer(filename: string, buf: Uint8Array) {
   if (ext === ".pdf") {
     try {
       (globalThis as any).DOMMatrix ??= class { multiplySelf() { return this; } };
-      const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      // For pdfjs-dist v4.x, use the build path
+      const pdfjs: any = await import("pdfjs-dist/build/pdf.mjs");
       if (pdfjs?.GlobalWorkerOptions) pdfjs.GlobalWorkerOptions.workerSrc = undefined;
 
       const loading = pdfjs.getDocument({ data: buf });
