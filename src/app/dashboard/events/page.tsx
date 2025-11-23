@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { useEmployerAuth } from "@/hooks/use-employer-auth";
@@ -36,27 +36,35 @@ import {
   Filter,
   MoreHorizontal,
   LayoutGrid,
-  List,
+  List as ListIcon,
   ArrowUpDown,
   Upload,
-  Eye,
   Archive,
   Trash2,
   Globe2,
   CalendarDays,
   MapPin,
+  Users,
 } from "lucide-react";
 
 import { CompanyEventCard } from "./_components/CompanyEventCard";
-import { EventComposer } from "./_components/EventComposer";
-import type { CompanyEvent, EventOut, EventStatus, Medium } from "./_types";
+import type {
+  CompanyEvent,
+  EventOut,
+  EventStatus,
+  Medium,
+} from "./_types";
 
 type ViewMode = "grid" | "list";
 type SortKey = "startSoon" | "createdNew" | "mostInterest";
 
+type MediumFilter = "all" | Medium;
+type TimeFilter = "all" | "thisWeek";
+
 export default function EmployerEventsPage() {
   const { session, isPending } = useEmployerAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     isOpen: isCommandPaletteOpen,
     open: openCommandPalette,
@@ -64,7 +72,9 @@ export default function EmployerEventsPage() {
   } = useCommandPalette();
 
   const [org, setOrg] =
-    useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
+    useState<{ id: number; name: string; logoUrl?: string | null } | null>(
+      null
+    );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Auth guard
@@ -110,10 +120,52 @@ export default function EmployerEventsPage() {
   const [sort, setSort] = useState<SortKey>("startSoon");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [composerOpen, setComposerOpen] = useState(false);
+
+  // Filters
+  const [mediumFilter, setMediumFilter] = useState<MediumFilter>("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const [requireRegistrations, setRequireRegistrations] = useState(false);
 
   const [raw, setRaw] = useState<EventOut[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Initialize filters from URL (q, medium, time, requireReg, tab)
+  useEffect(() => {
+    const initQ = searchParams.get("q") ?? "";
+    const initMedium = (searchParams.get("medium") as MediumFilter | null) ?? "all";
+    const initTime = (searchParams.get("time") as TimeFilter | null) ?? "all";
+    const initRequire = searchParams.get("hasReg") === "1";
+    const initTab = (searchParams.get("tab") as EventStatus | "all" | null) ?? "all";
+
+    setQ(initQ);
+    setMediumFilter(initMedium);
+    setTimeFilter(initTime);
+    setRequireRegistrations(initRequire);
+    setTab(initTab);
+  }, [searchParams]);
+
+  // Sync filters to URL for better UX (shareable / persistent views)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+
+    if (q) url.searchParams.set("q", q);
+    else url.searchParams.delete("q");
+
+    if (mediumFilter !== "all") url.searchParams.set("medium", mediumFilter);
+    else url.searchParams.delete("medium");
+
+    if (timeFilter !== "all") url.searchParams.set("time", timeFilter);
+    else url.searchParams.delete("time");
+
+    if (requireRegistrations) url.searchParams.set("hasReg", "1");
+    else url.searchParams.delete("hasReg");
+
+    if (tab !== "all") url.searchParams.set("tab", tab);
+    else url.searchParams.delete("tab");
+
+    window.history.replaceState(null, "", url.toString());
+  }, [q, mediumFilter, timeFilter, requireRegistrations, tab]);
 
   async function load() {
     if (!org?.id) return;
@@ -130,6 +182,7 @@ export default function EmployerEventsPage() {
       setRaw(Array.isArray(j) ? j : []);
     } catch (e) {
       console.error(e);
+      toast.error("Failed to load events");
     } finally {
       setLoading(false);
     }
@@ -156,6 +209,15 @@ export default function EmployerEventsPage() {
       tags: Array.isArray(e.tags) ? e.tags : [],
       description: e.description ?? undefined,
       featured: e.featured ?? false,
+      regCount: e.reg_count,
+      checkinsCount: e.checkins_count,
+      capacity:
+        typeof e.capacity === "number"
+          ? e.capacity
+          : e.capacity == null
+          ? null
+          : Number(e.capacity) || null,
+      registrationUrl: e.registration_url ?? null,
     }));
   }, [raw]);
 
@@ -170,12 +232,36 @@ export default function EmployerEventsPage() {
       );
     });
 
+    // apply medium filter
+    if (mediumFilter !== "all") {
+      list = list.filter((e) => e.medium === mediumFilter);
+    }
+
+    // apply time filter
+    if (timeFilter === "thisWeek") {
+      const now = Date.now();
+      const oneWeekFromNow = now + 7 * 24 * 60 * 60 * 1000;
+      list = list.filter((e) => {
+        const t = new Date(e.startDate).getTime();
+        return t >= now && t <= oneWeekFromNow;
+      });
+    }
+
+    // require at least one registration
+    if (requireRegistrations) {
+      list = list.filter(
+        (e) =>
+          (typeof e.regCount === "number" && e.regCount > 0) ||
+          (typeof e.interestCount === "number" && e.interestCount > 0)
+      );
+    }
+
     if (sort === "startSoon") {
       list = list
         .slice()
         .sort(
           (a, b) =>
-            new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
+            new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
         );
     } else if (sort === "createdNew") {
       list = list
@@ -185,12 +271,12 @@ export default function EmployerEventsPage() {
       list = list
         .slice()
         .sort(
-          (a, b) => (b.interestCount || 0) - (a.interestCount || 0),
+          (a, b) => (b.interestCount || 0) - (a.interestCount || 0)
         );
     }
 
     return list;
-  }, [ALL_EVENTS, q, sort]);
+  }, [ALL_EVENTS, q, sort, mediumFilter, timeFilter, requireRegistrations]);
 
   const counts = useMemo(() => {
     const drafts = raw.filter((e) => e.status === "draft").length;
@@ -203,7 +289,7 @@ export default function EmployerEventsPage() {
     setSelectedIds((prev) =>
       checked
         ? Array.from(new Set([...prev, id]))
-        : prev.filter((x) => x !== id),
+        : prev.filter((x) => x !== id)
     );
   };
 
@@ -211,6 +297,67 @@ export default function EmployerEventsPage() {
     filtered.length > 0 && filtered.every((e) => selectedIds.includes(e.id));
   const toggleSelectAll = (checked: boolean) => {
     setSelectedIds(checked ? filtered.map((e) => e.id) : []);
+  };
+
+  async function bulkUpdateStatus(newStatus: EventStatus) {
+    if (selectedIds.length === 0) return;
+    try {
+      const ids = selectedIds
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n));
+
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/events/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: newStatus }),
+          })
+        )
+      );
+
+      toast.success(
+        newStatus === "published"
+          ? "Events published"
+          : "Events updated"
+      );
+      setSelectedIds([]);
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Bulk update failed");
+    }
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm("Delete selected events? This cannot be undone.")) {
+      return;
+    }
+    try {
+      const ids = selectedIds
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n));
+
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/events/${id}`, {
+            method: "DELETE",
+          })
+        )
+      );
+
+      toast.success("Events deleted");
+      setSelectedIds([]);
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Bulk delete failed");
+    }
+  }
+
+  const handleCreateClick = () => {
+    router.push("/dashboard/events/new");
   };
 
   if (isPending) {
@@ -254,7 +401,7 @@ export default function EmployerEventsPage() {
 
             {/* Top actions */}
             <div className="mb-3 flex gap-2">
-              <Button size="sm" onClick={() => setComposerOpen(true)}>
+              <Button size="sm" onClick={handleCreateClick}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Event
               </Button>
@@ -340,7 +487,7 @@ export default function EmployerEventsPage() {
                         className="rounded-none h-8"
                         onClick={() => setView("list")}
                       >
-                        <List className="h-4 w-4" />
+                        <ListIcon className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -349,7 +496,10 @@ export default function EmployerEventsPage() {
                   <div className="shrink-0 w-full md:w-auto">
                     <Tabs
                       value={tab}
-                      onValueChange={(v) => setTab(v as any)}
+                      onValueChange={(v) => {
+                        setTab(v as any);
+                        setSelectedIds([]);
+                      }}
                       className="w-full"
                     >
                       <div className="w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -422,14 +572,21 @@ export default function EmployerEventsPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Selected</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => bulkUpdateStatus("published")}
+                      >
                         <Globe2 className="mr-2 h-4 w-4" /> Publish
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Archive className="mr-2 h-4 w-4" /> Archive
+                      <DropdownMenuItem
+                        onClick={() => bulkUpdateStatus("draft")}
+                      >
+                        <Archive className="mr-2 h-4 w-4" /> Move to draft
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={bulkDelete}
+                      >
                         <Trash2 className="mr-2 h-4 w-4" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -443,26 +600,50 @@ export default function EmployerEventsPage() {
                   <CardContent className="py-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
-                        variant="outline"
-                        className="h-6 text-xs px-2"
+                        variant={
+                          mediumFilter === "VIRTUAL" ? "default" : "outline"
+                        }
+                        className="h-6 text-xs px-2 cursor-pointer"
+                        onClick={() =>
+                          setMediumFilter(
+                            mediumFilter === "VIRTUAL" ? "all" : "VIRTUAL"
+                          )
+                        }
                       >
                         Virtual
                       </Badge>
                       <Badge
-                        variant="outline"
-                        className="h-6 text-xs px-2"
+                        variant={
+                          mediumFilter === "IN_PERSON" ? "default" : "outline"
+                        }
+                        className="h-6 text-xs px-2 cursor-pointer"
+                        onClick={() =>
+                          setMediumFilter(
+                            mediumFilter === "IN_PERSON" ? "all" : "IN_PERSON"
+                          )
+                        }
                       >
                         In-person
                       </Badge>
                       <Badge
-                        variant="outline"
-                        className="h-6 text-xs px-2"
+                        variant={timeFilter === "thisWeek" ? "default" : "outline"}
+                        className="h-6 text-xs px-2 cursor-pointer"
+                        onClick={() =>
+                          setTimeFilter(
+                            timeFilter === "thisWeek" ? "all" : "thisWeek"
+                          )
+                        }
                       >
                         This week
                       </Badge>
                       <Badge
-                        variant="outline"
-                        className="h-6 text-xs px-2"
+                        variant={
+                          requireRegistrations ? "default" : "outline"
+                        }
+                        className="h-6 text-xs px-2 cursor-pointer"
+                        onClick={() =>
+                          setRequireRegistrations((v) => !v)
+                        }
                       >
                         Has registration
                       </Badge>
@@ -470,7 +651,12 @@ export default function EmployerEventsPage() {
                         size="sm"
                         variant="ghost"
                         className="h-6 px-2 text-xs"
-                        onClick={() => setQ("")}
+                        onClick={() => {
+                          setQ("");
+                          setMediumFilter("all");
+                          setTimeFilter("all");
+                          setRequireRegistrations(false);
+                        }}
                       >
                         Clear
                       </Button>
@@ -499,7 +685,7 @@ export default function EmployerEventsPage() {
               </Card>
             ) : filtered.length === 0 ? (
               <div className="mt-2">
-                <Empty />
+                <Empty onCreate={handleCreateClick} />
               </div>
             ) : view === "grid" ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mt-2">
@@ -515,77 +701,140 @@ export default function EmployerEventsPage() {
             ) : (
               <Card className="mt-2">
                 <div className="divide-y">
-                  {filtered.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="flex items-center gap-3 p-3"
-                    >
-                      <Checkbox
-                        checked={selectedIds.includes(ev.id)}
-                        onCheckedChange={(v) =>
-                          toggleSelect(ev.id, Boolean(v))
-                        }
-                      />
-                      <div className="relative h-14 w-24 overflow-hidden rounded-md border bg-white">
-                        <Image
-                          src="/images/skans2.png"
-                          alt="cover"
-                          fill
-                          className="object-cover"
+                  {filtered.map((ev) => {
+                    const dateString = formatEventDate(ev.startDate);
+                    const temporal = getTemporalLabel(ev);
+                    const registered =
+                      typeof ev.regCount === "number"
+                        ? ev.regCount
+                        : typeof ev.interestCount === "number"
+                        ? ev.interestCount
+                        : 0;
+                    const checkedIn =
+                      typeof ev.checkinsCount === "number"
+                        ? ev.checkinsCount
+                        : undefined;
+                    const capacity =
+                      typeof ev.capacity === "number" && !Number.isNaN(ev.capacity)
+                        ? ev.capacity
+                        : undefined;
+
+                    const utilization =
+                      typeof capacity === "number" && capacity > 0
+                        ? Math.min(100, (registered / capacity) * 100)
+                        : null;
+
+                    return (
+                      <div
+                        key={ev.id}
+                        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40"
+                        onClick={() => router.push(`/dashboard/events/${ev.id}`)}
+                      >
+                        <Checkbox
+                          checked={selectedIds.includes(ev.id)}
+                          onCheckedChange={(v) =>
+                            toggleSelect(ev.id, Boolean(v))
+                          }
+                          onClick={(e) => e.stopPropagation()}
                         />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">
-                          {ev.title}
-                        </p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <CalendarDays className="h-3.5 w-3.5" />
-                            {new Date(ev.startDate).toLocaleString()}
-                          </span>
-                          {ev.location && (
+                        <div className="relative h-14 w-24 overflow-hidden rounded-md border bg-white">
+                          <Image
+                            src="/images/skans2.png"
+                            alt="cover"
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold">
+                              {ev.title}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0.5"
+                            >
+                              {temporal}
+                            </Badge>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                             <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {ev.location}
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              {dateString}
                             </span>
+                            {ev.location && (
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="h-3.5 w-3.5" />
+                                {ev.location}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1">
+                              <Globe2 className="h-3.5 w-3.5" />
+                              {ev.medium === "VIRTUAL"
+                                ? "Virtual"
+                                : "In-person"}
+                            </span>
+                            {(registered > 0 ||
+                              typeof checkedIn === "number" ||
+                              typeof capacity === "number") && (
+                              <span className="inline-flex items-center gap-1">
+                                <Users className="h-3.5 w-3.5" />
+                                {registered} registered
+                                {typeof checkedIn === "number" &&
+                                  ` · ${checkedIn} checked-in`}
+                                {typeof capacity === "number" &&
+                                  ` · cap ${capacity}`}
+                              </span>
+                            )}
+                          </div>
+                          {utilization !== null && (
+                            <div className="mt-2">
+                              <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                                <span>Utilization</span>
+                                <span>
+                                  {registered}/{capacity} ({Math.round(utilization)}%)
+                                </span>
+                              </div>
+                              <div className="h-1.5 w-40 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-emerald-500"
+                                  style={{ width: `${utilization}%` }}
+                                />
+                              </div>
+                            </div>
                           )}
-                          <span className="inline-flex items-center gap-1">
-                            <Globe2 className="h-3.5 w-3.5" />
-                            {ev.medium === "VIRTUAL"
-                              ? "Virtual"
-                              : "In-person"}
-                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              ev.status === "published"
+                                ? "default"
+                                : ev.status === "draft"
+                                ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {ev.status}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(
+                                `/dashboard/events/${ev.id}/preview`
+                              );
+                            }}
+                          >
+                            Preview
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            ev.status === "published"
-                              ? "default"
-                              : ev.status === "draft"
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {ev.status}
-                        </Badge>
-                        <Button size="sm" variant="outline">
-                          <Eye className="mr-2 h-4 w-4" /> Preview
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </Card>
             )}
-
-            {/* Composer Dialog */}
-            <EventComposer
-              open={composerOpen}
-              onOpenChange={setComposerOpen}
-              orgId={org?.id ?? null}
-              onCreated={load}
-            />
           </div>
         </div>
 
@@ -635,7 +884,7 @@ export default function EmployerEventsPage() {
   );
 }
 
-function Empty() {
+function Empty({ onCreate }: { onCreate: () => void }) {
   return (
     <Card className="py-16 text-center">
       <Image
@@ -651,11 +900,33 @@ function Empty() {
         immediately or save as draft.
       </p>
       <div className="mt-4">
-        <Button>
+        <Button onClick={onCreate}>
           <Plus className="mr-2 h-4 w-4" />
           New Event
         </Button>
       </div>
     </Card>
   );
+}
+
+function formatEventDate(iso: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function getTemporalLabel(ev: CompanyEvent): "Upcoming" | "Ongoing" | "Past" {
+  const now = Date.now();
+  const start = new Date(ev.startDate).getTime();
+  const end = ev.endDate ? new Date(ev.endDate).getTime() : start;
+
+  if (end < now) return "Past";
+  if (start <= now && end >= now) return "Ongoing";
+  return "Upcoming";
 }
