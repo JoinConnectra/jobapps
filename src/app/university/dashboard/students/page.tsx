@@ -6,12 +6,14 @@ import React, {
   useState,
   useCallback,
 } from "react";
+import Link from "next/link";
 
 import UniversityDashboardShell from "@/components/university/UniversityDashboardShell";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 type StudentItem = {
   id: number;
@@ -180,6 +182,19 @@ export default function UniversityStudentsPage() {
                         No resume uploaded
                       </span>
                     )}
+
+                    {/* New: View student detail */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                    >
+                      <Link
+                        href={`/university/dashboard/students/${s.id}`}
+                      >
+                        View
+                      </Link>
+                    </Button>
                   </div>
                 </div>
               ))}
