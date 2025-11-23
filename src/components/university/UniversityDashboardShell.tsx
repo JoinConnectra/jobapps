@@ -140,6 +140,18 @@ export default function UniversityDashboardShell({
               <Users2 className="w-4 h-4 mr-3" /> Partner Requests
             </Button>
 
+            <Button
+  variant="ghost"
+  className={`w-full justify-start text-gray-700 ${
+    isActive("/university/dashboard/applications")
+      ? "bg-[#F5F1E8] text-gray-900"
+      : "hover:bg-[#F5F1E8] hover:text-gray-900"
+  }`}
+  onClick={() => router.push("/university/dashboard/applications")}
+>
+  <Users2 className="w-4 h-4 mr-3" /> Applications
+</Button>
+
             {/* Approved Companies */}
             <Button
               variant="ghost"
