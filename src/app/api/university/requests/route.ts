@@ -8,7 +8,9 @@ import {
   events,
   applications,
   universityPartnerMeta,
+  studentProfiles,
 } from "@/db/schema";
+
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 
@@ -133,20 +135,26 @@ export async function GET(request: NextRequest) {
     }
 
     // ---- Applications from *your* students to that company's jobs ----
-    const appsCounts = await db
-      .select({
-        orgId: jobs.orgId,
-        count: sql<number>`COUNT(*)`,
-      })
-      .from(applications)
-      .innerJoin(jobs, eq(jobs.id, applications.jobId))
-      .where(
-        and(
-          inArray(jobs.orgId, companyOrgIds),
-          eq(applications.applicantUniversityId, orgId),
-        ),
-      )
-      .groupBy(jobs.orgId);
+    // ---- Applications from *your* students to that company's jobs ----
+const appsCounts = await db
+  .select({
+    orgId: jobs.orgId,
+    count: sql<number>`COUNT(*)`,
+  })
+  .from(applications)
+  .innerJoin(jobs, eq(jobs.id, applications.jobId))
+  .innerJoin(
+    studentProfiles,
+    eq(studentProfiles.userId, applications.applicantUserId),
+  )
+  .where(
+    and(
+      inArray(jobs.orgId, companyOrgIds),
+      eq(studentProfiles.universityId, orgId),
+    ),
+  )
+  .groupBy(jobs.orgId);
+
 
     const appsCountMap = new Map<number, number>();
     for (const row of appsCounts) {
