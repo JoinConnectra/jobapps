@@ -1,3 +1,4 @@
+// src/app/university/dashboard/students/page.tsx
 "use client";
 
 import React, {
@@ -15,19 +16,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-
-import {
-  Filter as FilterIcon,
-  ArrowUpDown,
-  ChevronDown,
-  Search as SearchIcon,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 type StudentItem = {
   id: number;
@@ -116,8 +104,11 @@ function getRiskLabel(
 
 export default function UniversityStudentsPage() {
   const [orgId, setOrgId] = useState<number | null>(null);
-  const [q, setQ] = useState(""); // debounced value used in filters
-  const [searchTerm, setSearchTerm] = useState(""); // immediate input value
+
+  // Search: searchTerm is immediate input, q is debounced used in filters
+  const [q, setQ] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<StudentItem[]>([]);
 
@@ -125,7 +116,6 @@ export default function UniversityStudentsPage() {
   const [gradYearFilter, setGradYearFilter] = useState<string>("all");
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("activityDesc");
-  const [showFilters, setShowFilters] = useState(false);
 
   // Resolve the university orgId the same way as events: call /api/organizations?mine=true
   useEffect(() => {
@@ -300,11 +290,13 @@ export default function UniversityStudentsPage() {
           return nameA.localeCompare(nameB);
         case "gradYearDesc":
           // Final year & later grads first; if no gradYear, push down
-          const isFinalA = gradA === currentYear;
-          const isFinalB = gradB === currentYear;
-          if (isFinalA !== isFinalB) return isFinalA ? -1 : 1;
-          if (gradA !== gradB) return gradB - gradA;
-          return nameA.localeCompare(nameB);
+          {
+            const isFinalA = gradA === currentYear;
+            const isFinalB = gradB === currentYear;
+            if (isFinalA !== isFinalB) return isFinalA ? -1 : 1;
+            if (gradA !== gradB) return gradB - gradA;
+            return nameA.localeCompare(nameB);
+          }
         case "nameAsc":
         default:
           return nameA.localeCompare(nameB);
@@ -312,150 +304,210 @@ export default function UniversityStudentsPage() {
     });
   }, [students, q, programFilter, gradYearFilter, activityFilter, sortKey]);
 
+  const totalFiltered = filteredAndSortedStudents.length;
+
+  const handleResetFilters = useCallback(() => {
+    setProgramFilter("all");
+    setGradYearFilter("all");
+    setActivityFilter("all");
+    setSearchTerm("");
+    setQ("");
+    setSortKey("activityDesc");
+  }, []);
+
+  const isActivitySort =
+    sortKey === "activityDesc" || sortKey === "activityAsc";
+
+  const activityArrow = sortKey === "activityDesc" ? "↓" : "↑";
+
+  const handleActivitySortClick = () => {
+    setSortKey((prev) =>
+      prev === "activityDesc" ? "activityAsc" : "activityDesc"
+    );
+  };
+
   return (
     <UniversityDashboardShell title="Students">
-      {/* Breadcrumb */}
-      <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+      {/* Top row: breadcrumb + search (aligned with other main pages) */}
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="text-xs md:text-sm text-muted-foreground">
           <span className="font-medium">Dashboard</span>
           <span className="mx-1">›</span>
           <span>Students</span>
         </div>
+        <div className="w-full max-w-xs md:ml-auto">
+          <Input
+            placeholder="Search by name, email, or program..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* KPI row (same style as jobs KPIs) */}
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Total students
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">{students.length}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Linked to this university
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Final-year students
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">
+              {studentStats.finalYear}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Graduating this year
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              With resumes
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">
+              {studentStats.withResume}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Students who have uploaded a resume
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Active last 30 days
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">
+              {studentStats.activeLast30}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              At-risk final-year:{" "}
+              <span className="font-semibold">
+                {studentStats.atRiskFinalYear}
+              </span>
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Content card */}
       <Card>
-        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle className="text-base md:text-lg">Students</CardTitle>
+            <CardTitle className="text-base md:text-lg">
+              Students
+            </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              All students linked to this university, with application activity.
+              All students linked to this university, with application activity and simple risk signals.
             </p>
           </div>
-          <div className="flex flex-col items-start gap-1 text-xs text-muted-foreground md:items-end">
-            <span>{students.length} total</span>
+          <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
+            <div>
+              Showing{" "}
+              <span className="font-semibold">
+                {loading ? "…" : totalFiltered}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold">
+                {students.length}
+              </span>{" "}
+              students.
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 text-[11px]"
+              onClick={handleResetFilters}
+            >
+              Clear filters
+            </Button>
           </div>
         </CardHeader>
 
         <CardContent>
-          {/* KPI strip */}
+          {/* Filters block (same layout style as jobs page) */}
           {students.length > 0 && (
-            <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-              <div className="rounded-md border border-muted bg-muted/40 px-3 py-2">
-                <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                  Final-year students
-                </div>
-                <div className="text-sm font-semibold">
-                  {studentStats.finalYear}
+            <div className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+              <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Filters
+                </span>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="font-medium uppercase tracking-wide">
+                    Sort by
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleActivitySortClick}
+                    className={`rounded-full border px-3 py-1 ${
+                      isActivitySort
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    Last activity{" "}
+                    {isActivitySort ? ` ${activityArrow}` : ""}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortKey("gradYearDesc")}
+                    className={`rounded-full border px-3 py-1 ${
+                      sortKey === "gradYearDesc"
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    Graduation year{" "}
+                    {sortKey === "gradYearDesc" ? " •" : ""}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortKey("nameAsc")}
+                    className={`rounded-full border px-3 py-1 ${
+                      sortKey === "nameAsc"
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    Name A–Z{" "}
+                    {sortKey === "nameAsc" ? " •" : ""}
+                  </button>
                 </div>
               </div>
-              <div className="rounded-md border border-muted bg-muted/40 px-3 py-2">
-                <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                  With resumes
-                </div>
-                <div className="text-sm font-semibold">
-                  {studentStats.withResume}
-                </div>
-              </div>
-              <div className="rounded-md border border-muted bg-muted/40 px-3 py-2">
-                <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                  Active last 30 days
-                </div>
-                <div className="text-sm font-semibold">
-                  {studentStats.activeLast30}
-                </div>
-              </div>
-              <div className="rounded-md border bg-red-50/70 border-red-100 px-3 py-2">
-                <div className="text-[11px] text-red-700 uppercase tracking-wide">
-                  At-risk final-year
-                </div>
-                <div className="text-sm font-semibold text-red-800">
-                  {studentStats.atRiskFinalYear}
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Toolbar — like Talent page: search + sort + filters button */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {/* Search */}
-            <div className="relative w-full sm:flex-1 sm:min-w-[260px] sm:max-w-[420px]">
-              <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or program..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            {/* Sort dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 text-xs">
-                  <ArrowUpDown className="h-4 w-4" />
-                  Sort
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44 text-xs">
-                <DropdownMenuItem
-                  onClick={() => setSortKey("activityDesc")}
-                >
-                  Last activity (newest)
-                  {sortKey === "activityDesc" ? " •" : ""}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setSortKey("activityAsc")}
-                >
-                  Last activity (oldest)
-                  {sortKey === "activityAsc" ? " •" : ""}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setSortKey("gradYearDesc")}
-                >
-                  Graduation year
-                  {sortKey === "gradYearDesc" ? " •" : ""}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setSortKey("nameAsc")}
-                >
-                  Name A–Z
-                  {sortKey === "nameAsc" ? " •" : ""}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Filters toggle */}
-            <Button
-              variant="outline"
-              className="gap-2 text-xs"
-              onClick={() => setShowFilters((s) => !s)}
-              aria-expanded={showFilters}
-            >
-              <FilterIcon className="h-4 w-4" />
-              Filters
-              <ChevronDown
-                className={`h-3 w-3 transition-transform ${
-                  showFilters ? "rotate-180" : ""
-                }`}
-              />
-            </Button>
-          </div>
-
-          {/* Collapsible filters — styled similar to Talent filters block */}
-          {showFilters && students.length > 0 && (
-            <div className="mb-4 rounded-md border bg-muted/40 px-3 py-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-3">
                 {/* Program */}
-                <div>
-                  <Label className="mb-1 block text-[11px] text-muted-foreground">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[11px] text-muted-foreground">
                     Program
                   </Label>
                   <select
                     value={programFilter}
                     onChange={(e) => setProgramFilter(e.target.value)}
-                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                    className="h-9 w-full rounded-md border border-slate-200 bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
                   >
                     <option value="all">All programs</option>
                     {programOptions.map((p) => (
@@ -467,14 +519,14 @@ export default function UniversityStudentsPage() {
                 </div>
 
                 {/* Graduation year */}
-                <div>
-                  <Label className="mb-1 block text-[11px] text-muted-foreground">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[11px] text-muted-foreground">
                     Graduation year
                   </Label>
                   <select
                     value={gradYearFilter}
                     onChange={(e) => setGradYearFilter(e.target.value)}
-                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                    className="h-9 w-full rounded-md border border-slate-200 bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
                   >
                     <option value="all">All years</option>
                     {gradYearOptions.map((y) => (
@@ -486,11 +538,11 @@ export default function UniversityStudentsPage() {
                 </div>
 
                 {/* Activity */}
-                <div>
-                  <Label className="mb-1 block text-[11px] text-muted-foreground">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[11px] text-muted-foreground">
                     Activity
                   </Label>
-                  <div className="inline-flex rounded-md border border-input bg-background p-0.5 w-full">
+                  <div className="inline-flex rounded-md border border-slate-200 bg-background p-0.5 w-full">
                     <button
                       type="button"
                       onClick={() => setActivityFilter("all")}
@@ -527,24 +579,6 @@ export default function UniversityStudentsPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Optional reset row */}
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => {
-                    setProgramFilter("all");
-                    setGradYearFilter("all");
-                    setActivityFilter("all");
-                    setSearchTerm("");
-                    setQ("");
-                  }}
-                >
-                  Reset filters
-                </Button>
-              </div>
             </div>
           )}
 
@@ -555,7 +589,7 @@ export default function UniversityStudentsPage() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : filteredAndSortedStudents.length === 0 ? (
+          ) : totalFiltered === 0 ? (
             <div className="py-10 text-center border border-dashed border-muted rounded-md">
               <p className="text-sm font-medium text-foreground">
                 No students match your current filters.
@@ -567,13 +601,7 @@ export default function UniversityStudentsPage() {
                 variant="outline"
                 size="sm"
                 className="mt-4 text-xs"
-                onClick={() => {
-                  setProgramFilter("all");
-                  setGradYearFilter("all");
-                  setActivityFilter("all");
-                  setSearchTerm("");
-                  setQ("");
-                }}
+                onClick={handleResetFilters}
               >
                 Reset filters
               </Button>
