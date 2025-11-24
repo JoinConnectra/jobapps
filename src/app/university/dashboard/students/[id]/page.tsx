@@ -224,7 +224,7 @@ export default function UniversityStudentDetailPage() {
           <Skeleton className="h-40 w-full" />
         </div>
       ) : error ? (
-        <Card className="max-w-3xl">
+        <Card className="max-w-3xl border border-slate-200 shadow-sm bg-white">
           <CardHeader>
             <CardTitle className="text-red-600 text-lg">
               {error}
@@ -232,7 +232,7 @@ export default function UniversityStudentDetailPage() {
           </CardHeader>
         </Card>
       ) : !student ? (
-        <Card className="max-w-3xl">
+        <Card className="max-w-3xl border border-slate-200 shadow-sm bg-white">
           <CardHeader>
             <CardTitle className="text-lg">
               Student not found
@@ -242,7 +242,7 @@ export default function UniversityStudentDetailPage() {
       ) : (
         <div className="space-y-6 max-w-3xl">
           {/* Student info + stats */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader>
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -388,7 +388,7 @@ export default function UniversityStudentDetailPage() {
             student.githubUrl ||
             student.websiteUrl ||
             links.length > 0) && (
-            <Card>
+            <Card className="border border-slate-200 shadow-sm bg-white">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Globe2 className="h-5 w-5 text-muted-foreground" />
@@ -507,7 +507,7 @@ export default function UniversityStudentDetailPage() {
             student.salaryExpectation ||
             student.expectedSalaryPkr ||
             student.noticePeriodDays) && (
-            <Card>
+            <Card className="border border-slate-200 shadow-sm bg-white">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Briefcase className="h-5 w-5 text-muted-foreground" />
@@ -588,7 +588,7 @@ export default function UniversityStudentDetailPage() {
 
           {/* Experience */}
           {experiences.length > 0 && (
-            <Card>
+            <Card className="border border-slate-200 shadow-sm bg-white">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Briefcase className="h-5 w-5 text-muted-foreground" />
@@ -620,7 +620,7 @@ export default function UniversityStudentDetailPage() {
 
           {/* Education */}
           {educations.length > 0 && (
-            <Card>
+            <Card className="border border-slate-200 shadow-sm bg-white">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <GraduationCap className="h-5 w-5 text-muted-foreground" />
@@ -648,7 +648,7 @@ export default function UniversityStudentDetailPage() {
           )}
 
           {/* Applications */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-muted-foreground" />

@@ -639,132 +639,128 @@ export default function UniversityStudentsPage() {
                   const noResume = !s.resumeUrl;
 
                   return (
-                    <div
+                    <Link
                       key={s.id}
-                      className={`flex flex-col md:flex-row md:items-center md:justify-between rounded-md border bg-white px-3 py-2 text-sm transition hover:border-[#3d6a4a]/60 hover:shadow-sm ${
-                        isFinalYear
-                          ? "border-[#3d6a4a]/40 bg-[#f7faf8]"
-                          : "border-gray-200"
-                      }`}
+                      href={`/university/dashboard/students/${s.id}`}
+                      className="block"
                     >
-                      <div className="flex flex-1 gap-3">
-                        {/* Avatar */}
-                        <div className="mt-0.5 hidden h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground md:flex">
-                          {getInitials(s.name)}
-                        </div>
-
-                        <div className="flex flex-col">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">
-                              {s.name || "Unnamed student"}
-                            </span>
-                            {s.verified && (
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] uppercase tracking-wide"
-                              >
-                                Verified
-                              </Badge>
-                            )}
-                            {riskLabel && (
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] uppercase tracking-wide ${
-                                  riskLabel === "At-risk"
-                                    ? "border-red-300 text-red-700"
-                                    : "border-emerald-300 text-emerald-700"
-                                }`}
-                              >
-                                {riskLabel}
-                              </Badge>
-                            )}
+                      <div
+                        className={`flex flex-col md:flex-row md:items-center md:justify-between rounded-md border bg-white px-3 py-2 text-sm transition hover:border-[#3d6a4a]/60 hover:shadow-sm cursor-pointer ${
+                          isFinalYear
+                            ? "border-[#3d6a4a]/40 bg-[#f7faf8]"
+                            : "border-gray-200"
+                        }`}
+                      >
+                        <div className="flex flex-1 gap-3">
+                          {/* Avatar */}
+                          <div className="mt-0.5 hidden h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground md:flex">
+                            {getInitials(s.name)}
                           </div>
 
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {s.email || "No email"}
-                            {" • "}
-                            {s.program || "Program not set"}
-                            {s.gradYear
-                              ? ` • Class of ${s.gradYear}`
-                              : ""}
-                          </div>
-
-                          {s.skills && s.skills.length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {s.skills.slice(0, 4).map((skill) => (
+                          <div className="flex flex-col">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">
+                                {s.name || "Unnamed student"}
+                              </span>
+                              {s.verified && (
                                 <Badge
-                                  key={skill}
                                   variant="outline"
-                                  className="text-[10px]"
+                                  className="text-[10px] uppercase tracking-wide"
                                 >
-                                  {skill}
+                                  Verified
                                 </Badge>
-                              ))}
-                              {s.skills.length > 4 && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  +{s.skills.length - 4} more
-                                </span>
+                              )}
+                              {riskLabel && (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] uppercase tracking-wide ${
+                                    riskLabel === "At-risk"
+                                      ? "border-red-300 text-red-700"
+                                      : "border-emerald-300 text-emerald-700"
+                                  }`}
+                                >
+                                  {riskLabel}
+                                </Badge>
                               )}
                             </div>
-                          )}
 
-                          <div className="mt-1 text-[11px] text-muted-foreground flex flex-wrap items-center gap-1">
-                            {appsCount === 0 ? (
-                              <>No applications yet</>
-                            ) : (
-                              <>
-                                {appsCount} application
-                                {appsCount !== 1 ? "s" : ""}{" "}
-                                {lastActivity && (
-                                  <>• Last activity {lastActivity}</>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {s.email || "No email"}
+                              {" • "}
+                              {s.program || "Program not set"}
+                              {s.gradYear
+                                ? ` • Class of ${s.gradYear}`
+                                : ""}
+                            </div>
+
+                            {s.skills && s.skills.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {s.skills.slice(0, 4).map((skill) => (
+                                  <Badge
+                                    key={skill}
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    {skill}
+                                  </Badge>
+                                ))}
+                                {s.skills.length > 4 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    +{s.skills.length - 4} more
+                                  </span>
                                 )}
-                              </>
+                              </div>
                             )}
-                            <span className="mx-1">•</span>
-                            <span
-                              className={
-                                engagement.tone === "active"
-                                  ? "text-[#3d6a4a] font-medium"
-                                  : engagement.tone === "dormant"
-                                  ? "text-amber-700"
-                                  : ""
-                              }
-                            >
-                              {engagement.label}
-                            </span>
+
+                            <div className="mt-1 text-[11px] text-muted-foreground flex flex-wrap items-center gap-1">
+                              {appsCount === 0 ? (
+                                <>No applications yet</>
+                              ) : (
+                                <>
+                                  {appsCount} application
+                                  {appsCount !== 1 ? "s" : ""}{" "}
+                                  {lastActivity && (
+                                    <>• Last activity {lastActivity}</>
+                                  )}
+                                </>
+                              )}
+                              <span className="mx-1">•</span>
+                              <span
+                                className={
+                                  engagement.tone === "active"
+                                    ? "text-[#3d6a4a] font-medium"
+                                    : engagement.tone === "dormant"
+                                    ? "text-amber-700"
+                                    : ""
+                                }
+                              >
+                                {engagement.label}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mt-2 md:mt-0 flex items-center gap-3 text-xs">
-                        {s.resumeUrl ? (
-                          <a
-                            href={s.resumeUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline text-[#3d6a4a]"
-                          >
-                            View resume
-                          </a>
-                        ) : (
-                          <span
-                            className={`text-muted-foreground ${
-                              noResume ? "font-medium" : ""
-                            }`}
-                          >
-                            No resume uploaded
+                        <div className="mt-2 md:mt-0 flex items-center gap-3 text-xs">
+                          {s.resumeUrl ? (
+                            <span className="underline text-[#3d6a4a]">
+                              View resume
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-muted-foreground ${
+                                noResume ? "font-medium" : ""
+                              }`}
+                            >
+                              No resume uploaded
+                            </span>
+                          )}
+
+                          <span className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-700 bg-slate-50">
+                            View profile →
                           </span>
-                        )}
-
-                        <Button variant="outline" size="sm" asChild>
-                          <Link
-                            href={`/university/dashboard/students/${s.id}`}
-                          >
-                            View
-                          </Link>
-                        </Button>
+                        </div>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
