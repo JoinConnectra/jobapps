@@ -41,6 +41,38 @@ type ViewMode = "list" | "by-company";
 type TimeRange = "all" | "30" | "90" | "365";
 type SortKey = "date" | "stage" | "company";
 
+type StudentSummary = {
+  id: number;
+  name: string | null;
+  email: string | null;
+  program: string | null;
+  gradYear: number | null;
+  gpa: string | number | null;
+  resumeUrl: string | null;
+  skills: string[] | null;
+  applicationsCount: number;
+  activeApplications: number;
+  lastApplicationAt: string | null;
+  eventsRegistered: number;
+  eventsAttended: number;
+};
+
+type PartnerSummary = {
+  id: number;
+  companyOrgId: number;
+  companyName: string;
+  status: string; // "approved" | "pending" | etc.
+  industry?: string | null;
+  websiteUrl?: string | null;
+  aboutCompany?: string | null;
+  jobsCount?: number | null;
+  eventsCount?: number | null;
+  applicationsCount?: number | null;
+  priority?: string | null;
+  lastInteractionAt?: string | null;
+  lastMeetingDate?: string | null;
+};
+
 function getStageKey(stage: string | null): string {
   if (!stage) return "applied";
   const s = stage.trim().toLowerCase();
@@ -84,7 +116,7 @@ function formatDate(iso: string | null) {
 
 function withinTimeRange(createdAt: string | null, range: TimeRange): boolean {
   if (range === "all") return true;
-  if (!createdAt) return true; // keep items with missing date
+  if (!createdAt) return true;
   const d = new Date(createdAt);
   if (Number.isNaN(d.getTime())) return true;
 
@@ -105,25 +137,20 @@ type StageTimelineProps = {
 function StageTimeline({ stage }: StageTimelineProps) {
   const key = getStageKey(stage);
 
-  // Steps: Applied -> Interview -> Offer/Rejected
   const appliedActive = true;
   const interviewActive = key === "interview" || key === "offer" || key === "rejected";
   const isOffer = key === "offer";
   const isRejected = key === "rejected";
 
   const finalLabel = isRejected ? "Rejected" : "Offer";
-
   const finalActive = isOffer || isRejected;
 
-  const dotBase =
-    "h-2 w-2 rounded-full border transition";
-  const lineBase =
-    "h-px flex-1 bg-slate-200";
+  const dotBase = "h-2 w-2 rounded-full border transition";
+  const lineBase = "h-px flex-1 bg-slate-200";
 
   return (
     <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted-foreground">
       <div className="flex items-center gap-2">
-        {/* Applied */}
         <div className="flex flex-col items-center gap-1">
           <div
             className={`${dotBase} ${
@@ -137,7 +164,6 @@ function StageTimeline({ stage }: StageTimelineProps) {
 
         <div className={lineBase} />
 
-        {/* Interview */}
         <div className="flex flex-col items-center gap-1">
           <div
             className={`${dotBase} ${
@@ -151,7 +177,6 @@ function StageTimeline({ stage }: StageTimelineProps) {
 
         <div className={lineBase} />
 
-        {/* Offer / Rejected */}
         <div className="flex flex-col items-center gap-1">
           <div
             className={`${dotBase} ${
@@ -191,13 +216,27 @@ export default function UniversityApplicationsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-  // Side sheets
+  // Student side sheet
   const [activeStudent, setActiveStudent] = useState<ApplicationItem | null>(
     null,
   );
+  const [studentSummary, setStudentSummary] = useState<StudentSummary | null>(
+    null,
+  );
+  const [studentSummaryLoading, setStudentSummaryLoading] = useState(false);
+  const [studentSummaryError, setStudentSummaryError] = useState<string | null>(
+    null,
+  );
+
+  // Company / partner CRM sheet
   const [activeCompanyName, setActiveCompanyName] = useState<string | null>(
     null,
   );
+  const [partnerSummary, setPartnerSummary] = useState<PartnerSummary | null>(
+    null,
+  );
+  const [partnerLoading, setPartnerLoading] = useState(false);
+  const [partnerError, setPartnerError] = useState<string | null>(null);
 
   const handleSortClick = (key: SortKey) => {
     if (sortKey === key) {
@@ -208,7 +247,7 @@ export default function UniversityApplicationsPage() {
     }
   };
 
-  // Resolve the university orgId (same pattern as students/events)
+  // Resolve the university orgId
   useEffect(() => {
     let cancelled = false;
 
@@ -262,6 +301,106 @@ export default function UniversityApplicationsPage() {
     if (!orgId) return;
     load();
   }, [orgId, load]);
+
+  // Load student summary when student sheet opens
+  useEffect(() => {
+    const email = activeStudent?.studentEmail;
+    if (!email) {
+      setStudentSummary(null);
+      setStudentSummaryError(null);
+      setStudentSummaryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setStudentSummaryLoading(true);
+        setStudentSummaryError(null);
+        const res = await fetch(
+          `/api/university/students/summary?email=${encodeURIComponent(
+            email,
+          )}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) {
+          throw new Error("Failed to load student summary");
+        }
+        const data: StudentSummary = await res.json();
+        if (!cancelled) {
+          setStudentSummary(data);
+        }
+      } catch (e: any) {
+        console.error("Error loading student summary", e);
+        if (!cancelled) {
+          setStudentSummary(null);
+          setStudentSummaryError(
+            e?.message || "Could not load student summary.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setStudentSummaryLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeStudent?.studentEmail]);
+
+  // Load partner summary when partner sheet opens
+  // ✅ now includes universityOrgId when available
+  useEffect(() => {
+    const companyName = activeCompanyName;
+    if (!companyName) {
+      setPartnerSummary(null);
+      setPartnerError(null);
+      setPartnerLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setPartnerLoading(true);
+        setPartnerError(null);
+
+        let url = `/api/university/partners/summary?companyName=${encodeURIComponent(
+          companyName,
+        )}`;
+        if (orgId) {
+          url += `&universityOrgId=${orgId}`;
+        }
+
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) {
+          throw new Error("Failed to load partner summary");
+        }
+        const data: PartnerSummary = await res.json();
+        if (!cancelled) {
+          setPartnerSummary(data);
+        }
+      } catch (e: any) {
+        console.error("Error loading partner summary", e);
+        if (!cancelled) {
+          setPartnerSummary(null);
+          setPartnerError(
+            e?.message || "Could not load partner summary.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setPartnerLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCompanyName, orgId]);
 
   // Derived filter option sets
   const availablePrograms = useMemo(() => {
@@ -344,25 +483,21 @@ export default function UniversityApplicationsPage() {
     };
 
     const data = items.filter((item) => {
-      // Time range filter
       if (!withinTimeRange(item.createdAt, timeRange)) {
         return false;
       }
 
-      // Stage filter
       if (stageFilter !== "all") {
         const key = getStageKey(item.stage);
         if (key !== stageFilter) return false;
       }
 
-      // Program filter
       if (programFilter !== "all") {
         if (!item.program || item.program !== programFilter) {
           return false;
         }
       }
 
-      // Grad year filter
       if (gradYearFilter !== "all") {
         const gy = Number(gradYearFilter);
         if (!item.gradYear || item.gradYear !== gy) {
@@ -370,7 +505,6 @@ export default function UniversityApplicationsPage() {
         }
       }
 
-      // Company filter
       if (companyFilter !== "all") {
         const cn = item.companyName ?? "Unknown company";
         if (cn !== companyFilter) {
@@ -378,7 +512,6 @@ export default function UniversityApplicationsPage() {
         }
       }
 
-      // Search filter
       if (!lowerQ) return true;
       return (
         (item.studentName &&
@@ -394,7 +527,6 @@ export default function UniversityApplicationsPage() {
       );
     });
 
-    // Sorting
     data.sort((a, b) => {
       let cmp = 0;
 
@@ -498,7 +630,6 @@ export default function UniversityApplicationsPage() {
           : 0;
     }
 
-    // Sort primarily by offers, then interviews, then total applications
     return list.sort((a, b) => {
       if (b.offers !== a.offers) return b.offers - a.offers;
       if (b.interviews !== a.interviews) return b.interviews - a.interviews;
@@ -575,36 +706,11 @@ export default function UniversityApplicationsPage() {
     return sortDirection === "asc" ? "↑" : "↓";
   };
 
-  // Quick stats for the active company in the side sheet
-  const activeCompanyStats = useMemo(() => {
-    if (!activeCompanyName) return null;
-
-    let total = 0;
-    let offers = 0;
-    let interviews = 0;
-    let rejected = 0;
-    let applied = 0;
-
-    for (const app of items) {
-      if ((app.companyName ?? "Unknown company") !== activeCompanyName) {
-        continue;
-      }
-      total += 1;
-      const stageKey = getStageKey(app.stage);
-      if (stageKey === "offer") offers += 1;
-      else if (stageKey === "interview") interviews += 1;
-      else if (stageKey === "rejected") rejected += 1;
-      else applied += 1;
-    }
-
-    return {
-      total,
-      offers,
-      interviews,
-      rejected,
-      applied,
-    };
-  }, [activeCompanyName, items]);
+  const activeCompanyLink = activeCompanyName
+    ? `/university/dashboard/requests?company=${encodeURIComponent(
+        activeCompanyName,
+      )}`
+    : null;
 
   return (
     <UniversityDashboardShell title="Applications">
@@ -624,7 +730,7 @@ export default function UniversityApplicationsPage() {
         </div>
       </div>
 
-      {/* KPI row: four equal cards */}
+      {/* KPI row */}
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border border-slate-200">
           <CardHeader className="pb-2">
@@ -708,7 +814,6 @@ export default function UniversityApplicationsPage() {
           </div>
 
           <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
-            {/* Export + Clear filters */}
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -726,7 +831,6 @@ export default function UniversityApplicationsPage() {
               </button>
             </div>
 
-            {/* View mode toggle */}
             <div className="flex items-center justify-end gap-2 text-xs">
               <button
                 type="button"
@@ -817,7 +921,7 @@ export default function UniversityApplicationsPage() {
             </button>
           </div>
 
-          {/* Filters block (white-ish, like partner cards) */}
+          {/* Filters block */}
           <div className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
             <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground">
               <span className="font-medium uppercase tracking-wide">
@@ -825,7 +929,6 @@ export default function UniversityApplicationsPage() {
               </span>
             </div>
             <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
-              {/* Program filter */}
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Program
@@ -844,7 +947,6 @@ export default function UniversityApplicationsPage() {
                 </select>
               </div>
 
-              {/* Grad year filter */}
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Grad year
@@ -863,7 +965,6 @@ export default function UniversityApplicationsPage() {
                 </select>
               </div>
 
-              {/* Company filter */}
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Company
@@ -882,7 +983,6 @@ export default function UniversityApplicationsPage() {
                 </select>
               </div>
 
-              {/* Time range */}
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Time range
@@ -968,7 +1068,6 @@ export default function UniversityApplicationsPage() {
               No applications match the current filters yet.
             </div>
           ) : viewMode === "list" ? (
-            // List view (per-application rows)
             <div className="space-y-2">
               {filteredItems.map((app) => {
                 const jobHref = app.jobId
@@ -978,9 +1077,8 @@ export default function UniversityApplicationsPage() {
                 return (
                   <div
                     key={app.id}
-                    className="flex flex-col rounded-md border border-gray-200 bg-white px-3 py-2 text-sm md:flex-row md:items-stretch md:justify-between gap-2"
+                    className="flex flex-col gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm md:flex-row md:items-stretch md:justify-between"
                   >
-                    {/* Left: student + job */}
                     <div className="flex flex-1 flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <button
@@ -1043,11 +1141,9 @@ export default function UniversityApplicationsPage() {
                         )}
                       </div>
 
-                      {/* Inline stage timeline */}
                       <StageTimeline stage={app.stage} />
                     </div>
 
-                    {/* Right: meta */}
                     <div className="flex flex-col items-start justify-between gap-1 text-xs text-muted-foreground md:items-end">
                       <span>
                         Submitted{" "}
@@ -1061,11 +1157,11 @@ export default function UniversityApplicationsPage() {
               })}
             </div>
           ) : (
-            // By-company aggregated view
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {companyAggregates.map((company) => {
                 const companyHref =
-                  company.companyName && company.companyName !== "Unknown company"
+                  company.companyName &&
+                  company.companyName !== "Unknown company"
                     ? `/university/dashboard/requests?company=${encodeURIComponent(
                         company.companyName,
                       )}`
@@ -1080,7 +1176,7 @@ export default function UniversityApplicationsPage() {
                       {companyHref ? (
                         <button
                           type="button"
-                          className="font-semibold text-slate-900 hover:underline text-left"
+                          className="text-left text-sm font-semibold text-slate-900 hover:underline"
                           onClick={() =>
                             setActiveCompanyName(company.companyName)
                           }
@@ -1088,7 +1184,7 @@ export default function UniversityApplicationsPage() {
                           {company.companyName}
                         </button>
                       ) : (
-                        <div className="font-semibold">
+                        <div className="text-sm font-semibold">
                           {company.companyName}
                         </div>
                       )}
@@ -1135,159 +1231,358 @@ export default function UniversityApplicationsPage() {
         </CardContent>
       </Card>
 
-      {/* Student side sheet */}
+      {/* Student side sheet with real summary */}
       <Sheet
         open={!!activeStudent}
         onOpenChange={(open) => {
-          if (!open) setActiveStudent(null);
+          if (!open) {
+            setActiveStudent(null);
+            setStudentSummary(null);
+            setStudentSummaryError(null);
+          }
         }}
       >
-        <SheetContent side="right" className="w-full max-w-md">
-          <SheetHeader>
+        <SheetContent
+          side="right"
+          className="flex h-full w-full max-w-md flex-col rounded-l-2xl border-l border-slate-200 bg-white shadow-xl"
+        >
+          <SheetHeader className="border-b border-slate-100 pb-3">
             <SheetTitle>
               {activeStudent?.studentName || "Student overview"}
             </SheetTitle>
             <SheetDescription>
-              Quick snapshot of this student&apos;s profile and applications.
+              Snapshot of this student&apos;s profile and activity on the
+              platform.
             </SheetDescription>
           </SheetHeader>
-          {activeStudent && (
-            <div className="mt-4 space-y-4 text-sm">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-slate-600">
-                  Basic info
-                </p>
-                <p className="text-xs text-slate-700">
-                  <span className="font-medium">Name: </span>
-                  {activeStudent.studentName || "Not set"}
-                </p>
-                <p className="text-xs text-slate-700">
-                  <span className="font-medium">Email: </span>
-                  {activeStudent.studentEmail || "Not set"}
-                </p>
-                <p className="text-xs text-slate-700">
-                  <span className="font-medium">Program: </span>
-                  {activeStudent.program || "Not set"}
-                </p>
-                <p className="text-xs text-slate-700">
-                  <span className="font-medium">Grad year: </span>
-                  {activeStudent.gradYear
-                    ? `Class of ${activeStudent.gradYear}`
-                    : "Not set"}
-                </p>
-              </div>
 
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-slate-600">
-                  Suggested actions
-                </p>
-                <div className="flex flex-col gap-2">
+          <div className="mt-4 flex-1 overflow-y-auto pr-1">
+            {studentSummaryLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-20 w-full rounded-lg" />
+                <Skeleton className="h-24 w-full rounded-lg" />
+              </div>
+            ) : studentSummaryError ? (
+              <div className="text-sm text-red-600">
+                {studentSummaryError}
+              </div>
+            ) : (
+              <div className="space-y-4 text-sm">
+                {/* Basic info */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-slate-600">
+                    Basic info
+                  </p>
+                  <p className="text-xs text-slate-700">
+                    <span className="font-medium">Name: </span>
+                    {studentSummary?.name ||
+                      activeStudent?.studentName ||
+                      "Not set"}
+                  </p>
+                  <p className="text-xs text-slate-700">
+                    <span className="font-medium">Email: </span>
+                    {studentSummary?.email ||
+                      activeStudent?.studentEmail ||
+                      "Not set"}
+                  </p>
+                  <p className="text-xs text-slate-700">
+                    <span className="font-medium">Program: </span>
+                    {studentSummary?.program ||
+                      activeStudent?.program ||
+                      "Not set"}
+                  </p>
+                  <p className="text-xs text-slate-700">
+                    <span className="font-medium">Grad year: </span>
+                    {studentSummary?.gradYear ||
+                      activeStudent?.gradYear ||
+                      "Not set"}
+                  </p>
+                  {studentSummary?.gpa && (
+                    <p className="text-xs text-slate-700">
+                      <span className="font-medium">GPA: </span>
+                      {studentSummary.gpa}
+                    </p>
+                  )}
+                </div>
+
+                {/* Skills */}
+                {studentSummary?.skills &&
+                  studentSummary.skills.length > 0 && (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-1">
+                      <p className="text-xs font-semibold text-slate-600">
+                        Skills
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {studentSummary.skills.map((skill) => (
+                          <Badge
+                            key={skill}
+                            variant="outline"
+                            className="text-[10px]"
+                          >
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Stats */}
+                {studentSummary && (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                    <p className="text-xs font-semibold text-slate-600">
+                      Activity
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {studentSummary.applicationsCount}
+                        </div>
+                        <div>Total applications</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {studentSummary.activeApplications}
+                        </div>
+                        <div>Active applications</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {studentSummary.eventsRegistered}
+                        </div>
+                        <div>Events registered</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {studentSummary.eventsAttended}
+                        </div>
+                        <div>Events attended</div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-sm font-semibold text-foreground">
+                          {studentSummary.lastApplicationAt
+                            ? formatDate(studentSummary.lastApplicationAt)
+                            : "—"}
+                        </div>
+                        <div>Last application activity</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                {/* Actions */}
+<div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+  <p className="text-xs font-semibold text-slate-600">
+    Quick actions
+  </p>
+  <div className="flex flex-col gap-2">
+    <Button
+      size="sm"
+      variant="outline"
+      asChild
+      className="justify-start text-xs"
+    >
+      <Link
+        href={
+          studentSummary?.id
+            ? `/university/dashboard/students/${studentSummary.id}`
+            : "/university/dashboard/students"
+        }
+      >
+        View full student profile
+      </Link>
+    </Button>
+    {studentSummary?.resumeUrl ? (
+      <Button
+        size="sm"
+        variant="outline"
+        asChild
+        className="justify-start text-xs"
+      >
+        <a
+          href={studentSummary.resumeUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          View resume
+        </a>
+      </Button>
+    ) : (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled
+        className="justify-start text-xs"
+      >
+        No resume on file
+      </Button>
+    )}
+  </div>
+</div>
+
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Partner CRM side sheet (re-using logic from Requests/Partners) */}
+      <Sheet
+        open={!!activeCompanyName}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveCompanyName(null);
+            setPartnerSummary(null);
+            setPartnerError(null);
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="flex h-full w-full max-w-md flex-col rounded-l-2xl border-l border-slate-200 bg-white shadow-xl"
+        >
+          <SheetHeader className="border-b border-slate-100 pb-3">
+            <SheetTitle>
+              {activeCompanyName || "Company CRM"}
+            </SheetTitle>
+            <SheetDescription>
+              Engagement snapshot for this employer based on student
+              applications and your partner network.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-4 flex-1 overflow-y-auto pr-1">
+            {partnerLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-20 w-full rounded-lg" />
+                <Skeleton className="h-24 w-full rounded-lg" />
+              </div>
+            ) : partnerError ? (
+              <div className="text-sm text-red-600">
+                {partnerError}
+              </div>
+            ) : !partnerSummary ? (
+              <div className="text-sm text-muted-foreground">
+                This company does not appear in your approved partners yet. You
+                can manage companies from the{" "}
+                <Link
+                  href="/university/dashboard/requests"
+                  className="underline"
+                >
+                  Companies &amp; Partners
+                </Link>{" "}
+                page.
+              </div>
+            ) : (
+              <div className="space-y-4 text-sm">
+                {/* Meta */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Partner details
+                  </p>
+                  <p className="text-xs text-slate-700">
+                    <span className="font-medium">Org ID: </span>
+                    {partnerSummary.companyOrgId}
+                  </p>
+                  {partnerSummary.industry && (
+                    <p className="text-xs text-slate-700">
+                      <span className="font-medium">Industry: </span>
+                      {partnerSummary.industry}
+                    </p>
+                  )}
+                  {partnerSummary.websiteUrl && (
+                    <p className="text-xs text-slate-700">
+                      <span className="font-medium">Website: </span>
+                      <a
+                        href={partnerSummary.websiteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                      >
+                        {partnerSummary.websiteUrl}
+                      </a>
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-700">
+                    <span className="font-medium">Status: </span>
+                    {partnerSummary.status}
+                  </p>
+                  {partnerSummary.lastInteractionAt && (
+                    <p className="text-xs text-slate-700">
+                      <span className="font-medium">Last interaction: </span>
+                      {new Date(
+                        partnerSummary.lastInteractionAt,
+                      ).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                {/* Metrics */}
+                <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Engagement metrics
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">
+                        {partnerSummary.jobsCount ?? 0}
+                      </div>
+                      <div>Jobs shared</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">
+                        {partnerSummary.eventsCount ?? 0}
+                      </div>
+                      <div>Events hosted</div>
+                    </div>
+                    <div className="col-span-2">
+                      <div className="text-sm font-semibold text-foreground">
+                        {partnerSummary.applicationsCount ?? 0}
+                      </div>
+                      <div>Student applications to this company</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Overview */}
+                <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-1">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Company overview
+                  </p>
+                  <p className="whitespace-pre-line text-xs leading-relaxed text-slate-600">
+                    {partnerSummary.aboutCompany ||
+                      "No company overview on file yet. You can add internal notes and details in the Companies & Partners page."}
+                  </p>
+                </div>
+
+                {/* CTA to full CRM */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Deep-dive in partner CRM
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Open the full partner view to see notes, contacts, and
+                    engagement history for this company.
+                  </p>
                   <Button
                     size="sm"
                     variant="outline"
                     asChild
                     className="justify-start text-xs"
+                    disabled={!activeCompanyLink}
                   >
                     <Link
                       href={
-                        activeStudent.studentEmail
-                          ? `/university/dashboard/students?q=${encodeURIComponent(
-                              activeStudent.studentEmail,
-                            )}`
-                          : "/university/dashboard/students"
+                        activeCompanyLink ?? "/university/dashboard/requests"
                       }
                     >
-                      View full student profile
+                      Open Companies &amp; Partners
                     </Link>
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="justify-start text-xs"
-                    disabled
-                  >
-                    View resume (coming soon)
-                  </Button>
                 </div>
               </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* Company CRM side sheet */}
-      <Sheet
-        open={!!activeCompanyName}
-        onOpenChange={(open) => {
-          if (!open) setActiveCompanyName(null);
-        }}
-      >
-        <SheetContent side="right" className="w-full max-w-md">
-          <SheetHeader>
-            <SheetTitle>
-              {activeCompanyName || "Company CRM"}
-            </SheetTitle>
-            <SheetDescription>
-              Lightweight CRM view for this employer based on student
-              applications.
-            </SheetDescription>
-          </SheetHeader>
-
-          {activeCompanyName && (
-            <div className="mt-4 space-y-4 text-sm">
-              {activeCompanyStats && (
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-slate-600">
-                    Application summary
-                  </p>
-                  <p className="text-xs text-slate-700">
-                    <span className="font-medium">Total applications: </span>
-                    {activeCompanyStats.total}
-                  </p>
-                  <p className="text-xs text-slate-700">
-                    <span className="font-medium">Applied: </span>
-                    {activeCompanyStats.applied}
-                  </p>
-                  <p className="text-xs text-slate-700">
-                    <span className="font-medium">Interviews: </span>
-                    {activeCompanyStats.interviews}
-                  </p>
-                  <p className="text-xs text-slate-700">
-                    <span className="font-medium">Offers: </span>
-                    {activeCompanyStats.offers}
-                  </p>
-                  <p className="text-xs text-slate-700">
-                    <span className="font-medium">Rejected: </span>
-                    {activeCompanyStats.rejected}
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-slate-600">
-                  Deep-dive in partner CRM
-                </p>
-                <p className="text-xs text-slate-500">
-                  Open the full partner view to see notes, contacts, and
-                  engagement for this company.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  asChild
-                  className="justify-start text-xs"
-                >
-                  <Link
-                    href={`/university/dashboard/requests?company=${encodeURIComponent(
-                      activeCompanyName,
-                    )}`}
-                  >
-                    Open partner CRM
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </SheetContent>
       </Sheet>
     </UniversityDashboardShell>
