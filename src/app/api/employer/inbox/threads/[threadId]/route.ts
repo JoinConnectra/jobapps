@@ -45,7 +45,12 @@ export async function GET(
   const { threadId: threadIdStr } = await params;
   const threadId = Number(threadIdStr);
 
-  if (!employerOrgId || Number.isNaN(employerOrgId) || !threadId || Number.isNaN(threadId)) {
+  if (
+    !employerOrgId ||
+    Number.isNaN(employerOrgId) ||
+    !threadId ||
+    Number.isNaN(threadId)
+  ) {
     return NextResponse.json(
       { error: "orgId and threadId required" },
       { status: 400 },
@@ -78,7 +83,14 @@ export async function GET(
     sentAt: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
     // Employer side: mine if from_role = 'employer'
     mine: m.fromRole === "employer",
-    fromName: m.fromName,
+    fromName:
+      m.fromRole === "employer"
+        ? "You"
+        : m.fromRole === "university"
+        ? "University"
+        : m.fromRole === "candidate"
+        ? "Candidate"
+        : m.fromName,
   }));
 
   return NextResponse.json({ messages });

@@ -18,12 +18,17 @@ type Props = {
   onSendQuick: (text: string) => void;
 };
 
-export function MessagePane({ conversation, messages, onBackMobile, onSendQuick }: Props) {
+export function MessagePane({
+  conversation,
+  messages,
+  onBackMobile,
+  onSendQuick,
+}: Props) {
   const [draft, setDraft] = useState('');
 
   const sorted = useMemo(
     () => [...messages].sort((a, b) => a.sentAt - b.sentAt),
-    [messages]
+    [messages],
   );
 
   const quickReplies = [
@@ -33,12 +38,29 @@ export function MessagePane({ conversation, messages, onBackMobile, onSendQuick 
     'Sounds good to me.',
   ];
 
+  // 🔍 Hide noisy technical labels (company, org:2, etc.)
+  const visibleLabels = useMemo(() => {
+    const raw = conversation.labels ?? [];
+    return raw.filter((l) => {
+      const lower = l.toLowerCase();
+      if (lower === 'company') return false;
+      if (lower.startsWith('org:')) return false;
+      return true;
+    });
+  }, [conversation.labels]);
+
   return (
     <div className="flex h-[75vh] flex-col md:h-[calc(100vh-260px)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b p-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={onBackMobile} aria-label="Back">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={onBackMobile}
+            aria-label="Back"
+          >
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <div className="relative h-8 w-8 overflow-hidden rounded-md border bg-white">
@@ -47,15 +69,21 @@ export function MessagePane({ conversation, messages, onBackMobile, onSendQuick 
           <div>
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold">{conversation.title}</p>
-              {conversation.starred && <Star className="h-4 w-4 fill-current" />}
+              {conversation.starred && (
+                <Star className="h-4 w-4 fill-current" />
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">{conversation.participants.join(', ')}</p>
+            <p className="text-xs text-muted-foreground">
+              {conversation.participants.join(', ')}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {conversation.labels.map((l) => (
-            <Badge key={l} variant="secondary">{l}</Badge>
+          {visibleLabels.map((l) => (
+            <Badge key={l} variant="secondary">
+              {l}
+            </Badge>
           ))}
         </div>
       </div>
@@ -63,10 +91,23 @@ export function MessagePane({ conversation, messages, onBackMobile, onSendQuick 
       {/* Messages */}
       <div className="no-scrollbar flex-1 space-y-4 overflow-auto p-4">
         {sorted.map((m) => (
-          <div key={m.id} className={['flex', m.mine ? 'justify-end' : 'justify-start'].join(' ')}>
-            <div className={['max-w-[78%] rounded-md border p-3 text-sm', m.mine ? 'bg-primary/5' : 'bg-card'].join(' ')}>
+          <div
+            key={m.id}
+            className={[
+              'flex',
+              m.mine ? 'justify-end' : 'justify-start',
+            ].join(' ')}
+          >
+            <div
+              className={[
+                'max-w-[78%] rounded-md border p-3 text-sm',
+                m.mine ? 'bg-primary/5' : 'bg-card',
+              ].join(' ')}
+            >
               <p className="whitespace-pre-wrap">{m.body}</p>
-              <div className="mt-1 text-[11px] text-muted-foreground">{new Date(m.sentAt).toLocaleString()}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                {new Date(m.sentAt).toLocaleString()}
+              </div>
             </div>
           </div>
         ))}
@@ -79,7 +120,12 @@ export function MessagePane({ conversation, messages, onBackMobile, onSendQuick 
         {/* Quick replies */}
         <div className="flex flex-wrap gap-2">
           {quickReplies.map((q) => (
-            <Button key={q} size="sm" variant="outline" onClick={() => setDraft(q)}>
+            <Button
+              key={q}
+              size="sm"
+              variant="outline"
+              onClick={() => setDraft(q)}
+            >
               {q}
             </Button>
           ))}

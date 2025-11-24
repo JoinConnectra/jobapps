@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { desc, or, and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { inboxThreads } from "@/db/schema-pg";
+import { inboxThreads, organizations } from "@/db/schema-pg";
 
 // Keep in sync with src/app/dashboard/inbox/_types.ts
 type Conversation = {
@@ -26,40 +26,61 @@ type Conversation = {
 
 type InboxTab = "all" | "unread" | "starred" | "archived";
 
-function mapRowToConversation(
-  row: typeof inboxThreads.$inferSelect,
-): Conversation {
-  const lastTs = row.lastMessageAt ?? row.createdAt;
+type ThreadRow = {
+  thread: typeof inboxThreads.$inferSelect;
+  orgName: string | null;
+};
 
-  const baseName = row.counterpartyName || row.subject || "Conversation";
+function mapRowToConversation(row: ThreadRow): Conversation {
+  const t = row.thread;
+  const lastTs = t.lastMessageAt ?? t.createdAt;
 
-  const title =
-    row.counterpartyType === "candidate"
-      ? `Candidate · ${baseName}`
-      : baseName;
+  let title: string;
+  let participants: string[] = [];
+  let labels = [...(t.labels ?? [])];
+  let counterpartyName: string | null = null;
+  let counterpartyType: string | null = t.counterpartyType ?? null;
 
-  const participants = row.counterpartyName ? [row.counterpartyName] : [];
+  if (t.portal === "university") {
+    // 👀 Employer POV:
+    // This thread is OWNED by a university org (t.orgId).
+    // From the company side, the COUNTERPARTY should be that university org.
+    counterpartyName = row.orgName || "College partner";
+    counterpartyType = "college";
+    title = counterpartyName;
+    participants = [counterpartyName];
 
-  // Ensure we have a "candidate" label if it's a candidate thread
-  const labels = [...(row.labels ?? [])];
-  if (row.counterpartyType === "candidate" && !labels.includes("candidate")) {
-    labels.push("candidate");
+    // Add a college label for nice UI
+    if (!labels.includes("college")) labels.push("college");
+  } else if (t.counterpartyType === "candidate") {
+    // Normal employer-owned candidate thread
+    counterpartyName = t.counterpartyName || t.subject || "Candidate";
+    counterpartyType = "candidate";
+    title = `Candidate · ${counterpartyName}`;
+    participants = [counterpartyName];
+
+    if (!labels.includes("candidate")) labels.push("candidate");
+  } else {
+    // Other employer-owned threads (if any in future)
+    counterpartyName = t.counterpartyName || t.subject || "Conversation";
+    title = counterpartyName;
+    if (counterpartyName) participants = [counterpartyName];
   }
 
   return {
-    id: String(row.id),
+    id: String(t.id),
     title,
-    preview: row.lastMessageSnippet ?? "",
-    unreadCount: row.unreadCount ?? 0,
-    starred: row.starred ?? false,
-    archived: row.archived ?? false,
+    preview: t.lastMessageSnippet ?? "",
+    unreadCount: t.unreadCount ?? 0,
+    starred: t.starred ?? false,
+    archived: t.archived ?? false,
     labels,
     lastActivity: lastTs ? new Date(lastTs).getTime() : Date.now(),
     participants,
-    counterparty: row.counterpartyName
+    counterparty: counterpartyName
       ? {
-          name: row.counterpartyName,
-          type: row.counterpartyType ?? null,
+          name: counterpartyName,
+          type: counterpartyType,
         }
       : null,
     pinned: false,
@@ -82,11 +103,16 @@ export async function GET(req: NextRequest) {
   const labelForThisOrg = `org:${orgId}`;
 
   // Fetch:
-  //  - all employer-owned threads for this org
-  //  - all university threads (we'll filter by labels in JS)
-  const rowsRaw = await db
-    .select()
+  //  - employer-owned threads for this org
+  //  - university threads (for cross-org conversations),
+  //    joined with organizations so we know the OWNER org name (uni name).
+  const rowsRaw: ThreadRow[] = await db
+    .select({
+      thread: inboxThreads,
+      orgName: organizations.name,
+    })
     .from(inboxThreads)
+    .leftJoin(organizations, eq(inboxThreads.orgId, organizations.id))
     .where(
       or(
         and(
@@ -96,17 +122,20 @@ export async function GET(req: NextRequest) {
         eq(inboxThreads.portal, "university" as any),
       ),
     )
-    .orderBy(desc(inboxThreads.lastMessageAt), desc(inboxThreads.createdAt));
+    .orderBy(
+      desc(inboxThreads.lastMessageAt),
+      desc(inboxThreads.createdAt),
+    );
 
   // Keep only:
   //  - employer threads belonging to this org
   //  - university threads whose labels contain org:<orgId>
-  const rows = rowsRaw.filter((row) => {
-    if (row.portal === "employer") {
-      return row.orgId === orgId;
+  const rows = rowsRaw.filter(({ thread }) => {
+    if (thread.portal === "employer") {
+      return thread.orgId === orgId;
     }
-    if (row.portal === "university") {
-      const labels = row.labels ?? [];
+    if (thread.portal === "university") {
+      const labels = thread.labels ?? [];
       return labels.includes(labelForThisOrg);
     }
     return false;

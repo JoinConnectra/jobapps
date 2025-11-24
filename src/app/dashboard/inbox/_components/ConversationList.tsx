@@ -74,15 +74,29 @@ export function ConversationList({
 
             // Determine the counterparty badge label (to avoid duplication in tags)
             const typeLabel =
-              cp?.type === 'candidate' ? 'Candidate' :
-              cp?.type === 'college' ? 'College' :
-              null;
+              cp?.type === 'candidate'
+                ? 'Candidate'
+                : cp?.type === 'college'
+                ? 'College'
+                : null;
 
-            // Filter labels so we don’t show Candidate/College twice
+            // Raw labels from API
             const rawLabels = Array.isArray(c.labels) ? c.labels : [];
-            const labels = typeLabel
-              ? rawLabels.filter(l => l.toLowerCase() !== typeLabel.toLowerCase())
-              : rawLabels;
+
+            // Start from raw labels, then:
+            //  - remove candidate/college duplicates
+            //  - remove internal tags ("company", "org:<id>") which are for routing, not UX
+            let labels = [...rawLabels];
+
+            if (typeLabel) {
+              labels = labels.filter(
+                (l) => l.toLowerCase() !== typeLabel.toLowerCase(),
+              );
+            }
+
+            labels = labels.filter(
+              (l) => l !== 'company' && !l.startsWith('org:'),
+            );
 
             // cap labels to 2 to avoid horizontal overflow
             const show = labels.slice(0, 2);
@@ -140,7 +154,9 @@ export function ConversationList({
                             {timeAgo(c.lastActivity)}
                           </span>
                           {c.unreadCount > 0 && (
-                            <Badge className="mt-1 px-1.5 py-0 text-[11px]">{c.unreadCount}</Badge>
+                            <Badge className="mt-1 px-1.5 py-0 text-[11px]">
+                              {c.unreadCount}
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -149,7 +165,11 @@ export function ConversationList({
                       {(show.length > 0 || more > 0) && (
                         <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
                           {show.map((l) => (
-                            <Badge key={l} variant="secondary" className="max-w-[120px] truncate">
+                            <Badge
+                              key={l}
+                              variant="secondary"
+                              className="max-w-[120px] truncate"
+                            >
                               {l}
                             </Badge>
                           ))}
@@ -161,7 +181,9 @@ export function ConversationList({
 
                       {/* Third row: title (secondary) */}
                       {c.title && (
-                        <p className="mt-1 truncate text-xs text-muted-foreground">{c.title}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {c.title}
+                        </p>
                       )}
 
                       {/* Fourth row: preview + attachment indicator */}
@@ -171,7 +193,9 @@ export function ConversationList({
                             <Paperclip className="h-3.5 w-3.5" /> {c.attachments}
                           </span>
                         )}
-                        <span className="truncate text-xs text-muted-foreground">{c.preview}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {c.preview}
+                        </span>
                       </div>
                     </div>
                   </button>
