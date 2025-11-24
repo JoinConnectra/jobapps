@@ -114,7 +114,8 @@ export default function UniversityStudentsPage() {
 
   const [programFilter, setProgramFilter] = useState<string>("all");
   const [gradYearFilter, setGradYearFilter] = useState<string>("all");
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
+  const [activityFilter, setActivityFilter] =
+    useState<ActivityFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("activityDesc");
 
   // Resolve the university orgId the same way as events: call /api/organizations?mine=true
@@ -288,21 +289,27 @@ export default function UniversityStudentsPage() {
           if (lastA !== lastB) return lastA - lastB;
           if (appsA !== appsB) return appsA - appsB;
           return nameA.localeCompare(nameB);
-        case "gradYearDesc":
+        case "gradYearDesc": {
           // Final year & later grads first; if no gradYear, push down
-          {
-            const isFinalA = gradA === currentYear;
-            const isFinalB = gradB === currentYear;
-            if (isFinalA !== isFinalB) return isFinalA ? -1 : 1;
-            if (gradA !== gradB) return gradB - gradA;
-            return nameA.localeCompare(nameB);
-          }
+          const isFinalA = gradA === currentYear;
+          const isFinalB = gradB === currentYear;
+          if (isFinalA !== isFinalB) return isFinalA ? -1 : 1;
+          if (gradA !== gradB) return gradB - gradA;
+          return nameA.localeCompare(nameB);
+        }
         case "nameAsc":
         default:
           return nameA.localeCompare(nameB);
       }
     });
-  }, [students, q, programFilter, gradYearFilter, activityFilter, sortKey]);
+  }, [
+    students,
+    q,
+    programFilter,
+    gradYearFilter,
+    activityFilter,
+    sortKey,
+  ]);
 
   const totalFiltered = filteredAndSortedStudents.length;
 
@@ -328,435 +335,439 @@ export default function UniversityStudentsPage() {
 
   return (
     <UniversityDashboardShell title="Students">
-      {/* Top row: breadcrumb + search (aligned with other main pages) */}
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="text-xs md:text-sm text-muted-foreground">
-          <span className="font-medium">Dashboard</span>
-          <span className="mx-1">›</span>
-          <span>Students</span>
-        </div>
-        <div className="w-full max-w-xs md:ml-auto">
-          <Input
-            placeholder="Search by name, email, or program..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* KPI row (same style as jobs KPIs) */}
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Total students
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">{students.length}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Linked to this university
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Final-year students
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {studentStats.finalYear}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Graduating this year
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              With resumes
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {studentStats.withResume}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Students who have uploaded a resume
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Active last 30 days
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {studentStats.activeLast30}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              At-risk final-year:{" "}
-              <span className="font-semibold">
-                {studentStats.atRiskFinalYear}
-              </span>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Content card */}
-      <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-base md:text-lg">
-              Students
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              All students linked to this university, with application activity and simple risk signals.
-            </p>
+      <div className="space-y-4">
+        {/* Top row: breadcrumb + search (aligned with other main pages) */}
+        <div className="mb-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-xs md:text-sm text-muted-foreground">
+            <span className="font-medium">Dashboard</span>
+            <span className="mx-1">›</span>
+            <span>Students</span>
           </div>
-          <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
-            <div>
-              Showing{" "}
-              <span className="font-semibold">
-                {loading ? "…" : totalFiltered}
-              </span>{" "}
-              of{" "}
-              <span className="font-semibold">
+          <div className="w-full max-w-xs md:ml-auto">
+            <Input
+              placeholder="Search by name, email, or program..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* KPI row (same style as jobs/events/apps KPIs, but slimmer height) */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Total students
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {students.length}
-              </span>{" "}
-              students.
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 px-3 text-[11px]"
-              onClick={handleResetFilters}
-            >
-              Clear filters
-            </Button>
-          </div>
-        </CardHeader>
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Linked to this university
+              </p>
+            </CardContent>
+          </Card>
 
-        <CardContent>
-          {/* Filters block (same layout style as jobs page) */}
-          {students.length > 0 && (
-            <div className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
-              <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Filters
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Final-year students
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
+                {studentStats.finalYear}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground text-[11px]">
+                Graduating this year
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                With resumes
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
+                {studentStats.withResume}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Students who have uploaded a resume
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Active last 30 days
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
+                {studentStats.activeLast30}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                At-risk final-year:{" "}
+                <span className="font-semibold">
+                  {studentStats.atRiskFinalYear}
                 </span>
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="font-medium uppercase tracking-wide">
-                    Sort by
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleActivitySortClick}
-                    className={`rounded-full border px-3 py-1 ${
-                      isActivitySort
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700"
-                    }`}
-                  >
-                    Last activity{" "}
-                    {isActivitySort ? ` ${activityArrow}` : ""}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortKey("gradYearDesc")}
-                    className={`rounded-full border px-3 py-1 ${
-                      sortKey === "gradYearDesc"
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700"
-                    }`}
-                  >
-                    Graduation year{" "}
-                    {sortKey === "gradYearDesc" ? " •" : ""}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortKey("nameAsc")}
-                    className={`rounded-full border px-3 py-1 ${
-                      sortKey === "nameAsc"
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700"
-                    }`}
-                  >
-                    Name A–Z{" "}
-                    {sortKey === "nameAsc" ? " •" : ""}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-3">
-                {/* Program */}
-                <div className="flex flex-col gap-1">
-                  <Label className="text-[11px] text-muted-foreground">
-                    Program
-                  </Label>
-                  <select
-                    value={programFilter}
-                    onChange={(e) => setProgramFilter(e.target.value)}
-                    className="h-9 w-full rounded-md border border-slate-200 bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
-                  >
-                    <option value="all">All programs</option>
-                    {programOptions.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Graduation year */}
-                <div className="flex flex-col gap-1">
-                  <Label className="text-[11px] text-muted-foreground">
-                    Graduation year
-                  </Label>
-                  <select
-                    value={gradYearFilter}
-                    onChange={(e) => setGradYearFilter(e.target.value)}
-                    className="h-9 w-full rounded-md border border-slate-200 bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
-                  >
-                    <option value="all">All years</option>
-                    {gradYearOptions.map((y) => (
-                      <option key={y} value={String(y)}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Activity */}
-                <div className="flex flex-col gap-1">
-                  <Label className="text-[11px] text-muted-foreground">
-                    Activity
-                  </Label>
-                  <div className="inline-flex rounded-md border border-slate-200 bg-background p-0.5 w-full">
-                    <button
-                      type="button"
-                      onClick={() => setActivityFilter("all")}
-                      className={`flex-1 rounded-sm px-2 py-1 text-[11px] ${
-                        activityFilter === "all"
-                          ? "bg-muted font-medium"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActivityFilter("applied")}
-                      className={`flex-1 rounded-sm px-2 py-1 text-[11px] ${
-                        activityFilter === "applied"
-                          ? "bg-muted font-medium"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      Has applied
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActivityFilter("noApps")}
-                      className={`flex-1 rounded-sm px-2 py-1 text-[11px] ${
-                        activityFilter === "noApps"
-                          ? "bg-muted font-medium"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      No applications
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* List / loading / empty states */}
-          {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : totalFiltered === 0 ? (
-            <div className="py-10 text-center border border-dashed border-muted rounded-md">
-              <p className="text-sm font-medium text-foreground">
-                No students match your current filters.
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Try clearing filters or searching by a different name, program, or class year.
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Content card */}
+        <Card className="border border-slate-200 shadow-sm bg-white">
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-base md:text-lg text-slate-900">
+                Students
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                All students linked to this university, with application
+                activity and simple risk signals.
               </p>
+            </div>
+            <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
+              <div>
+                Showing{" "}
+                <span className="font-semibold">
+                  {loading ? "…" : totalFiltered}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold">
+                  {students.length}
+                </span>{" "}
+                students.
+              </div>
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
-                className="mt-4 text-xs"
+                className="h-7 px-3 text-[11px]"
                 onClick={handleResetFilters}
               >
-                Reset filters
+                Clear filters
               </Button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredAndSortedStudents.map((s) => {
-                const appsCount = Number(s.applicationsCount ?? 0);
-                const lastActivity = s.lastApplicationAt
-                  ? formatDateShort(s.lastApplicationAt)
-                  : null;
-                const engagement = getEngagementStatus(
-                  appsCount,
-                  s.lastApplicationAt
-                );
-                const riskLabel = getRiskLabel(
-                  s.gradYear,
-                  appsCount
-                );
+          </CardHeader>
 
-                const currentYear = new Date().getFullYear();
-                const isFinalYear = s.gradYear === currentYear;
-                const noResume = !s.resumeUrl;
+          <CardContent>
+            {/* Filters block (same layout style as jobs/applications/events) */}
+            {students.length > 0 && (
+              <div className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Filters
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="font-medium uppercase tracking-wide">
+                      Sort by
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleActivitySortClick}
+                      className={`rounded-full border px-3 py-1 ${
+                        isActivitySort
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                    >
+                      Last activity
+                      {isActivitySort ? ` ${activityArrow}` : ""}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSortKey("gradYearDesc")}
+                      className={`rounded-full border px-3 py-1 ${
+                        sortKey === "gradYearDesc"
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                    >
+                      Graduation year
+                      {sortKey === "gradYearDesc" ? " •" : ""}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSortKey("nameAsc")}
+                      className={`rounded-full border px-3 py-1 ${
+                        sortKey === "nameAsc"
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                    >
+                      Name A–Z
+                      {sortKey === "nameAsc" ? " •" : ""}
+                    </button>
+                  </div>
+                </div>
 
-                return (
-                  <div
-                    key={s.id}
-                    className={`flex flex-col md:flex-row md:items-center md:justify-between rounded-md border bg-white px-3 py-2 text-sm transition hover:border-[#3d6a4a]/60 hover:shadow-sm ${
-                      isFinalYear
-                        ? "border-[#3d6a4a]/40 bg-[#f7faf8]"
-                        : "border-gray-200"
-                    }`}
-                  >
-                    <div className="flex flex-1 gap-3">
-                      {/* Avatar */}
-                      <div className="mt-0.5 hidden h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground md:flex">
-                        {getInitials(s.name)}
-                      </div>
+                <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-3">
+                  {/* Program */}
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-[11px] text-muted-foreground">
+                      Program
+                    </Label>
+                    <select
+                      value={programFilter}
+                      onChange={(e) => setProgramFilter(e.target.value)}
+                      className="h-9 w-full rounded-md border border-slate-200 bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
+                    >
+                      <option value="all">All programs</option>
+                      {programOptions.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                      <div className="flex flex-col">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">
-                            {s.name || "Unnamed student"}
-                          </span>
-                          {s.verified && (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] uppercase tracking-wide"
-                            >
-                              Verified
-                            </Badge>
-                          )}
-                          {riskLabel && (
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] uppercase tracking-wide ${
-                                riskLabel === "At-risk"
-                                  ? "border-red-300 text-red-700"
-                                  : "border-emerald-300 text-emerald-700"
-                              }`}
-                            >
-                              {riskLabel}
-                            </Badge>
-                          )}
-                        </div>
+                  {/* Graduation year */}
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-[11px] text-muted-foreground">
+                      Graduation year
+                    </Label>
+                    <select
+                      value={gradYearFilter}
+                      onChange={(e) => setGradYearFilter(e.target.value)}
+                      className="h-9 w-full rounded-md border border-slate-200 bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
+                    >
+                      <option value="all">All years</option>
+                      {gradYearOptions.map((y) => (
+                        <option key={y} value={String(y)}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {s.email || "No email"}
-                          {" • "}
-                          {s.program || "Program not set"}
-                          {s.gradYear ? ` • Class of ${s.gradYear}` : ""}
-                        </div>
-
-                        {s.skills && s.skills.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {s.skills.slice(0, 4).map((skill) => (
-                              <Badge
-                                key={skill}
-                                variant="outline"
-                                className="text-[10px]"
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                            {s.skills.length > 4 && (
-                              <span className="text-[10px] text-muted-foreground">
-                                +{s.skills.length - 4} more
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="mt-1 text-[11px] text-muted-foreground flex flex-wrap items-center gap-1">
-                          {appsCount === 0 ? (
-                            <>No applications yet</>
-                          ) : (
-                            <>
-                              {appsCount} application
-                              {appsCount !== 1 ? "s" : ""}{" "}
-                              {lastActivity && (
-                                <>• Last activity {lastActivity}</>
-                              )}
-                            </>
-                          )}
-                          <span className="mx-1">•</span>
-                          <span
-                            className={
-                              engagement.tone === "active"
-                                ? "text-[#3d6a4a] font-medium"
-                                : engagement.tone === "dormant"
-                                ? "text-amber-700"
-                                : ""
-                            }
-                          >
-                            {engagement.label}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 md:mt-0 flex items-center gap-3 text-xs">
-                      {s.resumeUrl ? (
-                        <a
-                          href={s.resumeUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline text-[#3d6a4a]"
-                        >
-                          View resume
-                        </a>
-                      ) : (
-                        <span
-                          className={`text-muted-foreground ${
-                            noResume ? "font-medium" : ""
-                          }`}
-                        >
-                          No resume uploaded
-                        </span>
-                      )}
-
-                      <Button variant="outline" size="sm" asChild>
-                        <Link
-                          href={`/university/dashboard/students/${s.id}`}
-                        >
-                          View
-                        </Link>
-                      </Button>
+                  {/* Activity */}
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-[11px] text-muted-foreground">
+                      Activity
+                    </Label>
+                    <div className="inline-flex rounded-md border border-slate-200 bg-background p-0.5 w-full">
+                      <button
+                        type="button"
+                        onClick={() => setActivityFilter("all")}
+                        className={`flex-1 rounded-sm px-2 py-1 text-[11px] ${
+                          activityFilter === "all"
+                            ? "bg-muted font-medium"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActivityFilter("applied")}
+                        className={`flex-1 rounded-sm px-2 py-1 text-[11px] ${
+                          activityFilter === "applied"
+                            ? "bg-muted font-medium"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        Has applied
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActivityFilter("noApps")}
+                        className={`flex-1 rounded-sm px-2 py-1 text-[11px] ${
+                          activityFilter === "noApps"
+                            ? "bg-muted font-medium"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        No applications
+                      </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              </div>
+            )}
+
+            {/* List / loading / empty states */}
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : totalFiltered === 0 ? (
+              <div className="py-10 text-center border border-dashed border-muted rounded-md">
+                <p className="text-sm font-medium text-foreground">
+                  No students match your current filters.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Try clearing filters or searching by a different name,
+                  program, or class year.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 text-xs"
+                  onClick={handleResetFilters}
+                >
+                  Reset filters
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredAndSortedStudents.map((s) => {
+                  const appsCount = Number(s.applicationsCount ?? 0);
+                  const lastActivity = s.lastApplicationAt
+                    ? formatDateShort(s.lastApplicationAt)
+                    : null;
+                  const engagement = getEngagementStatus(
+                    appsCount,
+                    s.lastApplicationAt
+                  );
+                  const riskLabel = getRiskLabel(
+                    s.gradYear,
+                    appsCount
+                  );
+
+                  const currentYear = new Date().getFullYear();
+                  const isFinalYear = s.gradYear === currentYear;
+                  const noResume = !s.resumeUrl;
+
+                  return (
+                    <Link
+                      key={s.id}
+                      href={`/university/dashboard/students/${s.id}`}
+                      className="block"
+                    >
+                      <div
+                        className={`flex flex-col md:flex-row md:items-center md:justify-between rounded-md border bg-white px-3 py-2 text-sm transition hover:border-[#3d6a4a]/60 hover:shadow-sm cursor-pointer ${
+                          isFinalYear
+                            ? "border-[#3d6a4a]/40 bg-[#f7faf8]"
+                            : "border-gray-200"
+                        }`}
+                      >
+                        <div className="flex flex-1 gap-3">
+                          {/* Avatar */}
+                          <div className="mt-0.5 hidden h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground md:flex">
+                            {getInitials(s.name)}
+                          </div>
+
+                          <div className="flex flex-col">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">
+                                {s.name || "Unnamed student"}
+                              </span>
+                              {s.verified && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] uppercase tracking-wide"
+                                >
+                                  Verified
+                                </Badge>
+                              )}
+                              {riskLabel && (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] uppercase tracking-wide ${
+                                    riskLabel === "At-risk"
+                                      ? "border-red-300 text-red-700"
+                                      : "border-emerald-300 text-emerald-700"
+                                  }`}
+                                >
+                                  {riskLabel}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {s.email || "No email"}
+                              {" • "}
+                              {s.program || "Program not set"}
+                              {s.gradYear
+                                ? ` • Class of ${s.gradYear}`
+                                : ""}
+                            </div>
+
+                            {s.skills && s.skills.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {s.skills.slice(0, 4).map((skill) => (
+                                  <Badge
+                                    key={skill}
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    {skill}
+                                  </Badge>
+                                ))}
+                                {s.skills.length > 4 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    +{s.skills.length - 4} more
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="mt-1 text-[11px] text-muted-foreground flex flex-wrap items-center gap-1">
+                              {appsCount === 0 ? (
+                                <>No applications yet</>
+                              ) : (
+                                <>
+                                  {appsCount} application
+                                  {appsCount !== 1 ? "s" : ""}{" "}
+                                  {lastActivity && (
+                                    <>• Last activity {lastActivity}</>
+                                  )}
+                                </>
+                              )}
+                              <span className="mx-1">•</span>
+                              <span
+                                className={
+                                  engagement.tone === "active"
+                                    ? "text-[#3d6a4a] font-medium"
+                                    : engagement.tone === "dormant"
+                                    ? "text-amber-700"
+                                    : ""
+                                }
+                              >
+                                {engagement.label}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 md:mt-0 flex items-center gap-3 text-xs">
+                          {s.resumeUrl ? (
+                            <span className="underline text-[#3d6a4a]">
+                              View resume
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-muted-foreground ${
+                                noResume ? "font-medium" : ""
+                              }`}
+                            >
+                              No resume uploaded
+                            </span>
+                          )}
+
+                          <span className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-700 bg-slate-50">
+                            View profile →
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </UniversityDashboardShell>
   );
 }

@@ -35,7 +35,6 @@ type StudentItem = {
   resumeUrl: string | null;
   createdAt: string | null;
 
-  // extra fields from API (optional, but we can use if present)
   skills?: string[] | null;
   applicationsCount?: number | null;
   lastApplicationAt?: string | null;
@@ -412,11 +411,10 @@ export default function UniversityDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* KPI row */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {/* Students */}
+        {/* Slimmer KPI row – all same height */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            icon={<GraduationCap className="h-5 w-5 text-[#3d6a4a]" />}
+            icon={<GraduationCap className="h-4 w-4 text-[#3d6a4a]" />}
             label="Students in system"
             helper="Across all class years."
             value={totalStudents}
@@ -424,9 +422,8 @@ export default function UniversityDashboardPage() {
             href="/university/dashboard/students"
           />
 
-          {/* Final-year + at-risk */}
           <MetricCard
-            icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
+            icon={<AlertTriangle className="h-4 w-4 text-amber-600" />}
             label="Final-year at risk"
             helper={
               finalYearStudents > 0
@@ -438,9 +435,8 @@ export default function UniversityDashboardPage() {
             href="/university/dashboard/students"
           />
 
-          {/* Active jobs */}
           <MetricCard
-            icon={<Briefcase className="h-5 w-5 text-[#3d6a4a]" />}
+            icon={<Briefcase className="h-4 w-4 text-[#3d6a4a]" />}
             label="Active jobs"
             helper="Open roles targeted to your students."
             value={activeJobs || totalJobs}
@@ -448,9 +444,8 @@ export default function UniversityDashboardPage() {
             href="/university/dashboard/jobs"
           />
 
-          {/* Applications (30d) */}
           <MetricCard
-            icon={<FileText className="h-5 w-5 text-[#3d6a4a]" />}
+            icon={<FileText className="h-4 w-4 text-[#3d6a4a]" />}
             label="Applications (last 30 days)"
             helper="Recent activity across all jobs."
             value={applicationsLast30Days}
@@ -462,10 +457,10 @@ export default function UniversityDashboardPage() {
         {/* Middle row: Student engagement + Pipeline + Partners */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Student engagement snapshot */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Student engagement
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -558,10 +553,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Applications pipeline snapshot */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Applications pipeline
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -631,10 +626,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Partner activity */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Employer partners
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -719,10 +714,10 @@ export default function UniversityDashboardPage() {
         {/* Bottom row: jobs, events, applications */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Recent jobs */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Recent jobs
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -754,10 +749,10 @@ export default function UniversityDashboardPage() {
                   {recentJobs.map((job) => (
                     <div
                       key={job.id}
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">
+                        <div className="truncate font-medium text-slate-900">
                           {job.title || "Untitled job"}
                         </div>
                         {job.createdAt && (
@@ -777,10 +772,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Upcoming events */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Upcoming events
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -812,10 +807,10 @@ export default function UniversityDashboardPage() {
                   {upcomingEvents.map((ev) => (
                     <div
                       key={ev.id}
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">
+                        <div className="truncate font-medium text-slate-900">
                           {ev.title}
                         </div>
                         <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground">
@@ -834,10 +829,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Recent applications */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Recent applications
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -869,10 +864,10 @@ export default function UniversityDashboardPage() {
                   {recentApplications.map((app) => (
                     <div
                       key={app.id}
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">
+                        <div className="truncate font-medium text-slate-900">
                           {app.studentName || "Unnamed student"}
                         </div>
                         <span className="whitespace-nowrap text-[11px] text-muted-foreground">
@@ -913,7 +908,7 @@ export default function UniversityDashboardPage() {
 }
 
 // --------------------
-// Metric card component
+// Metric card component (uniform height)
 // --------------------
 
 function MetricCard({
@@ -932,35 +927,37 @@ function MetricCard({
   href?: string;
 }) {
   const inner = (
-    <Card className="h-full border border-slate-200 transition hover:border-[#3d6a4a]/70 hover:shadow-sm">
-      <CardContent className="flex h-full flex-col gap-2 p-4">
+    <Card className="h-full border border-slate-200 shadow-sm bg-white transition hover:border-[#3d6a4a]/70 hover:shadow-md">
+      <CardContent className="flex h-full flex-col justify-between gap-1.5 px-3 py-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center justify-center rounded-full bg-[#F5F1E8] p-2">
+          <p className="text-[11px] font-medium text-muted-foreground">
+            {label}
+          </p>
+          <div className="flex items-center justify-center rounded-full bg-[#F5F1E8] p-1.5">
             {icon}
           </div>
         </div>
-        <div className="mt-1">
-          <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="mt-0.5">
           {loading ? (
-            <Skeleton className="mt-1 h-6 w-16" />
+            <Skeleton className="h-5 w-12" />
           ) : (
-            <p className="text-2xl font-semibold text-slate-900">
+            <p className="text-xl font-semibold leading-tight text-slate-900">
               {value}
             </p>
           )}
-          {helper && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {helper}
-            </p>
-          )}
         </div>
+        {helper && (
+          <p className="mt-0.5 min-h-[28px] text-[11px] text-muted-foreground">
+            {helper}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
 
   if (href) {
     return (
-      <Link href={href} className="block">
+      <Link href={href} className="block h-full">
         {inner}
       </Link>
     );

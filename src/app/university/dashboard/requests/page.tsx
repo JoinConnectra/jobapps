@@ -458,76 +458,78 @@ export default function RequestsPage() {
   return (
     <UniversityDashboardShell title="Companies & Partners">
       <div className="space-y-4">
-        {/* Hero / Metrics strip */}
-        <div className="grid gap-4 md:grid-cols-3">
+        {/* Top row: breadcrumb + search (aligned with Students page) */}
+        <div className="mb-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-xs md:text-sm text-muted-foreground">
+            <span className="font-medium">Dashboard</span>
+            <span className="mx-1">›</span>
+            <span>Companies &amp; Partners</span>
+          </div>
+          <div className="w-full max-w-xs md:ml-auto">
+            <Input
+              placeholder="Search by company name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Slim KPI row — matches Events / Students / Jobs style */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {/* Partner Network */}
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-900">
-                Partner Network
-              </CardTitle>
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Partner network
+              </p>
             </CardHeader>
-            <CardContent className="flex items-end justify-between">
-              <div>
-                <p className="text-3xl font-semibold tracking-tight text-slate-900">
-                  {totalPartners}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Approved recruiting partners connected to your university.
-                </p>
-              </div>
-              <div className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-emerald-700">
-                Live
-              </div>
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
+                {totalPartners}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Approved recruiting partners
+              </p>
             </CardContent>
           </Card>
 
-          {/* Pending requests */}
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-900">
-                Pending Requests
-              </CardTitle>
+          {/* Pending Requests */}
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Pending requests
+              </p>
             </CardHeader>
-            <CardContent className="flex items-end justify-between">
-              <div>
-                <p className="text-3xl font-semibold tracking-tight text-slate-900">
-                  {totalPending}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Companies waiting for approval to access your students.
-                </p>
-              </div>
-              <span className="inline-flex items-center rounded-full bg-orange-50 px-3 py-1 text-[10px] font-medium text-orange-700 border border-orange-100">
-                Action needed
-              </span>
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
+                {totalPending}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Awaiting university approval
+              </p>
             </CardContent>
           </Card>
 
-          {/* Network health */}
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium text-slate-900">
-                Network Health
-              </CardTitle>
+          {/* Network Health */}
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1 flex items-center justify-between">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Network health
+              </p>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={load}
                 disabled={loading || !orgId}
-                className="h-7 w-7"
+                className="h-6 w-6"
               >
                 <RefreshCw
                   className={`h-3 w-3 ${loading ? "animate-spin" : ""}`}
                 />
               </Button>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-xs text-slate-600">
-                Track how selectively your university approves recruiting
-                partners.
-              </p>
-              <div className="mt-2 flex items-center gap-2">
+            <CardContent className="pt-0 pb-2 space-y-1">
+              <div className="flex items-center gap-2">
                 <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-emerald-500 transition-all"
@@ -537,19 +539,12 @@ export default function RequestsPage() {
                     }}
                   />
                 </div>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-muted-foreground">
                   {approvalRate === null
-                    ? "No data yet"
+                    ? "No data"
                     : `${approvalRate}% approved`}
                 </span>
               </div>
-              {(totalRejected > 0 || totalRemoved > 0) && (
-                <p className="text-[11px] text-slate-500">
-                  {totalRejected} rejected & {totalRemoved} removed partnership
-                  {totalRemoved === 1 ? "" : "s"} to protect student quality &
-                  fit.
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -560,7 +555,7 @@ export default function RequestsPage() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle className="text-base md:text-lg text-slate-900">
-                  Companies & Approved Partners
+                  Companies &amp; Approved Partners
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Curate a high-quality network of employers who can recruit
@@ -658,15 +653,6 @@ export default function RequestsPage() {
                       </Select>
                     </div>
                   )}
-
-                  <div className="w-full sm:w-56">
-                    <Input
-                      placeholder="Search by company name..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="h-8 text-xs"
-                    />
-                  </div>
                 </div>
               </div>
             </div>

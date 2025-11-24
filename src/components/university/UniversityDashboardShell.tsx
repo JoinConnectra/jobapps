@@ -101,6 +101,32 @@ export default function UniversityDashboardShell({
               <Bell className="w-4 h-4 mr-3" /> Overview
             </Button>
 
+            {/* Partner Requests */}
+            <Button
+              variant="ghost"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/requests")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
+              onClick={() => router.push("/university/dashboard/requests")}
+            >
+              <Users2 className="w-4 h-4 mr-3" /> Partner Companies
+            </Button>
+
+            {/* Applications */}
+            <Button
+              variant="ghost"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/applications")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
+              onClick={() => router.push("/university/dashboard/applications")}
+            >
+              <Users2 className="w-4 h-4 mr-3" /> Applications
+            </Button>
+
             {/* Students */}
             <Button
               variant="ghost"
@@ -127,30 +153,9 @@ export default function UniversityDashboardShell({
               <Briefcase className="w-4 h-4 mr-3" /> Jobs
             </Button>
 
-            {/* Partner Requests */}
-            <Button
-              variant="ghost"
-              className={`w-full justify-start text-gray-700 ${
-                isActive("/university/dashboard/requests")
-                  ? "bg-[#F5F1E8] text-gray-900"
-                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
-              }`}
-              onClick={() => router.push("/university/dashboard/requests")}
-            >
-              <Users2 className="w-4 h-4 mr-3" /> Partner Companies
-            </Button>
+            
 
-            <Button
-  variant="ghost"
-  className={`w-full justify-start text-gray-700 ${
-    isActive("/university/dashboard/applications")
-      ? "bg-[#F5F1E8] text-gray-900"
-      : "hover:bg-[#F5F1E8] hover:text-gray-900"
-  }`}
-  onClick={() => router.push("/university/dashboard/applications")}
->
-  <Users2 className="w-4 h-4 mr-3" /> Applications
-</Button>
+            
 
             {/* Approved Companies 
             <Button
@@ -177,6 +182,19 @@ export default function UniversityDashboardShell({
               onClick={() => router.push("/university/dashboard/events")}
             >
               <Calendar className="w-4 h-4 mr-3" /> Events
+            </Button>
+
+            {/* KPI & Analytics */}
+            <Button
+              variant="ghost"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/kpi")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
+              onClick={() => router.push("/university/dashboard/kpi")}
+            >
+              <Calendar className="w-4 h-4 mr-3" /> KPI & Analytics
             </Button>
           </nav>
         </div>
