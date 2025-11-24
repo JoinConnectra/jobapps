@@ -68,7 +68,7 @@ type OrgSummary = {
 
 type TimeRange = "3m" | "6m" | "12m";
 
-// Brand palette – keep your green and soft neutrals
+// Brand palette for charts
 const PRIMARY = "#16a34a"; // main green
 const PRIMARY_SOFT = "#bbf7d0";
 const PRIMARY_DARK = "#166534";
@@ -263,19 +263,19 @@ export default function UniversityKpiPage() {
         <div className="mt-6 space-y-6">
           <div className="grid gap-4 md:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i}>
+              <Card key={i} className="border border-slate-200 bg-white">
                 <CardHeader>
                   <Skeleton className="h-3 w-24" />
                 </CardHeader>
                 <CardContent>
-                  <Skeleton className="h-8 w-20 mb-2" />
+                  <Skeleton className="mb-2 h-8 w-20" />
                   <Skeleton className="h-3 w-32" />
                 </CardContent>
               </Card>
             ))}
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
+            <Card className="border border-slate-200 bg-white lg:col-span-2">
               <CardHeader>
                 <Skeleton className="h-3 w-40" />
               </CardHeader>
@@ -283,7 +283,7 @@ export default function UniversityKpiPage() {
                 <Skeleton className="h-64 w-full" />
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border border-slate-200 bg-white">
               <CardHeader>
                 <Skeleton className="h-3 w-24" />
               </CardHeader>
@@ -293,7 +293,7 @@ export default function UniversityKpiPage() {
             </Card>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
+            <Card className="border border-slate-200 bg-white">
               <CardHeader>
                 <Skeleton className="h-3 w-28" />
               </CardHeader>
@@ -301,7 +301,7 @@ export default function UniversityKpiPage() {
                 <Skeleton className="h-72 w-full" />
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border border-slate-200 bg-white">
               <CardHeader>
                 <Skeleton className="h-3 w-28" />
               </CardHeader>
@@ -317,7 +317,7 @@ export default function UniversityKpiPage() {
     if (error) {
       return (
         <div className="mt-6">
-          <Card>
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle>Analytics</CardTitle>
             </CardHeader>
@@ -332,7 +332,7 @@ export default function UniversityKpiPage() {
     if (!analytics) {
       return (
         <div className="mt-6">
-          <Card>
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle>Analytics</CardTitle>
             </CardHeader>
@@ -362,9 +362,9 @@ export default function UniversityKpiPage() {
 
     return (
       <div className="mt-6 space-y-8">
-        {/* TOP KPI STRIP – very minimal, big numbers */}
+        {/* TOP KPI STRIP – minimal, big numbers */}
         <div className="grid gap-4 md:grid-cols-5">
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80 backdrop-blur-sm">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-[11px] font-medium text-muted-foreground">
                 Students on Upstride
@@ -377,7 +377,7 @@ export default function UniversityKpiPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80 backdrop-blur-sm">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-[11px] font-medium text-muted-foreground">
                 Resume-ready
@@ -387,13 +387,13 @@ export default function UniversityKpiPage() {
               <div className="text-2xl font-semibold tracking-tight text-emerald-700">
                 {formatPercent(resumeCompletionRate)}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-1">
+              <div className="mt-1 text-[11px] text-muted-foreground">
                 {formatNumber(summary.studentsWithResume)} students
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80 backdrop-blur-sm">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-[11px] font-medium text-muted-foreground">
                 Active last 30 days
@@ -403,13 +403,13 @@ export default function UniversityKpiPage() {
               <div className="text-2xl font-semibold tracking-tight text-emerald-700">
                 {formatPercent(engagedStudentRate)}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-1">
+              <div className="mt-1 text-[11px] text-muted-foreground">
                 {formatNumber(summary.uniqueApplicantsLast30)} students
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80 backdrop-blur-sm">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-[11px] font-medium text-muted-foreground">
                 Apps / active student
@@ -419,13 +419,13 @@ export default function UniversityKpiPage() {
               <div className="text-2xl font-semibold tracking-tight">
                 {formatNumber(applicationsPerEngagedStudent || 0)}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-1">
+              <div className="mt-1 text-[11px] text-muted-foreground">
                 last 30 days
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80 backdrop-blur-sm">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-[11px] font-medium text-muted-foreground">
                 Open jobs targeting you
@@ -439,10 +439,10 @@ export default function UniversityKpiPage() {
           </Card>
         </div>
 
-        {/* ROW 2 – Applications trend + radial gauges for readiness/engagement */}
+        {/* ROW 2 – Applications trend + radial gauges */}
         <div className="grid gap-4 xl:grid-cols-3">
           {/* Applications over time */}
-          <Card className="xl:col-span-2 border border-[rgba(22,101,52,0.06)] bg-white/80">
+          <Card className="border border-slate-200 bg-white xl:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-semibold text-slate-900">
                 Applications over time
@@ -453,9 +453,9 @@ export default function UniversityKpiPage() {
                     key={r}
                     type="button"
                     onClick={() => setTimeRange(r)}
-                    className={`px-2 py-0.5 text-[11px] rounded-full ${
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${
                       timeRange === r
-                        ? "bg-white shadow-sm text-slate-900"
+                        ? "bg-white text-slate-900 shadow-sm"
                         : "text-slate-500 hover:text-slate-900"
                     }`}
                   >
@@ -537,18 +537,18 @@ export default function UniversityKpiPage() {
           </Card>
 
           {/* Radial gauges: readiness & engagement */}
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-slate-900">
                 Student readiness & engagement
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-72 flex flex-col gap-4">
+            <CardContent className="flex h-72 flex-col gap-4">
               {hasReadiness || hasEngagement ? (
                 <div className="flex flex-1 gap-4">
                   {/* Resume readiness gauge */}
-                  <div className="flex-1 flex flex-col items-center justify-center">
-                    <div className="text-[11px] text-muted-foreground mb-1">
+                  <div className="flex flex-1 flex-col items-center justify-center">
+                    <div className="mb-1 text-[11px] text-muted-foreground">
                       Resume-ready
                     </div>
                     <ResponsiveContainer width="100%" height="80%">
@@ -562,7 +562,6 @@ export default function UniversityKpiPage() {
                         <RadialBar
                           dataKey="value"
                           cornerRadius={8}
-                          
                           background={{ fill: NEUTRAL_BORDER }}
                         />
                         <Legend
@@ -593,8 +592,8 @@ export default function UniversityKpiPage() {
                   </div>
 
                   {/* Engagement gauge */}
-                  <div className="flex-1 flex flex-col items-center justify-center">
-                    <div className="text-[11px] text-muted-foreground mb-1">
+                  <div className="flex flex-1 flex-col items-center justify-center">
+                    <div className="mb-1 text-[11px] text-muted-foreground">
                       Active last 30 days
                     </div>
                     <ResponsiveContainer width="100%" height="80%">
@@ -608,7 +607,6 @@ export default function UniversityKpiPage() {
                         <RadialBar
                           dataKey="value"
                           cornerRadius={8}
-                          
                           background={{ fill: NEUTRAL_BORDER }}
                         />
                         <Legend
@@ -639,7 +637,7 @@ export default function UniversityKpiPage() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground text-center">
+                <p className="text-center text-sm text-muted-foreground">
                   Once students join and apply to roles, you’ll see readiness and
                   engagement gauges here.
                 </p>
@@ -651,13 +649,13 @@ export default function UniversityKpiPage() {
         {/* ROW 3 – Jobs pipeline (donut) + cohort mix */}
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Jobs by status as donut pie chart */}
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80 lg:col-span-2">
+          <Card className="border border-slate-200 bg-white lg:col-span-2">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-slate-900">
                 Jobs pipeline by status
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-72 flex items-center justify-center">
+            <CardContent className="flex h-72 items-center justify-center">
               {hasJobsStatus ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -707,7 +705,7 @@ export default function UniversityKpiPage() {
           </Card>
 
           {/* Cohort mix by graduation year */}
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-slate-900">
                 Students by graduation year
@@ -766,7 +764,7 @@ export default function UniversityKpiPage() {
 
         {/* ROW 4 – Program mix (horizontal bars) */}
         <div>
-          <Card className="border border-[rgba(22,101,52,0.06)] bg-white/80">
+          <Card className="border border-slate-200 bg-white">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-slate-900">
                 Students by program / major (top 8)
@@ -839,7 +837,7 @@ export default function UniversityKpiPage() {
             <span className="font-medium">career services</span>.
           </p>
           {org?.name && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               University: <span className="font-medium">{org.name}</span>
             </p>
           )}

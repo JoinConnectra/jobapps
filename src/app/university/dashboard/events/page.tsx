@@ -309,334 +309,336 @@ export default function UniversityEventsPage() {
 
   return (
     <UniversityDashboardShell title="Events">
-      {/* Top row: breadcrumb + search + New Event */}
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="text-xs md:text-sm text-muted-foreground">
-          <span className="font-medium">Dashboard</span>
-          <span className="mx-1">›</span>
-          <span>Events</span>
-        </div>
-        <div className="flex w-full max-w-md items-center gap-2 md:justify-end">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search title, location, or tag…"
-                className="pl-8"
-              />
-              {q && (
-                <button
-                  type="button"
-                  onClick={() => setQ("")}
-                  className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+      <div className="space-y-4">
+        {/* Top row: breadcrumb + search + New Event */}
+        <div className="mb-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-xs md:text-sm text-muted-foreground">
+            <span className="font-medium">Dashboard</span>
+            <span className="mx-1">›</span>
+            <span>Events</span>
           </div>
-          <Button
-            size="sm"
-            asChild
-            disabled={!orgId}
-            title={
-              !orgId
-                ? "Resolving your university organization…"
-                : undefined
-            }
-          >
-            <Link href="/university/dashboard/events/new">
-              <Plus className="mr-2 h-4 w-4" />
-              New event
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      {/* KPI row — only the important ones */}
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Total events
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.totalEvents}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Hosted or shared with your students
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Upcoming events
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.upcomingEvents}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Still ahead on the calendar
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              This month
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.thisMonthEvents}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Events still to come this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Career fairs & expos
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.careerFairEvents}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Major recruiting touchpoints
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main content card: summary + filters */}
-      <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-base md:text-lg">
-              Events for your students
-            </CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              All events targeted to this university, with tools to
-              highlight gaps and key recruiting moments.
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
-            <div>
-              Showing{" "}
-              <span className="font-semibold">
-                {loading ? "…" : totalFiltered}
-              </span>{" "}
-              of{" "}
-              <span className="font-semibold">
-                {kpis.totalEvents}
-              </span>{" "}
-              events.
+          <div className="flex w-full max-w-md items-center gap-2 md:justify-end">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search title, location, or tag…"
+                  className="pl-8"
+                />
+                {q && (
+                  <button
+                    type="button"
+                    onClick={() => setQ("")}
+                    className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <Button
-              type="button"
-              variant="outline"
               size="sm"
-              className="h-7 px-3 text-[11px]"
-              onClick={handleClearFilters}
+              asChild
+              disabled={!orgId}
+              title={
+                !orgId
+                  ? "Resolving your university organization…"
+                  : undefined
+              }
             >
-              Clear filters
+              <Link href="/university/dashboard/events/new">
+                <Plus className="mr-2 h-4 w-4" />
+                New event
+              </Link>
             </Button>
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent>
-          {/* Filters block (aligned with jobs/students pattern) */}
-          <div className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
-            <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Filters
-              </span>
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="font-medium uppercase tracking-wide">
-                  Sort by
+        {/* KPI row — only the important ones */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Total events
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
+                {kpis.totalEvents}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Hosted or shared with your students
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Upcoming events
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
+                {kpis.upcomingEvents}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Still ahead on the calendar
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                This month
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
+                {kpis.thisMonthEvents}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Events still to come this month
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Career fairs & expos
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
+                {kpis.careerFairEvents}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Major recruiting touchpoints
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main content card: summary + filters */}
+        <Card className="border border-slate-200 shadow-sm bg-white">
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-base md:text-lg text-slate-900">
+                Events for your students
+              </CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                All events targeted to this university, with tools to
+                highlight gaps and key recruiting moments.
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
+              <div>
+                Showing{" "}
+                <span className="font-semibold">
+                  {loading ? "…" : totalFiltered}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold">
+                  {kpis.totalEvents}
+                </span>{" "}
+                events.
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-3 text-[11px]"
+                onClick={handleClearFilters}
+              >
+                Clear filters
+              </Button>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {/* Filters block (aligned with jobs/students pattern) */}
+            <div className="mb-1 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+              <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Filters
                 </span>
-                <DropdownSort sort={sort} setSort={setSort} />
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="font-medium uppercase tracking-wide">
+                    Sort by
+                  </span>
+                  <DropdownSort sort={sort} setSort={setSort} />
 
-                {/* View toggle */}
-                <div className="ml-1 flex rounded-md border">
-                  <Button
-                    type="button"
-                    variant={view === "grid" ? "default" : "ghost"}
-                    onClick={() => setView("grid")}
-                    className="rounded-none h-7 px-2"
-                    title="Grid"
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={view === "list" ? "default" : "ghost"}
-                    onClick={() => setView("list")}
-                    className="rounded-none h-7 px-2"
-                    title="List"
-                  >
-                    <ListIcon className="h-4 w-4" />
-                  </Button>
+                  {/* View toggle */}
+                  <div className="ml-1 flex rounded-md border">
+                    <Button
+                      type="button"
+                      variant={view === "grid" ? "default" : "ghost"}
+                      onClick={() => setView("grid")}
+                      className="rounded-none h-7 px-2"
+                      title="Grid"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={view === "list" ? "default" : "ghost"}
+                      onClick={() => setView("list")}
+                      className="rounded-none h-7 px-2"
+                      title="List"
+                    >
+                      <ListIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
+
+              {/* Quick filters as chips */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <QuickChip
+                  active={filters.host === "CAREER_CENTER"}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      host:
+                        prev.host === "CAREER_CENTER"
+                          ? "ANY"
+                          : "CAREER_CENTER",
+                    }))
+                  }
+                  label="Career center hosted"
+                />
+                <QuickChip
+                  active={filters.host === "EMPLOYER"}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      host:
+                        prev.host === "EMPLOYER" ? "ANY" : "EMPLOYER",
+                    }))
+                  }
+                  label="Employer hosted"
+                />
+                <QuickChip
+                  active={filters.medium === "VIRTUAL"}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      medium:
+                        prev.medium === "VIRTUAL" ? "ANY" : "VIRTUAL",
+                    }))
+                  }
+                  label="Virtual"
+                />
+                <QuickChip
+                  active={filters.dateRange === "THIS_WEEK"}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      dateRange:
+                        prev.dateRange === "THIS_WEEK"
+                          ? "ANY"
+                          : "THIS_WEEK",
+                    }))
+                  }
+                  label="This week"
+                />
+                <QuickChip
+                  active={filters.dateRange === "THIS_MONTH"}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      dateRange:
+                        prev.dateRange === "THIS_MONTH"
+                          ? "ANY"
+                          : "THIS_MONTH",
+                    }))
+                  }
+                  label="This month"
+                />
+                <QuickChip
+                  active={filters.featuredOnly}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      featuredOnly: !prev.featuredOnly,
+                    }))
+                  }
+                  label="Featured only"
+                />
+              </div>
             </div>
 
-            {/* Quick filters as chips */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <QuickChip
-                active={filters.host === "CAREER_CENTER"}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    host:
-                      prev.host === "CAREER_CENTER"
-                        ? "ANY"
-                        : "CAREER_CENTER",
-                  }))
-                }
-                label="Career center hosted"
-              />
-              <QuickChip
-                active={filters.host === "EMPLOYER"}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    host:
-                      prev.host === "EMPLOYER" ? "ANY" : "EMPLOYER",
-                  }))
-                }
-                label="Employer hosted"
-              />
-              <QuickChip
-                active={filters.medium === "VIRTUAL"}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    medium:
-                      prev.medium === "VIRTUAL" ? "ANY" : "VIRTUAL",
-                  }))
-                }
-                label="Virtual"
-              />
-              <QuickChip
-                active={filters.dateRange === "THIS_WEEK"}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateRange:
-                      prev.dateRange === "THIS_WEEK"
-                        ? "ANY"
-                        : "THIS_WEEK",
-                  }))
-                }
-                label="This week"
-              />
-              <QuickChip
-                active={filters.dateRange === "THIS_MONTH"}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateRange:
-                      prev.dateRange === "THIS_MONTH"
-                        ? "ANY"
-                        : "THIS_MONTH",
-                  }))
-                }
-                label="This month"
-              />
-              <QuickChip
-                active={filters.featuredOnly}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    featuredOnly: !prev.featuredOnly,
-                  }))
-                }
-                label="Featured only"
-              />
+            {/* If no events after filter, defer to EmptyState below buckets */}
+          </CardContent>
+        </Card>
+
+        {/* Featured strip */}
+        {featured.length > 0 && (
+          <section className="mt-2">
+            <div className="mb-2 flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold">
+                Featured this month
+              </h2>
             </div>
-          </div>
-
-          {/* If no events after filter, defer to EmptyState below buckets */}
-        </CardContent>
-      </Card>
-
-      {/* Featured strip */}
-      {featured.length > 0 && (
-        <section className="mt-4">
-          <div className="mb-2 flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold">
-              Featured this month
-            </h2>
-          </div>
-          <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
-            {featured.map((ev: any) => (
-              <div
-                key={ev.id}
-                className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
-              >
-                <Link
-                  href={`/university/dashboard/events/${ev.id}`}
-                  className="block h-full"
+            <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
+              {featured.map((ev: any) => (
+                <div
+                  key={ev.id}
+                  className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
                 >
-                  <EventCard event={ev} />
-                </Link>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Career fairs / major events strip */}
-      {careerFairs.length > 0 && (
-        <section className="mt-6">
-          <div className="mb-2 flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold">
-              Career fairs & major events
-            </h2>
-          </div>
-          <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
-            {careerFairs.map((ev: any) => (
-              <div
-                key={ev.id}
-                className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
-              >
-                <UniversityEventCard event={ev} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Buckets */}
-      <section className="mt-4 space-y-6">
-        <Bucket title="Today" items={today} view={view} />
-        <Bucket title="This week" items={thisWeek} view={view} />
-        <Bucket title="Later" items={later} view={view} />
-        {totalFiltered === 0 && (
-          <EmptyState
-            title={
-              loading ? "Loading…" : "No events match your filters"
-            }
-          />
+                  <Link
+                    href={`/university/dashboard/events/${ev.id}`}
+                    className="block h-full"
+                  >
+                    <EventCard event={ev} />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
-      </section>
+
+        {/* Career fairs / major events strip */}
+        {careerFairs.length > 0 && (
+          <section className="mt-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold">
+                Career fairs & major events
+              </h2>
+            </div>
+            <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
+              {careerFairs.map((ev: any) => (
+                <div
+                  key={ev.id}
+                  className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
+                >
+                  <UniversityEventCard event={ev} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Buckets */}
+        <section className="mt-2 space-y-6">
+          <Bucket title="Today" items={today} view={view} />
+          <Bucket title="This week" items={thisWeek} view={view} />
+          <Bucket title="Later" items={later} view={view} />
+          {totalFiltered === 0 && (
+            <EmptyState
+              title={
+                loading ? "Loading…" : "No events match your filters"
+              }
+            />
+          )}
+        </section>
+      </div>
     </UniversityDashboardShell>
   );
 }

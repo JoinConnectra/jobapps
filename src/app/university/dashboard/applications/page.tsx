@@ -714,522 +714,524 @@ export default function UniversityApplicationsPage() {
 
   return (
     <UniversityDashboardShell title="Applications">
-      {/* Top row: breadcrumb + search */}
-      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="text-xs md:text-sm text-muted-foreground">
-          <span className="font-medium">Dashboard</span>
-          <span className="mx-1">›</span>
-          <span>Applications</span>
+      <div className="space-y-4">
+        {/* Top row: breadcrumb + search */}
+        <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="text-xs md:text-sm text-muted-foreground">
+            <span className="font-medium">Dashboard</span>
+            <span className="mx-1">›</span>
+            <span>Applications</span>
+          </div>
+          <div className="w-full max-w-xs md:ml-auto">
+            <Input
+              placeholder="Search by student, job, company, or stage..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
         </div>
-        <div className="w-full max-w-xs md:ml-auto">
-          <Input
-            placeholder="Search by student, job, company, or stage..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-      </div>
 
-      {/* KPI row */}
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Total applications
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.totalApplications}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              All-time from students at this university
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Students applying
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.uniqueStudents}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Distinct students with at least one application
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Partner companies
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.uniqueCompanies}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Companies receiving applications
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200">
-          <CardHeader className="pb-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Offers & interviews
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-2xl font-semibold">
-              {kpis.offers}
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                offers
-              </span>
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {kpis.interviews} interviews · {kpis.rejected} rejections
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main content card */}
-      <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-base md:text-lg">
-              Applications
-            </CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Track where your students are applying and how far they move
-              through each company&apos;s hiring funnel.
-            </p>
-          </div>
-
-          <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={handleClearFilters}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
-              >
-                Clear filters
-              </button>
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
-              >
-                Export CSV
-              </button>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                className={`rounded-full px-3 py-1 ${
-                  viewMode === "list"
-                    ? "bg-slate-900 text-white"
-                    : "border border-slate-200 bg-white text-slate-700"
-                }`}
-              >
-                Application list
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("by-company")}
-                className={`rounded-full px-3 py-1 ${
-                  viewMode === "by-company"
-                    ? "bg-slate-900 text-white"
-                    : "border border-slate-200 bg-white text-slate-700"
-                }`}
-              >
-                By company
-              </button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          {/* Stage pills */}
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="font-medium uppercase tracking-wide text-muted-foreground">
-              Stage
-            </span>
-            <button
-              type="button"
-              onClick={() => setStageFilter("all")}
-              className={`rounded-full border px-3 py-1 ${
-                stageFilter === "all"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-700"
-              }`}
-            >
-              All ({kpis.totalApplications})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStageFilter("applied")}
-              className={`rounded-full border px-3 py-1 ${
-                stageFilter === "applied"
-                  ? "border-gray-800 bg-gray-800 text-white"
-                  : "border-gray-200 bg-white text-gray-800"
-              }`}
-            >
-              Applied ({kpis.applied})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStageFilter("interview")}
-              className={`rounded-full border px-3 py-1 ${
-                stageFilter === "interview"
-                  ? "border-blue-800 bg-blue-800 text-white"
-                  : "border-blue-100 bg-white text-blue-700"
-              }`}
-            >
-              Interview ({kpis.interviews})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStageFilter("offer")}
-              className={`rounded-full border px-3 py-1 ${
-                stageFilter === "offer"
-                  ? "border-green-800 bg-green-800 text-white"
-                  : "border-green-100 bg-white text-green-700"
-              }`}
-            >
-              Offer ({kpis.offers})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStageFilter("rejected")}
-              className={`rounded-full border px-3 py-1 ${
-                stageFilter === "rejected"
-                  ? "border-red-800 bg-red-800 text-white"
-                  : "border-red-100 bg-white text-red-700"
-              }`}
-            >
-              Rejected ({kpis.rejected})
-            </button>
-          </div>
-
-          {/* Filters block */}
-          <div className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
-            <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span className="font-medium uppercase tracking-wide">
-                Filters
-              </span>
-            </div>
-            <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Program
-                </span>
-                <select
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
-                  value={programFilter}
-                  onChange={(e) => setProgramFilter(e.target.value)}
-                >
-                  <option value="all">All programs</option>
-                  {availablePrograms.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Grad year
-                </span>
-                <select
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
-                  value={gradYearFilter}
-                  onChange={(e) => setGradYearFilter(e.target.value)}
-                >
-                  <option value="all">All years</option>
-                  {availableGradYears.map((gy) => (
-                    <option key={gy} value={gy.toString()}>
-                      {gy}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Company
-                </span>
-                <select
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
-                  value={companyFilter}
-                  onChange={(e) => setCompanyFilter(e.target.value)}
-                >
-                  <option value="all">All companies</option>
-                  {availableCompanies.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Time range
-                </span>
-                <select
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
-                  value={timeRange}
-                  onChange={(e) =>
-                    setTimeRange(e.target.value as TimeRange)
-                  }
-                >
-                  <option value="all">All time</option>
-                  <option value="30">Last 30 days</option>
-                  <option value="90">Last 90 days</option>
-                  <option value="365">Last 12 months</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Filter summary + sort row */}
-          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="text-xs text-muted-foreground">
-              Showing{" "}
-              <span className="font-semibold">
-                {loading ? "…" : totalFiltered}
-              </span>{" "}
-              of{" "}
-              <span className="font-semibold">
+        {/* KPI row */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Total applications
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
                 {kpis.totalApplications}
-              </span>{" "}
-              applications.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                All-time from students at this university
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Students applying
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
+                {kpis.uniqueStudents}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Distinct students with at least one application
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Partner companies
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
+                {kpis.uniqueCompanies}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Companies receiving applications
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="pb-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Offers & interviews
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-slate-900">
+                {kpis.offers}
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  offers
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {kpis.interviews} interviews · {kpis.rejected} rejections
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main content card */}
+        <Card className="border border-slate-200 shadow-sm bg-white">
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-base md:text-lg text-slate-900">
+                Applications
+              </CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Track where your students are applying and how far they move
+                through each company&apos;s hiring funnel.
+              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="font-medium uppercase tracking-wide">
-                Sort by
+
+            <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                >
+                  Clear filters
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  Export CSV
+                </button>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-full px-3 py-1 ${
+                    viewMode === "list"
+                      ? "bg-slate-900 text-white"
+                      : "border border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  Application list
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("by-company")}
+                  className={`rounded-full px-3 py-1 ${
+                    viewMode === "by-company"
+                      ? "bg-slate-900 text-white"
+                      : "border border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  By company
+                </button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {/* Stage pills */}
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="font-medium uppercase tracking-wide text-muted-foreground">
+                Stage
               </span>
               <button
                 type="button"
-                onClick={() => handleSortClick("date")}
+                onClick={() => setStageFilter("all")}
                 className={`rounded-full border px-3 py-1 ${
-                  sortKey === "date"
+                  stageFilter === "all"
                     ? "border-slate-900 bg-slate-900 text-white"
                     : "border-slate-200 bg-white text-slate-700"
                 }`}
               >
-                Date {sortArrow("date")}
+                All ({kpis.totalApplications})
               </button>
               <button
                 type="button"
-                onClick={() => handleSortClick("stage")}
+                onClick={() => setStageFilter("applied")}
                 className={`rounded-full border px-3 py-1 ${
-                  sortKey === "stage"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700"
+                  stageFilter === "applied"
+                    ? "border-gray-800 bg-gray-800 text-white"
+                    : "border-gray-200 bg-white text-gray-800"
                 }`}
               >
-                Stage {sortArrow("stage")}
+                Applied ({kpis.applied})
               </button>
               <button
                 type="button"
-                onClick={() => handleSortClick("company")}
+                onClick={() => setStageFilter("interview")}
                 className={`rounded-full border px-3 py-1 ${
-                  sortKey === "company"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700"
+                  stageFilter === "interview"
+                    ? "border-blue-800 bg-blue-800 text-white"
+                    : "border-blue-100 bg-white text-blue-700"
                 }`}
               >
-                Company {sortArrow("company")}
+                Interview ({kpis.interviews})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStageFilter("offer")}
+                className={`rounded-full border px-3 py-1 ${
+                  stageFilter === "offer"
+                    ? "border-green-800 bg-green-800 text-white"
+                    : "border-green-100 bg-white text-green-700"
+                }`}
+              >
+                Offer ({kpis.offers})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStageFilter("rejected")}
+                className={`rounded-full border px-3 py-1 ${
+                  stageFilter === "rejected"
+                    ? "border-red-800 bg-red-800 text-white"
+                    : "border-red-100 bg-white text-red-700"
+                }`}
+              >
+                Rejected ({kpis.rejected})
               </button>
             </div>
-          </div>
 
-          {/* Main content based on view mode */}
-          {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : totalFiltered === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No applications match the current filters yet.
-            </div>
-          ) : viewMode === "list" ? (
-            <div className="space-y-2">
-              {filteredItems.map((app) => {
-                const jobHref = app.jobId
-                  ? `/dashboard/jobs/${app.jobId}`
-                  : undefined;
-
-                return (
-                  <div
-                    key={app.id}
-                    className="flex flex-col gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm md:flex-row md:items-stretch md:justify-between"
+            {/* Filters block */}
+            <div className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span className="font-medium uppercase tracking-wide">
+                  Filters
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Program
+                  </span>
+                  <select
+                    className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
+                    value={programFilter}
+                    onChange={(e) => setProgramFilter(e.target.value)}
                   >
-                    <div className="flex flex-1 flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          className="font-medium text-slate-900 hover:underline"
-                          onClick={() => setActiveStudent(app)}
-                        >
-                          {app.studentName || "Unnamed student"}
-                        </button>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] uppercase tracking-wide ${stageBadgeClass(
-                            app.stage,
-                          )}`}
-                        >
-                          {prettyStage(app.stage)}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {app.studentEmail || "No email"}{" "}
-                        {" • "}
-                        {app.program || "Program not set"}
-                        {app.gradYear
-                          ? ` • Class of ${app.gradYear}`
-                          : ""}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {app.jobTitle ? (
-                          <>
-                            Applied for:{" "}
-                            {jobHref ? (
-                              <Link
-                                href={jobHref}
-                                className="font-medium text-slate-900 hover:underline"
-                              >
-                                {app.jobTitle}
-                              </Link>
-                            ) : (
-                              <span>{app.jobTitle}</span>
-                            )}
-                          </>
-                        ) : (
-                          "Job title not available"
-                        )}
-                        {app.companyName && (
-                          <>
-                            {" @ "}
-                            <button
-                              type="button"
-                              className="font-medium text-slate-900 hover:underline"
-                              onClick={() =>
-                                setActiveCompanyName(
-                                  app.companyName ?? "Unknown company",
-                                )
-                              }
-                            >
-                              {app.companyName}
-                            </button>
-                          </>
-                        )}
-                      </div>
+                    <option value="all">All programs</option>
+                    {availablePrograms.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                      <StageTimeline stage={app.stage} />
-                    </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Grad year
+                  </span>
+                  <select
+                    className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
+                    value={gradYearFilter}
+                    onChange={(e) => setGradYearFilter(e.target.value)}
+                  >
+                    <option value="all">All years</option>
+                    {availableGradYears.map((gy) => (
+                      <option key={gy} value={gy.toString()}>
+                        {gy}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    <div className="flex flex-col items-start justify-between gap-1 text-xs text-muted-foreground md:items-end">
-                      <span>
-                        Submitted{" "}
-                        {app.createdAt
-                          ? formatDate(app.createdAt)
-                          : ""}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Company
+                  </span>
+                  <select
+                    className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
+                    value={companyFilter}
+                    onChange={(e) => setCompanyFilter(e.target.value)}
+                  >
+                    <option value="all">All companies</option>
+                    {availableCompanies.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Time range
+                  </span>
+                  <select
+                    className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-300"
+                    value={timeRange}
+                    onChange={(e) =>
+                      setTimeRange(e.target.value as TimeRange)
+                    }
+                  >
+                    <option value="all">All time</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="365">Last 12 months</option>
+                  </select>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {companyAggregates.map((company) => {
-                const companyHref =
-                  company.companyName &&
-                  company.companyName !== "Unknown company"
-                    ? `/university/dashboard/requests?company=${encodeURIComponent(
-                        company.companyName,
-                      )}`
+
+            {/* Filter summary + sort row */}
+            <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="text-xs text-muted-foreground">
+                Showing{" "}
+                <span className="font-semibold">
+                  {loading ? "…" : totalFiltered}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold">
+                  {kpis.totalApplications}
+                </span>{" "}
+                applications.
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="font-medium uppercase tracking-wide">
+                  Sort by
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSortClick("date")}
+                  className={`rounded-full border px-3 py-1 ${
+                    sortKey === "date"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  Date {sortArrow("date")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSortClick("stage")}
+                  className={`rounded-full border px-3 py-1 ${
+                    sortKey === "stage"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  Stage {sortArrow("stage")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSortClick("company")}
+                  className={`rounded-full border px-3 py-1 ${
+                    sortKey === "company"
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  Company {sortArrow("company")}
+                </button>
+              </div>
+            </div>
+
+            {/* Main content based on view mode */}
+            {loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : totalFiltered === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No applications match the current filters yet.
+              </div>
+            ) : viewMode === "list" ? (
+              <div className="space-y-2">
+                {filteredItems.map((app) => {
+                  const jobHref = app.jobId
+                    ? `/dashboard/jobs/${app.jobId}`
                     : undefined;
 
-                return (
-                  <div
-                    key={company.companyName}
-                    className="flex flex-col rounded-md border border-gray-200 bg-white px-3 py-3 text-sm"
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      {companyHref ? (
-                        <button
-                          type="button"
-                          className="text-left text-sm font-semibold text-slate-900 hover:underline"
-                          onClick={() =>
-                            setActiveCompanyName(company.companyName)
-                          }
-                        >
-                          {company.companyName}
-                        </button>
-                      ) : (
-                        <div className="text-sm font-semibold">
-                          {company.companyName}
+                  return (
+                    <div
+                      key={app.id}
+                      className="flex flex-col gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm md:flex-row md:items-stretch md:justify-between"
+                    >
+                      <div className="flex flex-1 flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="font-medium text-slate-900 hover:underline"
+                            onClick={() => setActiveStudent(app)}
+                          >
+                            {app.studentName || "Unnamed student"}
+                          </button>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] uppercase tracking-wide ${stageBadgeClass(
+                              app.stage,
+                            )}`}
+                          >
+                            {prettyStage(app.stage)}
+                          </Badge>
                         </div>
-                      )}
-                      <Badge
-                        variant="outline"
-                        className="border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-700"
-                      >
-                        {company.totalApplications} applications
-                      </Badge>
-                    </div>
-                    <div className="mb-1 text-xs text-muted-foreground">
-                      {company.uniqueStudents.size} students applied
-                    </div>
-                    <div className="mb-1 text-xs text-muted-foreground">
-                      {company.offers} offer
-                      {company.offers === 1 ? "" : "s"} ·{" "}
-                      {company.interviews} interview
-                      {company.interviews === 1 ? "" : "s"} ·{" "}
-                      {company.rejected} rejected
-                    </div>
-                    {company.firstApplicationDate &&
-                      company.lastApplicationDate && (
-                        <div className="text-[11px] text-muted-foreground">
-                          Activity:{" "}
-                          {formatDate(
-                            company.firstApplicationDate.toISOString(),
-                          )}{" "}
-                          –{" "}
-                          {formatDate(
-                            company.lastApplicationDate.toISOString(),
+                        <div className="text-xs text-muted-foreground">
+                          {app.studentEmail || "No email"}{" "}
+                          {" • "}
+                          {app.program || "Program not set"}
+                          {app.gradYear
+                            ? ` • Class of ${app.gradYear}`
+                            : ""}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {app.jobTitle ? (
+                            <>
+                              Applied for:{" "}
+                              {jobHref ? (
+                                <Link
+                                  href={jobHref}
+                                  className="font-medium text-slate-900 hover:underline"
+                                >
+                                  {app.jobTitle}
+                                </Link>
+                              ) : (
+                                <span>{app.jobTitle}</span>
+                              )}
+                            </>
+                          ) : (
+                            "Job title not available"
+                          )}
+                          {app.companyName && (
+                            <>
+                              {" @ "}
+                              <button
+                                type="button"
+                                className="font-medium text-slate-900 hover:underline"
+                                onClick={() =>
+                                  setActiveCompanyName(
+                                    app.companyName ?? "Unknown company",
+                                  )
+                                }
+                              >
+                                {app.companyName}
+                              </button>
+                            </>
                           )}
                         </div>
-                      )}
-                    {company.conversionRate > 0 && (
-                      <div className="mt-1 text-[11px] font-medium text-green-700">
-                        {company.conversionRate.toFixed(1)}% offer rate
+
+                        <StageTimeline stage={app.stage} />
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+                      <div className="flex flex-col items-start justify-between gap-1 text-xs text-muted-foreground md:items-end">
+                        <span>
+                          Submitted{" "}
+                          {app.createdAt
+                            ? formatDate(app.createdAt)
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {companyAggregates.map((company) => {
+                  const companyHref =
+                    company.companyName &&
+                    company.companyName !== "Unknown company"
+                      ? `/university/dashboard/requests?company=${encodeURIComponent(
+                          company.companyName,
+                        )}`
+                      : undefined;
+
+                  return (
+                    <div
+                      key={company.companyName}
+                      className="flex flex-col rounded-md border border-gray-200 bg-white px-3 py-3 text-sm"
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        {companyHref ? (
+                          <button
+                            type="button"
+                            className="text-left text-sm font-semibold text-slate-900 hover:underline"
+                            onClick={() =>
+                              setActiveCompanyName(company.companyName)
+                            }
+                          >
+                            {company.companyName}
+                          </button>
+                        ) : (
+                          <div className="text-sm font-semibold">
+                            {company.companyName}
+                          </div>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className="border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-700"
+                        >
+                          {company.totalApplications} applications
+                        </Badge>
+                      </div>
+                      <div className="mb-1 text-xs text-muted-foreground">
+                        {company.uniqueStudents.size} students applied
+                      </div>
+                      <div className="mb-1 text-xs text-muted-foreground">
+                        {company.offers} offer
+                        {company.offers === 1 ? "" : "s"} ·{" "}
+                        {company.interviews} interview
+                        {company.interviews === 1 ? "" : "s"} ·{" "}
+                        {company.rejected} rejected
+                      </div>
+                      {company.firstApplicationDate &&
+                        company.lastApplicationDate && (
+                          <div className="text-[11px] text-muted-foreground">
+                            Activity:{" "}
+                            {formatDate(
+                              company.firstApplicationDate.toISOString(),
+                            )}{" "}
+                            –{" "}
+                            {formatDate(
+                              company.lastApplicationDate.toISOString(),
+                            )}
+                          </div>
+                        )}
+                      {company.conversionRate > 0 && (
+                        <div className="mt-1 text-[11px] font-medium text-green-700">
+                          {company.conversionRate.toFixed(1)}% offer rate
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Student side sheet with real summary */}
       <Sheet
@@ -1370,56 +1372,54 @@ export default function UniversityApplicationsPage() {
                 )}
 
                 {/* Actions */}
-                {/* Actions */}
-<div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
-  <p className="text-xs font-semibold text-slate-600">
-    Quick actions
-  </p>
-  <div className="flex flex-col gap-2">
-    <Button
-      size="sm"
-      variant="outline"
-      asChild
-      className="justify-start text-xs"
-    >
-      <Link
-        href={
-          studentSummary?.id
-            ? `/university/dashboard/students/${studentSummary.id}`
-            : "/university/dashboard/students"
-        }
-      >
-        View full student profile
-      </Link>
-    </Button>
-    {studentSummary?.resumeUrl ? (
-      <Button
-        size="sm"
-        variant="outline"
-        asChild
-        className="justify-start text-xs"
-      >
-        <a
-          href={studentSummary.resumeUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          View resume
-        </a>
-      </Button>
-    ) : (
-      <Button
-        size="sm"
-        variant="outline"
-        disabled
-        className="justify-start text-xs"
-      >
-        No resume on file
-      </Button>
-    )}
-  </div>
-</div>
-
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-600">
+                    Quick actions
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      asChild
+                      className="justify-start text-xs"
+                    >
+                      <Link
+                        href={
+                          studentSummary?.id
+                            ? `/university/dashboard/students/${studentSummary.id}`
+                            : "/university/dashboard/students"
+                        }
+                      >
+                        View full student profile
+                      </Link>
+                    </Button>
+                    {studentSummary?.resumeUrl ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        asChild
+                        className="justify-start text-xs"
+                      >
+                        <a
+                          href={studentSummary.resumeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View resume
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled
+                        className="justify-start text-xs"
+                      >
+                        No resume on file
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>

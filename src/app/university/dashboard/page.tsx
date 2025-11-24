@@ -396,7 +396,7 @@ export default function UniversityDashboardPage() {
   return (
     <UniversityDashboardShell title="Overview">
       <div className="space-y-6">
-        {/* Top hero / summary */}
+        {/* Top hero / summary — keep background/wording as is */}
         <Card className="border border-slate-200 bg-gradient-to-r from-[#F5F1E8] via-white to-[#F5F1E8]">
           <CardContent className="py-4 md:py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -412,9 +412,8 @@ export default function UniversityDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* KPI row */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {/* Students */}
+        {/* KPI row – aligned with other uni pages */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             icon={<GraduationCap className="h-5 w-5 text-[#3d6a4a]" />}
             label="Students in system"
@@ -424,7 +423,6 @@ export default function UniversityDashboardPage() {
             href="/university/dashboard/students"
           />
 
-          {/* Final-year + at-risk */}
           <MetricCard
             icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
             label="Final-year at risk"
@@ -438,7 +436,6 @@ export default function UniversityDashboardPage() {
             href="/university/dashboard/students"
           />
 
-          {/* Active jobs */}
           <MetricCard
             icon={<Briefcase className="h-5 w-5 text-[#3d6a4a]" />}
             label="Active jobs"
@@ -448,7 +445,6 @@ export default function UniversityDashboardPage() {
             href="/university/dashboard/jobs"
           />
 
-          {/* Applications (30d) */}
           <MetricCard
             icon={<FileText className="h-5 w-5 text-[#3d6a4a]" />}
             label="Applications (last 30 days)"
@@ -462,10 +458,10 @@ export default function UniversityDashboardPage() {
         {/* Middle row: Student engagement + Pipeline + Partners */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Student engagement snapshot */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Student engagement
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -558,10 +554,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Applications pipeline snapshot */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Applications pipeline
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -631,10 +627,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Partner activity */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Employer partners
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -719,10 +715,10 @@ export default function UniversityDashboardPage() {
         {/* Bottom row: jobs, events, applications */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Recent jobs */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Recent jobs
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -754,10 +750,10 @@ export default function UniversityDashboardPage() {
                   {recentJobs.map((job) => (
                     <div
                       key={job.id}
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">
+                        <div className="truncate font-medium text-slate-900">
                           {job.title || "Untitled job"}
                         </div>
                         {job.createdAt && (
@@ -777,10 +773,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Upcoming events */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Upcoming events
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -812,10 +808,10 @@ export default function UniversityDashboardPage() {
                   {upcomingEvents.map((ev) => (
                     <div
                       key={ev.id}
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">
+                        <div className="truncate font-medium text-slate-900">
                           {ev.title}
                         </div>
                         <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground">
@@ -834,10 +830,10 @@ export default function UniversityDashboardPage() {
           </Card>
 
           {/* Recent applications */}
-          <Card>
+          <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-sm font-semibold">
+                <CardTitle className="text-sm font-semibold text-slate-900">
                   Recent applications
                 </CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -869,10 +865,10 @@ export default function UniversityDashboardPage() {
                   {recentApplications.map((app) => (
                     <div
                       key={app.id}
-                      className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">
+                        <div className="truncate font-medium text-slate-900">
                           {app.studentName || "Unnamed student"}
                         </div>
                         <span className="whitespace-nowrap text-[11px] text-muted-foreground">
@@ -932,7 +928,7 @@ function MetricCard({
   href?: string;
 }) {
   const inner = (
-    <Card className="h-full border border-slate-200 transition hover:border-[#3d6a4a]/70 hover:shadow-sm">
+    <Card className="h-full border border-slate-200 shadow-sm bg-white transition hover:border-[#3d6a4a]/70 hover:shadow-md">
       <CardContent className="flex h-full flex-col gap-2 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center justify-center rounded-full bg-[#F5F1E8] p-2">
