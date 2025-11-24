@@ -25,6 +25,7 @@ import {
   List as ListIcon,
   ArrowUpDown,
   X,
+  Users,
 } from "lucide-react";
 
 import {
@@ -59,6 +60,25 @@ function isWithinDays(d: Date, days: number) {
   const limit = new Date();
   limit.setDate(now.getDate() + days);
   return d >= now && d <= limit;
+}
+
+function isCareerFairLike(ev: EventItem) {
+  const title = (ev.title || "").toLowerCase();
+  const tagStr = Array.isArray(ev.tags)
+    ? ev.tags.join(" ").toLowerCase()
+    : "";
+
+  // Heuristic: catch "career fair", "job fair", "expo", etc.
+  return (
+    title.includes("career fair") ||
+    title.includes("job fair") ||
+    title.includes("career day") ||
+    title.includes("expo") ||
+    tagStr.includes("career fair") ||
+    tagStr.includes("job fair") ||
+    tagStr.includes("career_fair") ||
+    tagStr.includes("career-day")
+  );
 }
 
 type UniFilters = {
@@ -146,12 +166,76 @@ export default function UniversityEventsPage() {
     load();
   }, [load]);
 
-  const counts = useMemo(() => ({ all: items.length }), [items]);
+  const counts = useMemo(
+    () => ({ all: items.length }),
+    [items]
+  );
+
+  // KPI metrics for the top summary strip
+  const kpis = useMemo(() => {
+    const now = new Date();
+
+    const upcomingEvents = items.filter((ev) => {
+      const d = new Date((ev as any).startsAt);
+      return d >= now;
+    });
+
+    const thisMonthEvents = items.filter((ev) => {
+      const d = new Date((ev as any).startsAt);
+      const sameYear = d.getFullYear() === now.getFullYear();
+      const sameMonth = d.getMonth() === now.getMonth();
+      return d >= now && sameYear && sameMonth;
+    });
+
+    const careerFairEvents = items.filter((ev) => isCareerFairLike(ev));
+
+    const regCounts = items.map((ev) => {
+      const r = (ev as any).reg_count ?? (ev as any).attendees_count ?? 0;
+      return typeof r === "number" && Number.isFinite(r) ? r : 0;
+    });
+    const totalRegistrations = regCounts.reduce((sum, x) => sum + x, 0);
+    const eventsWithRegs = regCounts.filter((x) => x > 0).length;
+    const avgRegistrations =
+      eventsWithRegs > 0
+        ? Math.round(totalRegistrations / eventsWithRegs)
+        : 0;
+
+    const employerHosted = items.filter(
+      (ev) => !!(ev as any).is_employer_hosted
+    ).length;
+    const universityHosted = items.length - employerHosted;
+
+    return {
+      totalEvents: items.length,
+      upcomingEvents: upcomingEvents.length,
+      thisMonthEvents: thisMonthEvents.length,
+      careerFairEvents: careerFairEvents.length,
+      avgRegistrations,
+      employerHosted,
+      universityHosted,
+    };
+  }, [items]);
 
   const featured = useMemo(() => {
     return items
-      .filter((e) => !!e.featured)
-      .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))
+      .filter((e: any) => !!e.featured)
+      .sort(
+        (a, b) =>
+          +new Date((a as any).startsAt) -
+          +new Date((b as any).startsAt)
+      )
+      .slice(0, 8);
+  }, [items]);
+
+  // Career fairs / major events strip
+  const careerFairs = useMemo(() => {
+    return items
+      .filter((ev) => isCareerFairLike(ev))
+      .sort(
+        (a, b) =>
+          +new Date((a as any).startsAt) -
+          +new Date((b as any).startsAt)
+      )
       .slice(0, 8);
   }, [items]);
 
@@ -179,34 +263,38 @@ export default function UniversityEventsPage() {
     // medium filter
     if (filters.medium !== "ANY") {
       list = list.filter(
-        (ev) => (ev.medium ?? "IN_PERSON") === filters.medium,
+        (ev) => (ev.medium ?? "IN_PERSON") === filters.medium
       );
     }
 
     // date windows
     if (filters.dateRange === "THIS_WEEK") {
-      list = list.filter((ev) => isWithinDays(new Date(ev.startsAt), 7));
+      list = list.filter((ev) =>
+        isWithinDays(new Date((ev as any).startsAt), 7)
+      );
     } else if (filters.dateRange === "THIS_MONTH") {
       const now = new Date();
       const startOfNextMonth = new Date(
         now.getFullYear(),
         now.getMonth() + 1,
-        1,
+        1
       );
       list = list.filter((ev) => {
-        const d = new Date(ev.startsAt);
+        const d = new Date((ev as any).startsAt);
         return d >= now && d < startOfNextMonth;
       });
     }
 
     if (filters.featuredOnly) {
-      list = list.filter((ev) => !!ev.featured);
+      list = list.filter((ev: any) => !!ev.featured);
     }
 
     // sort
     if (sort === "soonest") {
       list.sort(
-        (a, b) => +new Date(a.startsAt) - +new Date(b.startsAt),
+        (a, b) =>
+          +new Date((a as any).startsAt) -
+          +new Date((b as any).startsAt)
       );
     } else if (sort === "mostPopular") {
       const ac = (e: EventItem) =>
@@ -214,7 +302,9 @@ export default function UniversityEventsPage() {
       list.sort((a, b) => ac(b) - ac(a));
     } else if (sort === "featured") {
       list.sort(
-        (a, b) => Number(!!b.featured) - Number(!!a.featured),
+        (a, b) =>
+          Number(!!(b as any).featured) -
+          Number(!!(a as any).featured)
       );
     }
 
@@ -226,7 +316,7 @@ export default function UniversityEventsPage() {
     const w: EventItem[] = [];
     const l: EventItem[] = [];
     filtered.forEach((ev) => {
-      const d = new Date(ev.startsAt);
+      const d = new Date((ev as any).startsAt);
       if (isToday(d)) t.push(ev);
       else if (isWithinDays(d, 7)) w.push(ev);
       else l.push(ev);
@@ -263,6 +353,54 @@ export default function UniversityEventsPage() {
         </div>
       </div>
 
+      {/* KPI strip */}
+      {items.length > 0 && (
+        <Card className="mb-4">
+          <CardContent className="py-3">
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6 text-xs text-muted-foreground">
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {kpis.totalEvents}
+                </div>
+                <div>Total events</div>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground flex items-center gap-1">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {kpis.upcomingEvents}
+                </div>
+                <div>Upcoming</div>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {kpis.thisMonthEvents}
+                </div>
+                <div>This month</div>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {kpis.careerFairEvents}
+                </div>
+                <div>Career fairs & expos</div>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground flex items-center gap-1">
+                  <Users className="h-3.5 w-3.5" />
+                  {kpis.avgRegistrations}
+                </div>
+                <div>Avg registrations / event</div>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {kpis.universityHosted} uni • {kpis.employerHosted} employer
+                </div>
+                <div>Host mix</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sticky toolbar (search / filters / view toggle) */}
       <Card className="sticky top-2 z-10 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <CardHeader className="pb-2">
@@ -271,14 +409,14 @@ export default function UniversityEventsPage() {
 
         <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           {/* Search + Sort + View */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search title, location, or tag…"
-                className="w-[340px] pl-8"
+                className="w-[280px] sm:w-[340px] pl-8"
               />
               {q && (
                 <button
@@ -314,7 +452,10 @@ export default function UniversityEventsPage() {
 
             <Button
               variant="outline"
-              onClick={() => setFilters(defaultFilters)}
+              onClick={() => {
+                setFilters(defaultFilters);
+                setQ("");
+              }}
             >
               <Filter className="mr-2 h-4 w-4" />
               Reset Filters
@@ -335,58 +476,71 @@ export default function UniversityEventsPage() {
             <QuickChip
               active={filters.host === "CAREER_CENTER"}
               onClick={() =>
-                setFilters({
-                  ...filters,
+                setFilters((prev) => ({
+                  ...prev,
                   host:
-                    filters.host === "CAREER_CENTER"
+                    prev.host === "CAREER_CENTER"
                       ? "ANY"
                       : "CAREER_CENTER",
-                })
+                }))
               }
               label="Career center"
             />
             <QuickChip
               active={filters.host === "EMPLOYER"}
               onClick={() =>
-                setFilters({
-                  ...filters,
+                setFilters((prev) => ({
+                  ...prev,
                   host:
-                    filters.host === "EMPLOYER" ? "ANY" : "EMPLOYER",
-                })
+                    prev.host === "EMPLOYER" ? "ANY" : "EMPLOYER",
+                }))
               }
               label="Employer hosted"
             />
             <QuickChip
               active={filters.medium === "VIRTUAL"}
               onClick={() =>
-                setFilters({
-                  ...filters,
+                setFilters((prev) => ({
+                  ...prev,
                   medium:
-                    filters.medium === "VIRTUAL" ? "ANY" : "VIRTUAL",
-                })
+                    prev.medium === "VIRTUAL" ? "ANY" : "VIRTUAL",
+                }))
               }
               label="Virtual"
             />
             <QuickChip
               active={filters.dateRange === "THIS_WEEK"}
               onClick={() =>
-                setFilters({
-                  ...filters,
+                setFilters((prev) => ({
+                  ...prev,
                   dateRange:
-                    filters.dateRange === "THIS_WEEK"
+                    prev.dateRange === "THIS_WEEK"
                       ? "ANY"
                       : "THIS_WEEK",
-                })
+                }))
               }
               label="This week"
             />
             <QuickChip
+              active={filters.dateRange === "THIS_MONTH"}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  dateRange:
+                    prev.dateRange === "THIS_MONTH"
+                      ? "ANY"
+                      : "THIS_MONTH",
+                }))
+              }
+              label="This month"
+            />
+            <QuickChip
               active={filters.featuredOnly}
               onClick={() =>
-                setFilters({
-                  ...filters,
-                  featuredOnly: !filters.featuredOnly,
-                })
+                setFilters((prev) => ({
+                  ...prev,
+                  featuredOnly: !prev.featuredOnly,
+                }))
               }
               label="Featured"
             />
@@ -399,10 +553,12 @@ export default function UniversityEventsPage() {
         <section className="mt-4">
           <div className="mb-2 flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold">Featured this month</h2>
+            <h2 className="text-sm font-semibold">
+              Featured this month
+            </h2>
           </div>
           <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
-            {featured.map((ev) => (
+            {featured.map((ev: any) => (
               <div
                 key={ev.id}
                 className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
@@ -413,6 +569,28 @@ export default function UniversityEventsPage() {
                 >
                   <EventCard event={ev} />
                 </Link>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Career fairs / major events strip */}
+      {careerFairs.length > 0 && (
+        <section className="mt-6">
+          <div className="mb-2 flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold">
+              Career fairs & major events
+            </h2>
+          </div>
+          <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
+            {careerFairs.map((ev: any) => (
+              <div
+                key={ev.id}
+                className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
+              >
+                <UniversityEventCard event={ev} />
               </div>
             ))}
           </div>
@@ -522,7 +700,7 @@ function Bucket({
       >
         {items.map((ev) => (
           <div key={ev.id} className={view === "list" ? "" : "h-full"}>
-            <UniversityEventCard event={ev} />
+            <UniversityEventCard event={ev as any} />
           </div>
         ))}
       </div>
