@@ -5,6 +5,7 @@ import UniversityDashboardShell from "@/components/university/UniversityDashboar
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Check, X, RefreshCw, Trash2, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -34,10 +35,34 @@ type RequestRow = {
   websiteUrl?: string | null;
   industry?: string | null;
   locations?: unknown | null;
+
+  // 🔹 Stats from API
+  jobsCount?: number | null;
+  eventsCount?: number | null;
+  applicationsCount?: number | null;
+
+  // 🔹 Meta fields from university_partner_meta
+  priority?: string | null; // "high" | "normal" | "low" | "watch"
+  internalNotes?: string | null;
+  primaryContactName?: string | null;
+  primaryContactEmail?: string | null;
+  primaryContactRole?: string | null;
+  primaryContactPhone?: string | null;
+  lastMeetingDate?: string | null; // YYYY-MM-DD
+
+  // 🔹 Local convenience field for UI (derived from lastMeetingDate)
+  lastInteractionAt?: string | null;
 };
 
 type TabValue = "requests" | "partners" | "rejected" | "removed";
 type Action = "approve" | "reject" | "remove" | "reconsider";
+
+type PartnerMetaPayload = {
+  priority?: string | null;
+  internalNotes?: string | null;
+  primaryContactName?: string | null;
+  primaryContactEmail?: string | null;
+};
 
 export default function RequestsPage() {
   const [orgId, setOrgId] = useState<number | null>(null);
@@ -52,6 +77,11 @@ export default function RequestsPage() {
   const [selectedPartnerId, setSelectedPartnerId] = useState<number | null>(
     null,
   );
+
+  // Draft note for "log interaction"
+  const [interactionDrafts, setInteractionDrafts] = useState<
+    Record<number, string>
+  >({});
 
   // Resolve university orgId (same logic used elsewhere in the portal)
   useEffect(() => {
@@ -91,7 +121,14 @@ export default function RequestsPage() {
         return;
       }
       const data = await resp.json();
-      setRows(Array.isArray(data) ? data : []);
+      const normalized: RequestRow[] = (Array.isArray(data) ? data : []).map(
+        (r: any) => ({
+          ...r,
+          // derive lastInteractionAt from lastMeetingDate for UI display
+          lastInteractionAt: r.lastMeetingDate ?? null,
+        }),
+      );
+      setRows(normalized);
     } catch (err) {
       console.error("Failed to fetch requests:", err);
       toast.error("Something went wrong while loading requests.");
@@ -267,6 +304,10 @@ export default function RequestsPage() {
       "Industry",
       "Website",
       "Created At",
+      "Jobs",
+      "Events",
+      "Applications",
+      "Priority",
     ];
     const rowsCsv = filteredPartners.map((p) => {
       const values = [
@@ -276,6 +317,10 @@ export default function RequestsPage() {
         p.industry ?? "",
         p.websiteUrl ?? "",
         p.createdAt ? new Date(p.createdAt).toISOString() : "",
+        String(p.jobsCount ?? 0),
+        String(p.eventsCount ?? 0),
+        String(p.applicationsCount ?? 0),
+        p.priority ?? "",
       ];
       return values
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
@@ -298,6 +343,116 @@ export default function RequestsPage() {
 
   const togglePartnerDetails = (id: number) => {
     setSelectedPartnerId((prev) => (prev === id ? null : id));
+  };
+
+  const updateMeta = async (id: number, payload: PartnerMetaPayload) => {
+    try {
+      const resp = await fetch(
+        `/api/university/requests/${id}/meta`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!resp.ok) {
+        toast.error("Failed to save partner details.");
+        return;
+      }
+
+      // API returns just { ok: true }, so we optimistically merge payload
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                priority:
+                  payload.priority !== undefined
+                    ? payload.priority
+                    : r.priority,
+                internalNotes:
+                  payload.internalNotes !== undefined
+                    ? payload.internalNotes
+                    : r.internalNotes,
+                primaryContactName:
+                  payload.primaryContactName !== undefined
+                    ? payload.primaryContactName
+                    : r.primaryContactName,
+                primaryContactEmail:
+                  payload.primaryContactEmail !== undefined
+                    ? payload.primaryContactEmail
+                    : r.primaryContactEmail,
+              }
+            : r,
+        ),
+      );
+
+      toast.success("Partner details updated.");
+    } catch (err) {
+      console.error("Failed to update partner details:", err);
+      toast.error("Failed to update partner details.");
+    }
+  };
+
+  const logInteraction = async (id: number) => {
+    const note = (interactionDrafts[id] ?? "").trim();
+    if (!note) {
+      toast.info("Add a short note before logging the interaction.");
+      return;
+    }
+
+    try {
+      const resp = await fetch(
+        `/api/university/requests/${id}/interaction`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ note }),
+        },
+      );
+
+      if (!resp.ok) {
+        toast.error("Failed to log interaction.");
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                lastInteractionAt: nowIso,
+                lastMeetingDate: nowIso.slice(0, 10),
+              }
+            : r,
+        ),
+      );
+
+      setInteractionDrafts((prev) => ({
+        ...prev,
+        [id]: "",
+      }));
+
+      toast.success("Interaction logged.");
+    } catch (err) {
+      console.error("Failed to log interaction:", err);
+      toast.error("Failed to log interaction.");
+    }
+  };
+
+  const priorityLabel = (p?: string | null) => {
+    if (!p) return "Not set";
+    if (p === "high") return "High priority";
+    if (p === "normal") return "Normal";
+    if (p === "low") return "Lower priority";
+    if (p === "watch") return "Watch / nurture";
+    return p;
   };
 
   return (
@@ -631,6 +786,10 @@ export default function RequestsPage() {
                     <div className="space-y-3">
                       {filteredPartners.map((r) => {
                         const isExpanded = selectedPartnerId === r.id;
+                        const jobsCount = r.jobsCount ?? 0;
+                        const eventsCount = r.eventsCount ?? 0;
+                        const applicationsCount = r.applicationsCount ?? 0;
+
                         return (
                           <div
                             key={r.id}
@@ -676,6 +835,20 @@ export default function RequestsPage() {
                                       Industry: {r.industry}
                                     </p>
                                   )}
+
+                                  {/* Small metrics row */}
+                                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-emerald-900/80">
+                                    <span className="inline-flex items-center rounded-full bg-white/80 px-2 py-1 ring-1 ring-emerald-100">
+                                      {jobsCount} jobs
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full bg-white/80 px-2 py-1 ring-1 ring-emerald-100">
+                                      {eventsCount} events
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full bg-white/80 px-2 py-1 ring-1 ring-emerald-100">
+                                      {applicationsCount} applications
+                                    </span>
+                                  </div>
+
                                   <p className="mt-2 text-xs text-emerald-900/80">
                                     {isExpanded
                                       ? "Click to hide engagement details."
@@ -683,9 +856,10 @@ export default function RequestsPage() {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex flex-col items-end gap-2">
+                                {/* Priority pill */}
                                 <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200">
-                                  Approved partner
+                                  Priority: {priorityLabel(r.priority)}
                                 </span>
                                 <Button
                                   variant="outline"
@@ -708,63 +882,252 @@ export default function RequestsPage() {
                             {/* Inline expanded details under THIS company */}
                             {isExpanded && (
                               <div className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm">
-                                <div className="space-y-3">
-                                  {/* Basic meta */}
-                                  <div className="space-y-1">
-                                    <p className="text-xs text-slate-500">
-                                      <span className="font-semibold text-slate-800">
-                                        Org ID:
-                                      </span>{" "}
-                                      {r.companyOrgId}
-                                    </p>
-                                    {r.industry && (
-                                      <p className="text-xs text-slate-500">
-                                        <span className="font-semibold text-slate-800">
-                                          Industry:
-                                        </span>{" "}
-                                        {r.industry}
-                                      </p>
-                                    )}
-                                    {r.websiteUrl && (
-                                      <p className="text-xs text-slate-500">
-                                        <span className="font-semibold text-slate-800">
-                                          Website:
-                                        </span>{" "}
-                                        <a
-                                          href={r.websiteUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="underline"
-                                        >
-                                          {r.websiteUrl}
-                                        </a>
-                                      </p>
-                                    )}
-                                    {r.createdAt && (
-                                      <p className="text-xs text-slate-500">
-                                        <span className="font-semibold text-slate-800">
-                                          Connected on:
-                                        </span>{" "}
-                                        {new Date(
-                                          r.createdAt,
-                                        ).toLocaleDateString()}
-                                      </p>
-                                    )}
+                                <div className="space-y-4">
+                                  {/* Basic meta + metrics */}
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="space-y-1">
+                                        <p className="text-xs text-slate-500">
+                                          <span className="font-semibold text-slate-800">
+                                            Org ID:
+                                          </span>{" "}
+                                          {r.companyOrgId}
+                                        </p>
+                                        {r.industry && (
+                                          <p className="text-xs text-slate-500">
+                                            <span className="font-semibold text-slate-800">
+                                              Industry:
+                                            </span>{" "}
+                                            {r.industry}
+                                          </p>
+                                        )}
+                                        {r.websiteUrl && (
+                                          <p className="text-xs text-slate-500">
+                                            <span className="font-semibold text-slate-800">
+                                              Website:
+                                            </span>{" "}
+                                            <a
+                                              href={r.websiteUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="underline"
+                                            >
+                                              {r.websiteUrl}
+                                            </a>
+                                          </p>
+                                        )}
+                                        {r.createdAt && (
+                                          <p className="text-xs text-slate-500">
+                                            <span className="font-semibold text-slate-800">
+                                              Connected on:
+                                            </span>{" "}
+                                            {new Date(
+                                              r.createdAt,
+                                            ).toLocaleDateString()}
+                                          </p>
+                                        )}
+                                        {r.lastInteractionAt && (
+                                          <p className="text-xs text-slate-500">
+                                            <span className="font-semibold text-slate-800">
+                                              Last interaction:
+                                            </span>{" "}
+                                            {new Date(
+                                              r.lastInteractionAt,
+                                            ).toLocaleString()}
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      <div className="flex flex-col items-start gap-2 text-[11px]">
+                                        <span className="font-semibold text-slate-700">
+                                          Engagement metrics
+                                        </span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 ring-1 ring-slate-200">
+                                            <span className="mr-1 font-semibold">
+                                              {jobsCount}
+                                            </span>{" "}
+                                            jobs shared
+                                          </span>
+                                          <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 ring-1 ring-slate-200">
+                                            <span className="mr-1 font-semibold">
+                                              {eventsCount}
+                                            </span>{" "}
+                                            events
+                                          </span>
+                                          <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 ring-1 ring-slate-200">
+                                            <span className="mr-1 font-semibold">
+                                              {applicationsCount}
+                                            </span>{" "}
+                                            applications
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
 
-                                  {/* Engagement snapshot */}
-                                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                                    <p className="text-xs font-semibold text-slate-700 mb-1">
-                                      Engagement snapshot (MVP)
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                      This section can later show jobs posted
-                                      for your students, events hosted, and
-                                      total applications. For now, it
-                                      communicates that Upstride is built to
-                                      track employer quality and engagement over
-                                      time.
-                                    </p>
+                                  {/* Priority & contacts */}
+                                  <div className="grid gap-4 md:grid-cols-2">
+                                    {/* Priority + internal notes */}
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-semibold text-slate-700">
+                                        Internal classification
+                                      </p>
+                                      <div className="space-y-2">
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-slate-500">
+                                            Priority / fit for your students
+                                          </p>
+                                          <Select
+                                            value={r.priority || "normal"}
+                                            onValueChange={(value) =>
+                                              updateMeta(r.id, {
+                                                priority: value,
+                                              })
+                                            }
+                                          >
+                                            <SelectTrigger className="h-8 text-xs">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="high">
+                                                High priority
+                                              </SelectItem>
+                                              <SelectItem value="normal">
+                                                Normal
+                                              </SelectItem>
+                                              <SelectItem value="low">
+                                                Lower priority
+                                              </SelectItem>
+                                              <SelectItem value="watch">
+                                                Watch / nurture
+                                              </SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-slate-500">
+                                            Internal notes (only visible to
+                                            your career team)
+                                          </p>
+                                          <Textarea
+                                            className="min-h-[80px] text-xs"
+                                            placeholder="e.g., Great for CS internships, but comp range is low."
+                                            defaultValue={r.internalNotes ?? ""}
+                                            onBlur={(e) => {
+                                              const value =
+                                                e.target.value.trim();
+                                              if (
+                                                value !==
+                                                (r.internalNotes ?? "")
+                                              ) {
+                                                updateMeta(r.id, {
+                                                  internalNotes:
+                                                    value || null,
+                                                });
+                                              }
+                                            }}
+                                          />
+                                          <p className="text-[10px] text-slate-400">
+                                            Notes autosave when you click away.
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Contacts + interaction */}
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-semibold text-slate-700">
+                                        Company contacts
+                                      </p>
+                                      <div className="space-y-2">
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-slate-500">
+                                            Primary recruiter / contact
+                                          </p>
+                                          <Input
+                                            className="h-8 text-xs"
+                                            placeholder="Name"
+                                            defaultValue={
+                                              r.primaryContactName ?? ""
+                                            }
+                                            onBlur={(e) => {
+                                              const value =
+                                                e.target.value.trim();
+                                              if (
+                                                value !==
+                                                (r.primaryContactName ?? "")
+                                              ) {
+                                                updateMeta(r.id, {
+                                                  primaryContactName:
+                                                    value || null,
+                                                });
+                                              }
+                                            }}
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <p className="text-[11px] text-slate-500">
+                                            Contact email
+                                          </p>
+                                          <Input
+                                            className="h-8 text-xs"
+                                            placeholder="email@company.com"
+                                            defaultValue={
+                                              r.primaryContactEmail ?? ""
+                                            }
+                                            onBlur={(e) => {
+                                              const value =
+                                                e.target.value.trim();
+                                              if (
+                                                value !==
+                                                (r.primaryContactEmail ?? "")
+                                              ) {
+                                                updateMeta(r.id, {
+                                                  primaryContactEmail:
+                                                    value || null,
+                                                });
+                                              }
+                                            }}
+                                          />
+                                        </div>
+
+                                        <div className="mt-2 space-y-1">
+                                          <p className="text-xs font-semibold text-slate-700">
+                                            Log interaction
+                                          </p>
+                                          <Textarea
+                                            className="min-h-[60px] text-xs"
+                                            placeholder="e.g., Met at careers fair, discussed data science internships for Summer 2026."
+                                            value={
+                                              interactionDrafts[r.id] ?? ""
+                                            }
+                                            onChange={(e) =>
+                                              setInteractionDrafts((prev) => ({
+                                                ...prev,
+                                                [r.id]: e.target.value,
+                                              }))
+                                            }
+                                          />
+                                          <div className="flex items-center justify-between mt-1">
+                                            <p className="text-[10px] text-slate-400">
+                                              Quick notes to track meetings and
+                                              calls. Never visible to employers
+                                              or students.
+                                            </p>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className="h-7 px-2 text-[11px]"
+                                              onClick={() => logInteraction(r.id)}
+                                            >
+                                              Save note
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
 
                                   {/* Company overview */}
@@ -775,21 +1138,6 @@ export default function RequestsPage() {
                                     <p className="text-xs text-slate-500 whitespace-pre-line leading-relaxed">
                                       {r.aboutCompany ||
                                         "No company overview provided yet. You can still manage this partner relationship and track engagement through Upstride."}
-                                    </p>
-                                  </div>
-
-                                  {/* Internal notes placeholder */}
-                                  <div className="rounded-md border border-dashed border-slate-200 p-3 bg-slate-50/80">
-                                    <p className="text-xs font-semibold text-slate-700 mb-1">
-                                      Internal notes (future enhancement)
-                                    </p>
-                                    <p className="text-xs text-slate-500 leading-relaxed">
-                                      You&apos;ll be able to add private notes
-                                      here for your career center team (e.g.,
-                                      “Great for CS internships, but comp is
-                                      low”). Notes stay internal to the
-                                      university and are never visible to
-                                      companies or students.
                                     </p>
                                   </div>
                                 </div>
