@@ -56,31 +56,38 @@ export function UniversityEventCard({ event }: { event: UniEvent }) {
 
   return (
     <Card
-      className="h-full overflow-hidden transition-shadow hover:shadow-md flex flex-col"
+      className="h-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col transition hover:border-[#3d6a4a]/60 hover:shadow-md"
     >
       <CardHeader className="p-4 pb-3">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
+              {/* Status */}
               <Badge
-                variant={
+                variant="outline"
+                className={
                   statusLabel === "published"
-                    ? "default"
+                    ? "text-[10px] px-1.5 py-0.5 border-[#3d6a4a] text-[#3d6a4a] bg-[#F5F1E8]"
                     : statusLabel === "draft"
-                    ? "secondary"
-                    : "outline"
+                    ? "text-[10px] px-1.5 py-0.5 border-amber-300 text-amber-800 bg-amber-50"
+                    : "text-[10px] px-1.5 py-0.5"
                 }
               >
                 {statusLabel}
               </Badge>
+
+              {/* Temporal label */}
               <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
                 {temporalLabel}
               </Badge>
+
+              {/* Host */}
               <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
                 {hostLabel}
               </Badge>
+
               {event.featured && (
-                <Badge className="bg-primary text-primary-foreground text-[10px]">
+                <Badge className="bg-[#3d6a4a] text-white text-[10px] px-1.5 py-0.5">
                   Featured
                 </Badge>
               )}
@@ -152,9 +159,9 @@ export function UniversityEventCard({ event }: { event: UniEvent }) {
                 {attendees}/{capacity} ({Math.round(utilization)}%)
               </span>
             </div>
-            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full bg-[#F5F1E8] rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-500"
+                className="h-full bg-[#3d6a4a]"
                 style={{ width: `${utilization}%` }}
               />
             </div>
@@ -164,13 +171,13 @@ export function UniversityEventCard({ event }: { event: UniEvent }) {
 
       <CardFooter className="flex items-center justify-between px-4 py-3">
         <div className="text-[11px] text-muted-foreground">
-          {/* no createdAt on EventItem, so just show date */}
           Starts {dateString}
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
+            className="border-[#3d6a4a] text-[#3d6a4a] hover:bg-[#F5F1E8]"
             onClick={() =>
               router.push(`/university/dashboard/events/${event.id}`)
             }
@@ -181,6 +188,7 @@ export function UniversityEventCard({ event }: { event: UniEvent }) {
           {!event.is_employer_hosted && (
             <Button
               size="sm"
+              className="bg-[#3d6a4a] hover:bg-[#31553b] text-white"
               onClick={() =>
                 router.push(
                   `/university/dashboard/events/${event.id}/edit`

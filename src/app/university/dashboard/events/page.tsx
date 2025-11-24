@@ -1,4 +1,3 @@
-// src/app/university/dashboard/events/page.tsx
 "use client";
 
 import React, {
@@ -347,6 +346,7 @@ export default function UniversityEventsPage() {
                   ? "Resolving your university organization…"
                   : undefined
               }
+              className="bg-[#3d6a4a] hover:bg-[#31553b] text-white border border-transparent"
             >
               <Link href="/university/dashboard/events/new">
                 <Plus className="mr-2 h-4 w-4" />
@@ -451,7 +451,7 @@ export default function UniversityEventsPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 px-3 text-[11px]"
+                className="h-7 px-3 text-[11px] border-[#3d6a4a] text-[#3d6a4a] hover:bg-[#F5F1E8]"
                 onClick={handleClearFilters}
               >
                 Clear filters
@@ -473,21 +473,29 @@ export default function UniversityEventsPage() {
                   <DropdownSort sort={sort} setSort={setSort} />
 
                   {/* View toggle */}
-                  <div className="ml-1 flex rounded-md border">
+                  <div className="ml-1 flex rounded-md border border-[#3d6a4a]/40 bg-white">
                     <Button
                       type="button"
-                      variant={view === "grid" ? "default" : "ghost"}
+                      variant="ghost"
                       onClick={() => setView("grid")}
-                      className="rounded-none h-7 px-2"
+                      className={`rounded-none h-7 px-2 ${
+                        view === "grid"
+                          ? "bg-[#3d6a4a] text-white"
+                          : "text-slate-700 hover:bg-[#F5F1E8]"
+                      }`}
                       title="Grid"
                     >
                       <LayoutGrid className="h-4 w-4" />
                     </Button>
                     <Button
                       type="button"
-                      variant={view === "list" ? "default" : "ghost"}
+                      variant="ghost"
                       onClick={() => setView("list")}
-                      className="rounded-none h-7 px-2"
+                      className={`rounded-none h-7 px-2 ${
+                        view === "list"
+                          ? "bg-[#3d6a4a] text-white"
+                          : "text-slate-700 hover:bg-[#F5F1E8]"
+                      }`}
                       title="List"
                     >
                       <ListIcon className="h-4 w-4" />
@@ -580,7 +588,7 @@ export default function UniversityEventsPage() {
         {featured.length > 0 && (
           <section className="mt-2">
             <div className="mb-2 flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-primary" />
+              <CalendarDays className="h-4 w-4 text-[#3d6a4a]" />
               <h2 className="text-sm font-semibold">
                 Featured this month
               </h2>
@@ -607,7 +615,7 @@ export default function UniversityEventsPage() {
         {careerFairs.length > 0 && (
           <section className="mt-4">
             <div className="mb-2 flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
+              <Users className="h-4 w-4 text-[#3d6a4a]" />
               <h2 className="text-sm font-semibold">
                 Career fairs & major events
               </h2>
@@ -699,8 +707,8 @@ function QuickChip({
       className={[
         "rounded-full border px-3 py-1 text-[11px] transition",
         active
-          ? "bg-slate-900 text-white border-slate-900"
-          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+          ? "bg-[#3d6a4a] text-white border-[#3d6a4a]"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-[#F5F1E8]",
       ].join(" ")}
     >
       {label}
