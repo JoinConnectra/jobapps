@@ -1,4 +1,3 @@
-// src/app/university/dashboard/students/[id]/page.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -195,6 +194,16 @@ export default function UniversityStudentDetailPage() {
     return `${n.toFixed(n % 1 === 0 ? 0 : 1)} years of experience`;
   })();
 
+  const riskStatusLabel = (() => {
+    if (!student || !stats) return "";
+    const currentYear = new Date().getFullYear();
+    if (student.gradYear !== currentYear) return "";
+
+    if (stats.totalApplications === 0) return "At-risk (no applications)";
+    if (stats.activeApplications === 0) return "No active applications";
+    return "On track";
+  })();
+
   return (
     <UniversityDashboardShell title="Student details">
       <div className="mb-4 flex items-center justify-between">
@@ -237,7 +246,7 @@ export default function UniversityStudentDetailPage() {
             <CardHeader>
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <CardTitle className="text-xl font-semibold flex items-center gap-2">
+                  <CardTitle className="text-xl font-semibold flex flex-wrap items-center gap-2">
                     {student.name || "Unnamed student"}
                     {student.verified && (
                       <Badge
@@ -245,6 +254,20 @@ export default function UniversityStudentDetailPage() {
                         className="text-[10px] uppercase tracking-wide"
                       >
                         Verified
+                      </Badge>
+                    )}
+                    {riskStatusLabel && (
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] uppercase tracking-wide ${
+                          riskStatusLabel.startsWith("At-risk")
+                            ? "border-red-300 text-red-700"
+                            : riskStatusLabel.includes("No active")
+                            ? "border-amber-300 text-amber-700"
+                            : "border-emerald-300 text-emerald-700"
+                        }`}
+                      >
+                        {riskStatusLabel}
                       </Badge>
                     )}
                   </CardTitle>

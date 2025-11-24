@@ -116,7 +116,8 @@ function getRiskLabel(
 
 export default function UniversityStudentsPage() {
   const [orgId, setOrgId] = useState<number | null>(null);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(""); // debounced value used in filters
+  const [searchTerm, setSearchTerm] = useState(""); // immediate input value
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<StudentItem[]>([]);
 
@@ -178,6 +179,14 @@ export default function UniversityStudentsPage() {
     load();
   }, [orgId, load]);
 
+  // Debounce searchTerm -> q
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setQ(searchTerm);
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [searchTerm]);
+
   const programOptions = useMemo(() => {
     const set = new Set<string>();
     students.forEach((s) => {
@@ -192,6 +201,39 @@ export default function UniversityStudentsPage() {
       if (typeof s.gradYear === "number") set.add(s.gradYear);
     });
     return Array.from(set).sort((a, b) => a - b);
+  }, [students]);
+
+  // KPI stats for dashboard feel
+  const studentStats = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+
+    let finalYear = 0;
+    let withResume = 0;
+    let activeLast30 = 0;
+    let atRiskFinalYear = 0;
+
+    const now = new Date().getTime();
+
+    students.forEach((s) => {
+      const appsCount = Number(s.applicationsCount ?? 0);
+
+      if (s.gradYear === currentYear) {
+        finalYear += 1;
+        if (appsCount === 0) atRiskFinalYear += 1;
+      }
+
+      if (s.resumeUrl) withResume += 1;
+
+      if (s.lastApplicationAt) {
+        const t = new Date(s.lastApplicationAt).getTime();
+        if (!Number.isNaN(t)) {
+          const diffDays = (now - t) / (1000 * 60 * 60 * 24);
+          if (diffDays <= 30) activeLast30 += 1;
+        }
+      }
+    });
+
+    return { finalYear, withResume, activeLast30, atRiskFinalYear };
   }, [students]);
 
   const filteredAndSortedStudents = useMemo(() => {
@@ -296,6 +338,44 @@ export default function UniversityStudentsPage() {
         </CardHeader>
 
         <CardContent>
+          {/* KPI strip */}
+          {students.length > 0 && (
+            <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+              <div className="rounded-md border border-muted bg-muted/40 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                  Final-year students
+                </div>
+                <div className="text-sm font-semibold">
+                  {studentStats.finalYear}
+                </div>
+              </div>
+              <div className="rounded-md border border-muted bg-muted/40 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                  With resumes
+                </div>
+                <div className="text-sm font-semibold">
+                  {studentStats.withResume}
+                </div>
+              </div>
+              <div className="rounded-md border border-muted bg-muted/40 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                  Active last 30 days
+                </div>
+                <div className="text-sm font-semibold">
+                  {studentStats.activeLast30}
+                </div>
+              </div>
+              <div className="rounded-md border bg-red-50/70 border-red-100 px-3 py-2">
+                <div className="text-[11px] text-red-700 uppercase tracking-wide">
+                  At-risk final-year
+                </div>
+                <div className="text-sm font-semibold text-red-800">
+                  {studentStats.atRiskFinalYear}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Toolbar — like Talent page: search + sort + filters button */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {/* Search */}
@@ -303,8 +383,8 @@ export default function UniversityStudentsPage() {
               <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, email, or program..."
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
               />
             </div>
@@ -458,6 +538,7 @@ export default function UniversityStudentsPage() {
                     setProgramFilter("all");
                     setGradYearFilter("all");
                     setActivityFilter("all");
+                    setSearchTerm("");
                     setQ("");
                   }}
                 >
@@ -475,8 +556,27 @@ export default function UniversityStudentsPage() {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : filteredAndSortedStudents.length === 0 ? (
-            <div className="text-sm text-muted-foreground py-8 text-center">
-              No students found matching these filters yet.
+            <div className="py-10 text-center border border-dashed border-muted rounded-md">
+              <p className="text-sm font-medium text-foreground">
+                No students match your current filters.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Try clearing filters or searching by a different name, program, or class year.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 text-xs"
+                onClick={() => {
+                  setProgramFilter("all");
+                  setGradYearFilter("all");
+                  setActivityFilter("all");
+                  setSearchTerm("");
+                  setQ("");
+                }}
+              >
+                Reset filters
+              </Button>
             </div>
           ) : (
             <div className="space-y-2">
