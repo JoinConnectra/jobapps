@@ -311,6 +311,47 @@ export default function TalentDetailPage() {
                         </Button>
                       </a>
                     )}
+
+                    <Button
+  size="sm"
+  className="bg-[#6a994e] hover:bg-[#5a8743] text-white gap-2"
+  onClick={async () => {
+    try {
+      if (!org?.id) {
+        toast.error("Organization not loaded yet");
+        return;
+      }
+
+      const res = await fetch("/api/employer/inbox/find-or-create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentUserId: item.userId,
+          studentName: item.name, // pass name so API can label thread
+          orgId: org.id,          // ✅ pass orgId from client
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.threadId) {
+        throw new Error(data.error || "Thread not created");
+      }
+
+      // Jump to inbox, preselect this thread
+      router.push(`/dashboard/inbox?threadId=${data.threadId}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to start conversation");
+    }
+  }}
+>
+  💬 Message
+</Button>
+
+
+
                     {waHref && (
                       <a href={waHref} target="_blank" rel="noreferrer">
                         <Button

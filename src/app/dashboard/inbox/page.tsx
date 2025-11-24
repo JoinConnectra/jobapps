@@ -1,3 +1,4 @@
+// src/app/dashboard/inbox/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -40,7 +41,6 @@ import {
   ChevronLeft,
 } from "lucide-react";
 
-import { conversations as ALL, messagesByConvId } from "./_data/company";
 import type { Conversation, InboxTab, Message } from "./_types";
 import { ConversationList } from "./_components/ConversationList";
 import { MessagePane } from "./_components/MessagePane";
@@ -58,10 +58,18 @@ export default function EmployerInboxPage() {
     useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // ---- Inbox data state ----
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+
+  // messagesByConvId: convId -> Message[]
+  const [messagesByConvId, setMessagesByConvId] = useState<Record<string, Message[]>>({});
+  const [messagesLoading, setMessagesLoading] = useState<Record<string, boolean>>({});
+
   // ---- Local UI state ----
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<InboxTab>("all");
-  const [selectedConvId, setSelectedConvId] = useState<string | null>(ALL[0]?.id ?? null);
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -78,7 +86,7 @@ export default function EmployerInboxPage() {
       try {
         const token = localStorage.getItem("bearer_token");
         const resp = await fetch("/api/organizations?mine=true", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (resp.ok) {
           const orgs = await resp.json();
@@ -107,10 +115,102 @@ export default function EmployerInboxPage() {
     }
   };
 
-  // Filtering + search
+  // -------- Read threadId from URL and pre-select that conversation --------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const threadId = params.get("threadId");
+    if (threadId) {
+      setSelectedConvId(threadId);
+    }
+  }, []);
+
+  // -------- Fetch conversations from API whenever org/tab changes --------
+  useEffect(() => {
+    if (!org?.id) return;
+
+    const fetchThreads = async () => {
+      try {
+        setConversationsLoading(true);
+        const params = new URLSearchParams({
+          orgId: String(org.id),
+          tab, // server can optionally use this; we still filter in UI
+        });
+
+        const resp = await fetch(`/api/employer/inbox/threads?${params.toString()}`);
+        if (!resp.ok) {
+          throw new Error("Failed to load inbox");
+        }
+        const data = await resp.json();
+        const convs: Conversation[] = Array.isArray(data.conversations)
+          ? data.conversations
+          : [];
+
+        setConversations(convs);
+
+        // If nothing selected (first load), select the first conversation
+        setSelectedConvId((prev) => prev ?? (convs[0]?.id ?? null));
+      } catch (err) {
+        console.error(err);
+        toast.error("Could not load inbox conversations");
+      } finally {
+        setConversationsLoading(false);
+      }
+    };
+
+    fetchThreads();
+  }, [org?.id, tab]);
+
+  // -------- Fetch messages for selected conversation --------
+  useEffect(() => {
+    if (!org?.id) return;
+    if (!selectedConvId) return;
+    if (messagesByConvId[selectedConvId]) return; // already loaded
+
+    const fetchMessages = async () => {
+      try {
+        setMessagesLoading((prev) => ({ ...prev, [selectedConvId]: true }));
+
+        const params = new URLSearchParams({
+          orgId: String(org.id),
+        });
+
+        const resp = await fetch(
+          `/api/employer/inbox/threads/${selectedConvId}?${params.toString()}`,
+        );
+        if (!resp.ok) {
+          throw new Error("Failed to load messages");
+        }
+        const data = await resp.json();
+        const msgs: Message[] = Array.isArray(data.messages)
+          ? data.messages.map((m: any) => ({
+              id: String(m.id),
+              from: m.fromName || (m.mine ? "You" : "Other"),
+              body: m.body,
+              sentAt: m.sentAt,
+              mine: Boolean(m.mine),
+            }))
+          : [];
+
+        setMessagesByConvId((prev) => ({
+          ...prev,
+          [selectedConvId]: msgs,
+        }));
+      } catch (err) {
+        console.error(err);
+        toast.error("Could not load messages");
+      } finally {
+        setMessagesLoading((prev) => ({ ...prev, [selectedConvId]: false }));
+      }
+    };
+
+    fetchMessages();
+  }, [org?.id, selectedConvId, messagesByConvId]);
+
+  // -------- Filtering + search (client-side) --------
   const filtered: Conversation[] = useMemo(() => {
     const text = q.trim().toLowerCase();
-    return ALL
+    return conversations
       .filter((c) => {
         if (tab === "unread" && c.unreadCount === 0) return false;
         if (tab === "starred" && !c.starred) return false;
@@ -127,26 +227,45 @@ export default function EmployerInboxPage() {
         return true;
       })
       .sort((a, b) => b.lastActivity - a.lastActivity);
-  }, [q, tab]);
+  }, [conversations, q, tab]);
 
   const selectedConv = useMemo(
     () => filtered.find((c) => c.id === selectedConvId) ?? filtered[0] ?? null,
     [filtered, selectedConvId],
   );
 
-  // Bulk actions on selectedIds (local/mock only)
+  // -------- Bulk actions (local optimistic only for now) --------
   const bulkUpdate = (updater: (c: Conversation) => Conversation) => {
-    for (const id of selectedIds) {
-      const idx = ALL.findIndex((c) => c.id === id);
-      if (idx >= 0) ALL[idx] = updater(ALL[idx]);
-    }
+    setConversations((prev) =>
+      prev.map((c) => (selectedIds.includes(c.id) ? updater(c) : c)),
+    );
     setSelectedIds([]);
-    setQ((s) => s + ""); // force rerender
   };
 
-  const unreadCount = ALL.reduce((acc, c) => acc + (c.unreadCount > 0 ? 1 : 0), 0);
-  const starredCount = ALL.reduce((acc, c) => acc + (c.starred ? 1 : 0), 0);
-  const archivedCount = ALL.reduce((acc, c) => acc + (c.archived ? 1 : 0), 0);
+  const handleToggleStar = (id: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, starred: !c.starred } : c)),
+    );
+  };
+
+  const handleToggleArchive = (id: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, archived: !c.archived } : c)),
+    );
+  };
+
+  const unreadCount = conversations.reduce(
+    (acc, c) => acc + (c.unreadCount > 0 ? 1 : 0),
+    0,
+  );
+  const starredCount = conversations.reduce(
+    (acc, c) => acc + (c.starred ? 1 : 0),
+    0,
+  );
+  const archivedCount = conversations.reduce(
+    (acc, c) => acc + (c.archived ? 1 : 0),
+    0,
+  );
 
   if (isPending || (!session?.user && !isPending)) {
     return (
@@ -187,7 +306,7 @@ export default function EmployerInboxPage() {
               </nav>
             </div>
 
-            {/* Filters toggle (like talent toolbar placement) */}
+            {/* Filters toggle */}
             <div className="mb-4">
               <Button
                 variant="outline"
@@ -317,14 +436,18 @@ export default function EmployerInboxPage() {
                     </>
                   )}
 
-                  {/* SIDE-BY-SIDE like student: left list, right message pane */}
+                  {/* SIDE-BY-SIDE: left list, right message pane */}
                   <div className="grid grid-cols-1 md:grid-cols-[360px_1fr]">
                     {/* Left: conversation list */}
                     <ConversationList
                       conversations={filtered.filter((c) => !c.deleted)}
                       selectedConvId={selectedConv?.id ?? null}
                       selectedIds={selectedIds}
-                      onSelectConv={setSelectedConvId}
+                      onSelectConv={(id) => {
+                        setSelectedConvId(id);
+                        // If we switch threads and don't have messages yet,
+                        // messages effect above will fetch them.
+                      }}
                       onToggleSelect={(id: string, checked: boolean) => {
                         setSelectedIds((prev) =>
                           checked
@@ -332,16 +455,8 @@ export default function EmployerInboxPage() {
                             : prev.filter((x) => x !== id),
                         );
                       }}
-                      onToggleStar={(id: string) => {
-                        const idx = ALL.findIndex((c) => c.id === id);
-                        if (idx >= 0) ALL[idx].starred = !ALL[idx].starred;
-                        setQ((s) => s + "");
-                      }}
-                      onToggleArchive={(id: string) => {
-                        const idx = ALL.findIndex((c) => c.id === id);
-                        if (idx >= 0) ALL[idx].archived = !ALL[idx].archived;
-                        setQ((s) => s + "");
-                      }}
+                      onToggleStar={handleToggleStar}
+                      onToggleArchive={handleToggleArchive}
                     />
 
                     {/* Right: message pane */}
@@ -350,25 +465,62 @@ export default function EmployerInboxPage() {
                         <MessagePane
                           conversation={selectedConv}
                           messages={
-                            messagesByConvId[selectedConv.id] as Message[]
+                            messagesByConvId[selectedConv.id] ?? []
                           }
                           onBackMobile={() => setSelectedConvId(null)}
-                          onSendQuick={(text: string) => {
-                            (messagesByConvId[selectedConv.id] as Message[]).push(
-                              {
-                                id:
-                                  "local-" +
-                                  Math.random().toString(36).slice(2),
-                                from: "You",
-                                body: text,
-                                sentAt: Date.now(),
-                                mine: true,
-                              },
-                            );
-                            selectedConv.preview = text;
-                            selectedConv.lastActivity = Date.now();
-                            selectedConv.unreadCount = 0;
-                            setQ((s) => s + "");
+                          onSendQuick={async (text: string) => {
+                            if (!org?.id || !selectedConv) return;
+                            try {
+                              const resp = await fetch(
+                                `/api/employer/inbox/threads/${selectedConv.id}`,
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({
+                                    text,
+                                    orgId: org.id,
+                                  }),
+                                },
+                              );
+                              if (!resp.ok) {
+                                throw new Error("Failed to send");
+                              }
+                              const data = await resp.json();
+
+                              // Append to messages
+                              setMessagesByConvId((prev) => ({
+                                ...prev,
+                                [selectedConv.id]: [
+                                  ...(prev[selectedConv.id] ?? []),
+                                  {
+                                    id: String(data.id),
+                                    from: "You",
+                                    body: data.body,
+                                    sentAt: data.sentAt,
+                                    mine: true,
+                                  },
+                                ],
+                              }));
+
+                              // Update conversation preview + lastActivity + unread
+                              setConversations((prev) =>
+                                prev.map((c) =>
+                                  c.id === selectedConv.id
+                                    ? {
+                                        ...c,
+                                        preview: text,
+                                        lastActivity: data.sentAt,
+                                        unreadCount: 0,
+                                      }
+                                    : c,
+                                ),
+                              );
+                            } catch (err) {
+                              console.error(err);
+                              toast.error("Could not send message");
+                            }
                           }}
                         />
                       ) : (
@@ -404,7 +556,7 @@ export default function EmployerInboxPage() {
             try {
               const token = localStorage.getItem("bearer_token");
               const orgResp = await fetch("/api/organizations?mine=true", {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
               });
               if (orgResp.ok) {
                 const orgs = await orgResp.json();

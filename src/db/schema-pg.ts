@@ -735,3 +735,76 @@ export const codingTestCases = pgTable('coding_test_cases', {
   isHidden: boolean('is_hidden').default(false),
 });
 
+// -----------------------------
+// Inbox (threads + messages)
+// -----------------------------
+export const inboxThreads = pgTable('inbox_threads', {
+  id: serial('id').primaryKey(),
+
+  // Who owns this inbox view (company / university)
+  orgId: integer('org_id').notNull(), // FK → organizations.id (enforced via migration / app)
+
+  // Which portal this row is primarily for. Reuse later for university/student
+  portal: text('portal')
+    .$type<'employer' | 'university' | 'student'>()
+    .default('employer')
+    .notNull(),
+
+  // High-level subject / title of the thread
+  subject: text('subject').notNull(),
+
+  // Counterparty info from the org's perspective (candidate, uni, etc.)
+  counterpartyUserId: integer('counterparty_user_id'),
+  counterpartyName: text('counterparty_name'),
+  counterpartyEmail: text('counterparty_email'),
+  counterpartyType: text('counterparty_type'), // 'candidate' | 'university' | 'employer' | 'system'
+
+  // Flags & labels (map nicely to your UI)
+  archived: boolean('archived').default(false).notNull(),
+  starred: boolean('starred').default(false).notNull(),
+  labels: text('labels')
+    .array()
+    .notNull()
+    .default(sql`'{}'::text[]`),
+
+  // Denormalized counts / last message info for fast list rendering
+  unreadCount: integer('unread_count').default(0).notNull(),
+  lastMessageAt: timestamp('last_message_at', { withTimezone: false }),
+  lastMessageSnippet: text('last_message_snippet'),
+
+  // Optional anchors into ATS / events
+  jobId: integer('job_id'),
+  applicationId: integer('application_id'),
+  eventId: integer('event_id'),
+
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
+
+export const inboxMessages = pgTable('inbox_messages', {
+  id: serial('id').primaryKey(),
+
+  threadId: integer('thread_id').notNull(),    // FK → inbox_threads.id
+  orgId: integer('org_id').notNull(),          // redundant but useful for filtering
+
+  // Who sent it
+  fromUserId: integer('from_user_id'),
+  fromName: text('from_name'),
+  fromEmail: text('from_email'),
+  fromRole: text('from_role'),                 // 'employer' | 'candidate' | 'university' | 'system'
+
+  body: text('body').notNull(),
+
+  // Direction + note flag
+  direction: text('direction')
+    .$type<'incoming' | 'outgoing' | 'internal'>()
+    .default('internal')
+    .notNull(),
+  isInternalNote: boolean('is_internal_note').default(false).notNull(),
+
+  // Per-message read timestamp (for future per-user read receipts if you want)
+  readAt: timestamp('read_at', { withTimezone: false }),
+
+  createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
+});
