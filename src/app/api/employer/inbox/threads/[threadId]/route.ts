@@ -1,6 +1,6 @@
 // src/app/api/employer/inbox/threads/[threadId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { inboxMessages, inboxThreads } from "@/db/schema-pg";
@@ -13,7 +13,25 @@ type Message = {
   fromName?: string | null;
 };
 
-// GET all messages in a thread for an org
+function canAccessThread(
+  thread: typeof inboxThreads.$inferSelect,
+  employerOrgId: number,
+) {
+  const labelForThisOrg = `org:${employerOrgId}`;
+
+  if (thread.portal === "employer") {
+    return thread.orgId === employerOrgId;
+  }
+
+  if (thread.portal === "university") {
+    const labels = thread.labels ?? [];
+    return labels.includes(labelForThisOrg);
+  }
+
+  return false;
+}
+
+// GET all messages in a thread for an employer org
 export async function GET(
   req: NextRequest,
   // NOTE: params is now a Promise in Next 15 dynamic route handlers
@@ -21,35 +39,44 @@ export async function GET(
 ) {
   const { searchParams } = new URL(req.url);
   const orgIdParam = searchParams.get("orgId");
-  const orgId = orgIdParam ? Number(orgIdParam) : NaN;
+  const employerOrgId = orgIdParam ? Number(orgIdParam) : NaN;
 
   // ✅ await params before using threadId
   const { threadId: threadIdStr } = await params;
   const threadId = Number(threadIdStr);
 
-  if (!orgId || Number.isNaN(orgId) || !threadId || Number.isNaN(threadId)) {
+  if (!employerOrgId || Number.isNaN(employerOrgId) || !threadId || Number.isNaN(threadId)) {
     return NextResponse.json(
       { error: "orgId and threadId required" },
       { status: 400 },
     );
   }
 
+  const [thread] = await db
+    .select()
+    .from(inboxThreads)
+    .where(eq(inboxThreads.id, threadId))
+    .limit(1);
+
+  if (!thread) {
+    return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+  }
+
+  if (!canAccessThread(thread, employerOrgId)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const rows = await db
     .select()
     .from(inboxMessages)
-    .where(
-      and(
-        eq(inboxMessages.orgId, orgId),
-        eq(inboxMessages.threadId, threadId),
-      ),
-    )
+    .where(eq(inboxMessages.threadId, threadId))
     .orderBy(asc(inboxMessages.createdAt));
 
   const messages: Message[] = rows.map((m) => ({
     id: String(m.id),
     body: m.body,
     sentAt: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
-    // For now, mark outgoing if from_role = 'employer'
+    // Employer side: mine if from_role = 'employer'
     mine: m.fromRole === "employer",
     fromName: m.fromName,
   }));
@@ -66,15 +93,29 @@ export async function POST(
   const body = await req.json().catch(() => null);
   const { text, orgId } = body ?? {};
 
-  // ✅ await params before using threadId
+  const employerOrgId = Number(orgId);
   const { threadId: threadIdStr } = await params;
   const threadId = Number(threadIdStr);
 
-  if (!text || !orgId || Number.isNaN(Number(orgId)) || Number.isNaN(threadId)) {
+  if (!text || !employerOrgId || Number.isNaN(employerOrgId) || Number.isNaN(threadId)) {
     return NextResponse.json(
       { error: "text and orgId are required" },
       { status: 400 },
     );
+  }
+
+  const [thread] = await db
+    .select()
+    .from(inboxThreads)
+    .where(eq(inboxThreads.id, threadId))
+    .limit(1);
+
+  if (!thread) {
+    return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+  }
+
+  if (!canAccessThread(thread, employerOrgId)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const now = new Date();
@@ -84,7 +125,8 @@ export async function POST(
     .insert(inboxMessages)
     .values({
       threadId,
-      orgId: Number(orgId),
+      // Keep orgId as the owner org for the thread (university for uni-owned threads)
+      orgId: thread.orgId,
       body: text,
       fromRole: "employer",
       direction: "outgoing",
@@ -94,13 +136,13 @@ export async function POST(
     })
     .returning();
 
-  // Update thread snippet / timestamps, reset unreadCount for org side
+  // Update thread snippet / timestamps, increment unreadCount for the other side
   await db
     .update(inboxThreads)
     .set({
       lastMessageAt: now,
       lastMessageSnippet: text,
-      unreadCount: 0,
+      unreadCount: (thread.unreadCount ?? 0) + 1,
       updatedAt: now,
     })
     .where(eq(inboxThreads.id, threadId));

@@ -1,10 +1,9 @@
 // src/app/api/employer/inbox/threads/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, gt, ilike, not } from "drizzle-orm";
+import { desc, or, and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { inboxThreads } from "@/db/schema-pg";
-// import { getCurrentUser } from "@/lib/auth"; // if you want auth here later
 
 // Keep in sync with src/app/dashboard/inbox/_types.ts
 type Conversation = {
@@ -32,8 +31,7 @@ function mapRowToConversation(
 ): Conversation {
   const lastTs = row.lastMessageAt ?? row.createdAt;
 
-  const baseName =
-    row.counterpartyName || row.subject || "Conversation";
+  const baseName = row.counterpartyName || row.subject || "Conversation";
 
   const title =
     row.counterpartyType === "candidate"
@@ -74,53 +72,80 @@ export async function GET(req: NextRequest) {
 
   const orgIdParam = searchParams.get("orgId");
   const tab = (searchParams.get("tab") as InboxTab | null) ?? "all";
-  const q = (searchParams.get("q") ?? "").trim();
+  const q = (searchParams.get("q") ?? "").trim().toLowerCase();
 
   const orgId = orgIdParam ? Number(orgIdParam) : NaN;
   if (!orgId || Number.isNaN(orgId)) {
     return NextResponse.json({ error: "orgId is required" }, { status: 400 });
   }
 
-  // Base filter: this org + employer portal
-  let where = and(
-    eq(inboxThreads.orgId, orgId),
-    eq(inboxThreads.portal, "employer" as any),
-  );
+  const labelForThisOrg = `org:${orgId}`;
 
-  // Tab filters
-  if (tab === "unread") {
-    where = and(where, gt(inboxThreads.unreadCount, 0));
-  } else if (tab === "starred") {
-    where = and(where, eq(inboxThreads.starred, true));
-  } else if (tab === "archived") {
-    where = and(where, eq(inboxThreads.archived, true));
-  } else {
-    // all => exclude archived
-    where = and(where, not(eq(inboxThreads.archived, true)));
-  }
-
-  // Text search (subject, name, snippet, labels)
-  if (q) {
-    const pattern = `%${q.toLowerCase()}%`;
-    where = and(
-      where,
-      // ilike on subject or counterparty name or snippet
-      // NOTE: ilike(...) OR ilike(...) requires db.or; if you don’t have it imported yet,
-      // we can refine this later. For now, just subject+snippet:
-      ilike(inboxThreads.subject, pattern),
-    );
-  }
-
-  const rows = await db
+  // Fetch:
+  //  - all employer-owned threads for this org
+  //  - all university threads (we'll filter by labels in JS)
+  const rowsRaw = await db
     .select()
     .from(inboxThreads)
-    .where(where)
-    .orderBy(
-      desc(inboxThreads.lastMessageAt),
-      desc(inboxThreads.createdAt),
-    );
+    .where(
+      or(
+        and(
+          eq(inboxThreads.orgId, orgId),
+          eq(inboxThreads.portal, "employer" as any),
+        ),
+        eq(inboxThreads.portal, "university" as any),
+      ),
+    )
+    .orderBy(desc(inboxThreads.lastMessageAt), desc(inboxThreads.createdAt));
 
-  const conversations = rows.map(mapRowToConversation);
+  // Keep only:
+  //  - employer threads belonging to this org
+  //  - university threads whose labels contain org:<orgId>
+  const rows = rowsRaw.filter((row) => {
+    if (row.portal === "employer") {
+      return row.orgId === orgId;
+    }
+    if (row.portal === "university") {
+      const labels = row.labels ?? [];
+      return labels.includes(labelForThisOrg);
+    }
+    return false;
+  });
+
+  let conversations = rows.map(mapRowToConversation);
+
+  // Tab filters
+  conversations = conversations.filter((c) => {
+    if (tab === "unread" && c.unreadCount === 0) return false;
+    if (tab === "starred" && !c.starred) return false;
+    if (tab === "archived" && !c.archived) return false;
+    if (tab !== "archived" && c.archived) return false;
+    return true;
+  });
+
+  // Text search: title, preview, participants, labels, counterparty name
+  if (q) {
+    conversations = conversations.filter((c) => {
+      const title = c.title.toLowerCase();
+      const preview = (c.preview || "").toLowerCase();
+      const labels = (c.labels || []).map((l) => l.toLowerCase());
+      const participants = c.participants.map((p) => p.toLowerCase());
+      const counterpartyName = c.counterparty?.name
+        ? c.counterparty.name.toLowerCase()
+        : "";
+
+      return (
+        title.includes(q) ||
+        preview.includes(q) ||
+        participants.some((p) => p.includes(q)) ||
+        labels.some((l) => l.includes(q)) ||
+        counterpartyName.includes(q)
+      );
+    });
+  }
+
+  // Ensure newest first based on lastActivity
+  conversations.sort((a, b) => b.lastActivity - a.lastActivity);
 
   return NextResponse.json({ conversations });
 }
