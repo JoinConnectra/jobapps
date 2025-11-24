@@ -7,15 +7,21 @@ import {
   applications,
   jobs,
   organizations,
+  studentExperiences,
+  studentEducations,
+  studentLinks,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const idNum = Number(params.id);
+    // ✅ Await params because Next.js now passes it as a Promise
+    const { id } = await context.params;
+    const idNum = Number(id);
+
     if (!idNum || Number.isNaN(idNum)) {
       return NextResponse.json(
         { error: "Invalid student id" },
@@ -23,7 +29,7 @@ export async function GET(
       );
     }
 
-    // 1) Load the student profile + user info
+    // 1) Load the student profile + user info (rich fields)
     const [studentRow] = await db
       .select({
         id: studentProfiles.id,
@@ -34,6 +40,28 @@ export async function GET(
         resumeUrl: studentProfiles.resumeUrl,
         verified: studentProfiles.verified,
         createdAt: studentProfiles.createdAt,
+
+        // Rich profile
+        headline: studentProfiles.headline,
+        about: studentProfiles.about,
+        locationCity: studentProfiles.locationCity,
+        locationCountry: studentProfiles.locationCountry,
+        websiteUrl: studentProfiles.websiteUrl,
+        skills: studentProfiles.skills,
+        whatsapp: studentProfiles.whatsapp,
+        province: studentProfiles.province,
+        linkedinUrl: studentProfiles.linkedinUrl,
+        portfolioUrl: studentProfiles.portfolioUrl,
+        githubUrl: studentProfiles.githubUrl,
+        workAuth: studentProfiles.workAuth,
+        needSponsorship: studentProfiles.needSponsorship,
+        willingRelocate: studentProfiles.willingRelocate,
+        remotePref: studentProfiles.remotePref,
+        earliestStart: studentProfiles.earliestStart,
+        salaryExpectation: studentProfiles.salaryExpectation,
+        expectedSalaryPkr: studentProfiles.expectedSalaryPkr,
+        noticePeriodDays: studentProfiles.noticePeriodDays,
+        experienceYears: studentProfiles.experienceYears,
 
         name: users.name,
         email: users.email,
@@ -65,9 +93,52 @@ export async function GET(
       .leftJoin(organizations, eq(jobs.orgId, organizations.id))
       .where(eq(applications.applicantUserId, studentRow.userId));
 
+    // 3) Load experiences
+    const experiences = await db
+      .select({
+        id: studentExperiences.id,
+        title: studentExperiences.title,
+        company: studentExperiences.company,
+        startDate: studentExperiences.startDate,
+        endDate: studentExperiences.endDate,
+        isCurrent: studentExperiences.isCurrent,
+        location: studentExperiences.location,
+      })
+      .from(studentExperiences)
+      .where(eq(studentExperiences.userId, studentRow.userId))
+      .orderBy(desc(studentExperiences.startDate));
+
+    // 4) Load educations
+    const educations = await db
+      .select({
+        id: studentEducations.id,
+        school: studentEducations.school,
+        degree: studentEducations.degree,
+        field: studentEducations.field,
+        startYear: studentEducations.startYear,
+        endYear: studentEducations.endYear,
+        gpa: studentEducations.gpa,
+      })
+      .from(studentEducations)
+      .where(eq(studentEducations.userId, studentRow.userId))
+      .orderBy(desc(studentEducations.endYear));
+
+    // 5) Load custom links
+    const links = await db
+      .select({
+        id: studentLinks.id,
+        label: studentLinks.label,
+        url: studentLinks.url,
+      })
+      .from(studentLinks)
+      .where(eq(studentLinks.userId, studentRow.userId));
+
     return NextResponse.json({
       student: studentRow,
       applications: apps,
+      experiences,
+      educations,
+      links,
     });
   } catch (error) {
     console.error("GET /api/university/students/[id] error:", error);
