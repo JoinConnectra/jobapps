@@ -21,14 +21,14 @@ type AttendeeRow = {
   resumeUrl: string | null;
 };
 
-type AttendeeResponse = AttendeeRow & {
+export type AttendeeResponse = AttendeeRow & {
   registered: boolean;
   checkedIn: boolean;
 };
 
 // GET /api/university/events/[id]/attendees
 // Returns one row per unique email (student), with basic profile + registered/checkedIn flags
-export async function GET(_req: NextRequest, context: RouteParams) {
+export async function GET(req: NextRequest, context: RouteParams) {
   try {
     const { id } = await context.params;
     const eventId = Number(id);
@@ -81,6 +81,17 @@ export async function GET(_req: NextRequest, context: RouteParams) {
 
     const emails = Array.from(emailMap.keys());
     if (emails.length === 0) {
+      // nothing to return – empty JSON or empty CSV; JSON by default
+      const format = req.nextUrl.searchParams.get("format");
+      if (format === "csv") {
+        return new NextResponse("Name,Email,Program,GradYear,Registered,CheckedIn,ResumeUrl\n", {
+          status: 200,
+          headers: {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": `attachment; filename="event-${eventId}-attendees.csv"`,
+          },
+        });
+      }
       return NextResponse.json<AttendeeResponse[]>([]);
     }
 
@@ -148,6 +159,55 @@ export async function GET(_req: NextRequest, context: RouteParams) {
       return nameA.localeCompare(nameB);
     });
 
+    // 4) Decide JSON vs CSV
+    const format = req.nextUrl.searchParams.get("format");
+
+    if (format === "csv") {
+      const header = [
+        "Name",
+        "Email",
+        "Program",
+        "GradYear",
+        "Registered",
+        "CheckedIn",
+        "ResumeUrl",
+      ];
+
+      const escape = (v: unknown) => {
+        let s = v === null || v === undefined ? "" : String(v);
+        s = s.replace(/"/g, '""');
+        return `"${s}"`;
+      };
+
+      const lines = [
+        header.map(escape).join(","),
+        ...result.map((r) =>
+          [
+            r.name ?? "",
+            r.email,
+            r.program ?? "",
+            r.gradYear ?? "",
+            r.registered ? "yes" : "no",
+            r.checkedIn ? "yes" : "no",
+            r.resumeUrl ?? "",
+          ]
+            .map(escape)
+            .join(","),
+        ),
+      ];
+
+      const csv = lines.join("\n");
+
+      return new NextResponse(csv, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="event-${eventId}-attendees.csv"`,
+        },
+      });
+    }
+
+    // Default: JSON
     return NextResponse.json(result);
   } catch (e) {
     console.error(

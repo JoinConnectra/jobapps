@@ -19,6 +19,8 @@ import {
   Building2,
   Link2,
   Clock3,
+  Download,
+  Mails,
 } from "lucide-react";
 
 type EventRecord = {
@@ -67,9 +69,7 @@ export default function UniversityEventDetailPage() {
 
   const [attendees, setAttendees] = useState<EventAttendee[]>([]);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
-  const [attendeesError, setAttendeesError] = useState<string | null>(
-    null
-  );
+  const [attendeesError, setAttendeesError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -106,21 +106,17 @@ export default function UniversityEventDetailPage() {
       try {
         const res = await fetch(
           `/api/university/events/${id}/attendees`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(
-            data?.error || "Failed to load attendees."
-          );
+          throw new Error(data?.error || "Failed to load attendees.");
         }
         setAttendees(Array.isArray(data) ? data : []);
       } catch (e: any) {
         console.error("Error loading attendees", e);
         setAttendees([]);
-        setAttendeesError(
-          e?.message || "Failed to load attendees."
-        );
+        setAttendeesError(e?.message || "Failed to load attendees.");
       } finally {
         setAttendeesLoading(false);
       }
@@ -130,7 +126,7 @@ export default function UniversityEventDetailPage() {
   async function handleDelete() {
     if (!id) return;
     const confirmed = window.confirm(
-      "Are you sure you want to delete this event? This cannot be undone."
+      "Are you sure you want to delete this event? This cannot be undone.",
     );
     if (!confirmed) return;
 
@@ -190,18 +186,14 @@ export default function UniversityEventDetailPage() {
 
     const now = Date.now();
     const start = new Date(event.start_at).getTime();
-    const end = event.end_at
-      ? new Date(event.end_at).getTime()
-      : start;
+    const end = event.end_at ? new Date(event.end_at).getTime() : start;
 
     const isUpcoming = start > now;
     const isPast = end < now;
     const isOngoing = !isUpcoming && !isPast;
 
     const totalRegistrations =
-      event.reg_count ??
-      event.attendees_count ??
-      0;
+      event.reg_count ?? event.attendees_count ?? 0;
     const checkins = event.checkins_count ?? 0;
     const capacity =
       typeof event.capacity === "number" &&
@@ -222,8 +214,7 @@ export default function UniversityEventDetailPage() {
       isUpcoming &&
       capacity !== null &&
       capacity > 0 &&
-      totalRegistrations <
-        Math.max(10, Math.floor(capacity * 0.3));
+      totalRegistrations < Math.max(10, Math.floor(capacity * 0.3));
 
     return {
       totalRegistrations,
@@ -247,6 +238,31 @@ export default function UniversityEventDetailPage() {
   const mediumLabel =
     event?.medium === "VIRTUAL" ? "Virtual" : "In-person";
 
+  // "Email all attendees" helper
+  const handleEmailAll = React.useCallback(() => {
+    if (!attendees || attendees.length === 0) return;
+
+    const uniqueEmails = Array.from(
+      new Set(attendees.map((a) => a.email).filter(Boolean)),
+    );
+    if (uniqueEmails.length === 0) return;
+
+    const subject = event
+      ? `Follow-up: ${event.title}`
+      : "Event follow-up";
+
+    const body =
+      "Hi,\n\nThank you for your interest in this event.\n\nBest regards,\nCareer Center";
+
+    const mailto = `mailto:?bcc=${encodeURIComponent(
+      uniqueEmails.join(","),
+    )}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
+      body,
+    )}`;
+
+    window.location.href = mailto;
+  }, [attendees, event]);
+
   return (
     <UniversityDashboardShell title="Event details">
       <div className="mb-4 flex items-center justify-between">
@@ -267,7 +283,7 @@ export default function UniversityEventDetailPage() {
               type="button"
               onClick={() =>
                 router.push(
-                  `/university/dashboard/events/${event.id}/edit`
+                  `/university/dashboard/events/${event.id}/edit`,
                 )
               }
             >
@@ -477,16 +493,44 @@ export default function UniversityEventDetailPage() {
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-semibold">
-                    Attendees
-                  </h2>
+                  <h2 className="text-sm font-semibold">Attendees</h2>
                 </div>
-                {!attendeesLoading && attendees.length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {attendees.length} unique student
-                    {attendees.length !== 1 && "s"}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {!attendeesLoading && attendees.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {attendees.length} unique student
+                      {attendees.length !== 1 && "s"}
+                    </span>
+                  )}
+
+                  {/* Always show buttons, even if 0 attendees */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                  >
+                    <a
+                      href={`/api/university/events/${String(
+                        id,
+                      )}/attendees?format=csv`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Download className="mr-1.5 h-3.5 w-3.5" />
+                      Download CSV
+                    </a>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEmailAll}
+                    // optional: disable if none
+                    disabled={attendeesLoading || attendees.length === 0}
+                  >
+                    <Mails className="mr-1.5 h-3.5 w-3.5" />
+                    Email all
+                  </Button>
+                </div>
               </div>
 
               {attendeesLoading ? (
@@ -506,18 +550,12 @@ export default function UniversityEventDetailPage() {
                   <table className="w-full border-collapse text-sm">
                     <thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        <th className="px-3 py-2 text-left">
-                          Student
-                        </th>
+                        <th className="px-3 py-2 text-left">Student</th>
                         <th className="px-3 py-2 text-left">
                           Program / Year
                         </th>
-                        <th className="px-3 py-2 text-left">
-                          Status
-                        </th>
-                        <th className="px-3 py-2 text-right">
-                          Profile
-                        </th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-right">Profile</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -557,15 +595,14 @@ export default function UniversityEventDetailPage() {
                                   Checked in
                                 </Badge>
                               )}
-                              {!a.registered &&
-                                !a.checkedIn && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px]"
-                                  >
-                                    Added manually
-                                  </Badge>
-                                )}
+                              {!a.registered && !a.checkedIn && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px]"
+                                >
+                                  Added manually
+                                </Badge>
+                              )}
                             </div>
                           </td>
                           <td className="px-3 py-2 align-top text-right">
@@ -575,7 +612,7 @@ export default function UniversityEventDetailPage() {
                                 size="sm"
                                 onClick={() =>
                                   router.push(
-                                    `/university/dashboard/students/${a.studentProfileId}`
+                                    `/university/dashboard/students/${a.studentProfileId}`,
                                   )
                                 }
                               >
