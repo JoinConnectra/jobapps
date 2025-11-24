@@ -57,20 +57,35 @@ function mapRowToConversation(row: {
   const t = row.thread;
   const lastTs = t.lastMessageAt ?? t.createdAt;
 
-  // ✅ For candidate view, title/participants should be the COMPANY NAME
-  const companyName = row.orgName || "Employer";
-  const title = companyName;
-  const participants: string[] = [companyName];
+  const isEmployer = t.portal === "employer";
+  const isUniversity = t.portal === "university";
 
-  // ✅ Build clean labels: show "Employer", hide technical ones like "candidate" / "org:2"
-  const labels: string[] = [];
-  labels.push("Employer");
+  // Title = org name; fall back nicely based on portal
+  const baseName =
+    row.orgName ||
+    (isEmployer ? "Employer" : isUniversity ? "Career center" : "Contact");
+
+  const title = baseName;
+  const participants: string[] = [baseName];
+
+  // Primary label based on who is talking to the student
+  const primaryLabel = isEmployer
+    ? "Employer"
+    : isUniversity
+    ? "Career center"
+    : "Contact";
+
+  const labels: string[] = [primaryLabel];
+
+  // Merge in any additional labels, but strip internal/duplicate ones
   if (Array.isArray(t.labels)) {
     for (const raw of t.labels) {
       const l = raw || "";
       const lower = l.toLowerCase();
-      if (lower === "candidate") continue; // this is "you" from employer POV
-      if (lower.startsWith("org:")) continue; // internal routing label
+      if (!l) continue;
+      if (lower === "candidate") continue; // that's the student themself
+      if (lower.startsWith("org:")) continue; // internal routing
+      if (labels.includes(l)) continue;
       labels.push(l);
     }
   }
@@ -100,9 +115,8 @@ export async function GET(req: NextRequest) {
   const tab = (searchParams.get("tab") as InboxTab | null) ?? "all";
   const q = (searchParams.get("q") ?? "").trim();
 
-  // Build conditions as an array to avoid type issues with `where`
   const conditions = [
-    // This candidate is the counterparty on the employer thread
+    // Any thread (employer or university) where this candidate is the counterparty
     eq(inboxThreads.counterpartyUserId, me.id),
   ];
 
@@ -120,13 +134,12 @@ export async function GET(req: NextRequest) {
     conditions.push(eq(inboxThreads.archived, false));
   }
 
-  // Simple text search on subject or company name
+  // Simple text search on subject (you can later add orgName if you want)
   if (q) {
     const pattern = `%${q.toLowerCase()}%`;
     conditions.push(ilike(inboxThreads.subject, pattern));
   }
 
-  // 🔗 Join organizations so we can show company name to the candidate
   const rows = await db
     .select({
       thread: inboxThreads,

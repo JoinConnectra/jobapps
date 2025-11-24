@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 import {
   Mail,
@@ -147,6 +148,7 @@ export default function UniversityStudentDetailPage() {
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creatingThread, setCreatingThread] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -174,7 +176,6 @@ export default function UniversityStudentDetailPage() {
       setApplications([]);
       setExperiences([]);
       setEducations([]);
-      setLinks([]);
       setStats(null);
     } finally {
       setLoading(false);
@@ -203,6 +204,39 @@ export default function UniversityStudentDetailPage() {
     if (stats.activeApplications === 0) return "No active applications";
     return "On track";
   })();
+
+  // 🔹 NEW: open or create a uni–student thread and jump to inbox
+  const handleMessageStudent = async () => {
+    if (!student?.userId) return;
+    try {
+      setCreatingThread(true);
+      const resp = await fetch(
+        "/api/university/inbox/find-or-create-student",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentUserId: student.userId,
+            studentName: student.name,
+          }),
+        },
+      );
+      if (!resp.ok) {
+        throw new Error("Failed to open conversation");
+      }
+      const data = await resp.json();
+      if (!data.threadId) {
+        throw new Error("No threadId returned");
+      }
+      // Go to university inbox focused on this thread
+      router.push(`/university/dashboard/inbox?threadId=${data.threadId}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not open conversation with student");
+    } finally {
+      setCreatingThread(false);
+    }
+  };
 
   return (
     <UniversityDashboardShell title="Student details">
@@ -306,6 +340,19 @@ export default function UniversityStudentDetailPage() {
                 </div>
 
                 <div className="flex flex-col items-start md:items-end gap-2 text-sm">
+                  {/* 🔹 NEW: message student button */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={handleMessageStudent}
+                    disabled={creatingThread}
+                    className="text-[#3d6a4a] border-[#3d6a4a]/40"
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    {creatingThread ? "Opening chat…" : "Message student"}
+                  </Button>
+
                   {student.email && (
                     <a
                       href={`mailto:${student.email}`}
