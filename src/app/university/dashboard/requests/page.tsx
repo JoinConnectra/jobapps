@@ -862,6 +862,38 @@ export default function RequestsPage() {
                                 >
                                   <Trash2 className="w-4 h-4 mr-1.5" /> Remove
                                 </Button>
+
+                                <Button
+  size="sm"
+  className="bg-emerald-600 text-white hover:bg-emerald-700"
+  onClick={async (e) => {
+    e.stopPropagation();
+
+    try {
+      const res = await fetch("/api/university/inbox/find-or-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyOrgId: r.companyOrgId,
+          companyName: r.companyName,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed");
+
+      window.location.href = `/university/dashboard/inbox?threadId=${data.threadId}`;
+
+    } catch {
+      toast.error("Failed to start conversation with company.");
+    }
+  }}
+>
+  Message
+</Button>
+
+
+
                               </div>
                             </div>
 

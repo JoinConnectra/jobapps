@@ -196,6 +196,18 @@ export default function UniversityDashboardShell({
             >
               <Calendar className="w-4 h-4 mr-3" /> KPI & Analytics
             </Button>
+
+            <Button
+              variant="ghost"
+              className={`w-full justify-start text-gray-700 ${
+                isActive("/university/dashboard/inbox")
+                  ? "bg-[#F5F1E8] text-gray-900"
+                  : "hover:bg-[#F5F1E8] hover:text-gray-900"
+              }`}
+              onClick={() => router.push("/university/dashboard/inbox")}
+            >
+              <Briefcase className="w-4 h-4 mr-3" /> Inbox
+            </Button>
           </nav>
         </div>
 

@@ -1,10 +1,21 @@
+// src/app/student/inbox/page.tsx
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,22 +31,129 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 
-import { conversations as ALL, messagesByConvId } from './_data/inbox';
+import { useSession } from '@/lib/auth-client';
 import { Conversation, InboxTab, Message } from './_types';
 import { ConversationList } from './_components/ConversationList';
 import { MessagePane } from './_components/MessagePane';
 
 export default function StudentInboxPage() {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
+
   const [q, setQ] = useState('');
   const [tab, setTab] = useState<InboxTab>('all');
-  const [selectedConvId, setSelectedConvId] = useState<string | null>(ALL[0]?.id ?? null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]); // bulk selection ids
+
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+
+  const [messagesByConvId, setMessagesByConvId] = useState<Record<string, Message[]>>({});
+  const [messagesLoading, setMessagesLoading] = useState<Record<string, boolean>>({});
+
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
+  // -------- Auth guard --------
+  useEffect(() => {
+    if (!isPending && !session?.user) {
+      router.push('/login');
+    }
+  }, [session, isPending, router]);
+
+  // Preselect from URL ?threadId=...
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const threadId = params.get('threadId');
+    if (threadId) {
+      setSelectedConvId(threadId);
+    }
+  }, []);
+
+  // -------- Fetch conversations for this student --------
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const fetchThreads = async () => {
+      try {
+        setConversationsLoading(true);
+
+        const params = new URLSearchParams({
+          tab,
+        });
+
+        const resp = await fetch(`/api/student/inbox/threads?${params.toString()}`);
+        if (!resp.ok) {
+          throw new Error('Failed to load inbox');
+        }
+
+        const data = await resp.json();
+        const convs: Conversation[] = Array.isArray(data.conversations)
+          ? data.conversations
+          : [];
+
+        setConversations(convs);
+
+        // If nothing selected yet, select first conversation
+        setSelectedConvId((prev) => prev ?? (convs[0]?.id ?? null));
+      } catch (err) {
+        console.error(err);
+        toast.error('Could not load inbox conversations');
+      } finally {
+        setConversationsLoading(false);
+      }
+    };
+
+    fetchThreads();
+  }, [session?.user, tab]);
+
+  // -------- Fetch messages for selected conversation --------
+  useEffect(() => {
+    if (!session?.user) return;
+    if (!selectedConvId) return;
+    if (messagesByConvId[selectedConvId]) return; // already loaded
+
+    const fetchMessages = async () => {
+      try {
+        setMessagesLoading((prev) => ({ ...prev, [selectedConvId]: true }));
+
+        const resp = await fetch(
+          `/api/student/inbox/threads/${selectedConvId}`,
+        );
+        if (!resp.ok) {
+          throw new Error('Failed to load messages');
+        }
+        const data = await resp.json();
+        const msgs: Message[] = Array.isArray(data.messages)
+          ? data.messages.map((m: any) => ({
+              id: String(m.id),
+              from: m.fromName || (m.mine ? 'You' : 'Other'),
+              body: m.body,
+              sentAt: m.sentAt,
+              mine: Boolean(m.mine),
+            }))
+          : [];
+
+        setMessagesByConvId((prev) => ({
+          ...prev,
+          [selectedConvId]: msgs,
+        }));
+      } catch (err) {
+        console.error(err);
+        toast.error('Could not load messages');
+      } finally {
+        setMessagesLoading((prev) => ({ ...prev, [selectedConvId]: false }));
+      }
+    };
+
+    fetchMessages();
+  }, [session?.user, selectedConvId, messagesByConvId]);
+
+  // -------- Filtering + search (client-side) --------
   const filtered: Conversation[] = useMemo(() => {
     const text = q.trim().toLowerCase();
-    return ALL
-      .filter(c => {
+    return conversations
+      .filter((c) => {
         if (tab === 'unread' && c.unreadCount === 0) return false;
         if (tab === 'starred' && !c.starred) return false;
         if (tab === 'archived' && !c.archived) return false;
@@ -43,34 +161,51 @@ export default function StudentInboxPage() {
         if (text) {
           const hit =
             c.title.toLowerCase().includes(text) ||
-            c.participants.some(p => p.toLowerCase().includes(text)) ||
+            c.participants.some((p) => p.toLowerCase().includes(text)) ||
             (c.preview || '').toLowerCase().includes(text) ||
-            c.labels.some(l => l.toLowerCase().includes(text));
+            c.labels.some((l) => l.toLowerCase().includes(text));
           if (!hit) return false;
         }
         return true;
       })
       .sort((a, b) => b.lastActivity - a.lastActivity);
-  }, [q, tab]);
+  }, [conversations, q, tab]);
 
   const selectedConv = useMemo(
-    () => filtered.find(c => c.id === selectedConvId) ?? filtered[0] ?? null,
-    [filtered, selectedConvId]
+    () => filtered.find((c) => c.id === selectedConvId) ?? filtered[0] ?? null,
+    [filtered, selectedConvId],
   );
 
-  // Bulk actions on selectedIds (dummy/local only)
+  // -------- Bulk actions (local optimistic only) --------
   const bulkUpdate = (updater: (c: Conversation) => Conversation) => {
-    // With real DB, call API; here we mutate the local list (demo only)
-    for (const id of selectedIds) {
-      const idx = ALL.findIndex(c => c.id === id);
-      if (idx >= 0) ALL[idx] = updater(ALL[idx]);
-    }
+    setConversations((prev) =>
+      prev.map((c) => (selectedIds.includes(c.id) ? updater(c) : c)),
+    );
     setSelectedIds([]);
   };
 
-  const unreadCount = ALL.reduce((acc, c) => acc + (c.unreadCount > 0 ? 1 : 0), 0);
-  const starredCount = ALL.reduce((acc, c) => acc + (c.starred ? 1 : 0), 0);
-  const archivedCount = ALL.reduce((acc, c) => acc + (c.archived ? 1 : 0), 0);
+  const unreadCount = conversations.reduce(
+    (acc, c) => acc + (c.unreadCount > 0 ? 1 : 0),
+    0,
+  );
+  const starredCount = conversations.reduce(
+    (acc, c) => acc + (c.starred ? 1 : 0),
+    0,
+  );
+  const archivedCount = conversations.reduce(
+    (acc, c) => acc + (c.archived ? 1 : 0),
+    0,
+  );
+
+  if (isPending || (!session?.user && !isPending)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session?.user) return null;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6">
@@ -78,7 +213,9 @@ export default function StudentInboxPage() {
       <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
-          <p className="text-sm text-muted-foreground">Chat with employers, your career center, and track interview messages.</p>
+          <p className="text-sm text-muted-foreground">
+            Chat with employers, your career center, and track interview messages.
+          </p>
         </div>
 
         {/* Search + actions */}
@@ -89,11 +226,11 @@ export default function StudentInboxPage() {
               className="w-[320px] pl-8"
               placeholder="Search conversations, people, or labels…"
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={(e) => setQ(e.target.value)}
             />
           </div>
 
-          <Button variant="outline" onClick={() => setShowFilters(v => !v)}>
+          <Button variant="outline" onClick={() => setShowFilters((v) => !v)}>
             <Filter className="mr-2 h-4 w-4" />
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </Button>
@@ -108,20 +245,56 @@ export default function StudentInboxPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Selected ({selectedIds.length})</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => bulkUpdate(c => ({ ...c, unreadCount: 0 }))}>
+              <DropdownMenuItem
+                onClick={() =>
+                  bulkUpdate((c) => ({
+                    ...c,
+                    unreadCount: 0,
+                  }))
+                }
+              >
                 <MailOpen className="mr-2 h-4 w-4" /> Mark as read
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => bulkUpdate(c => ({ ...c, unreadCount: Math.max(1, c.unreadCount || 1) }))}>
+              <DropdownMenuItem
+                onClick={() =>
+                  bulkUpdate((c) => ({
+                    ...c,
+                    unreadCount: Math.max(1, c.unreadCount || 1),
+                  }))
+                }
+              >
                 <Mail className="mr-2 h-4 w-4" /> Mark as unread
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => bulkUpdate(c => ({ ...c, starred: !c.starred }))}>
+              <DropdownMenuItem
+                onClick={() =>
+                  bulkUpdate((c) => ({
+                    ...c,
+                    starred: !c.starred,
+                  }))
+                }
+              >
                 <Star className="mr-2 h-4 w-4" /> Toggle star
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => bulkUpdate(c => ({ ...c, archived: !c.archived }))}>
+              <DropdownMenuItem
+                onClick={() =>
+                  bulkUpdate((c) => ({
+                    ...c,
+                    archived: !c.archived,
+                  }))
+                }
+              >
                 <Archive className="mr-2 h-4 w-4" /> Toggle archive
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => bulkUpdate(c => ({ ...c, deleted: true }))} className="text-destructive">
+              <DropdownMenuItem
+                onClick={() =>
+                  bulkUpdate((c) => ({
+                    ...c,
+                    deleted: true,
+                  }))
+                }
+                className="text-destructive"
+              >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -133,9 +306,21 @@ export default function StudentInboxPage() {
       <Tabs value={tab} onValueChange={(v) => setTab(v as InboxTab)}>
         <TabsList className="mb-4">
           <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="unread">Unread <Badge className="ml-1">{unreadCount}</Badge></TabsTrigger>
-          <TabsTrigger value="starred">Starred <Badge variant="secondary" className="ml-1">{starredCount}</Badge></TabsTrigger>
-          <TabsTrigger value="archived">Archived <Badge variant="outline" className="ml-1">{archivedCount}</Badge></TabsTrigger>
+          <TabsTrigger value="unread">
+            Unread <Badge className="ml-1">{unreadCount}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="starred">
+            Starred{' '}
+            <Badge variant="secondary" className="ml-1">
+              {starredCount}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="archived">
+            Archived{' '}
+            <Badge variant="outline" className="ml-1">
+              {archivedCount}
+            </Badge>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={tab}>
@@ -152,7 +337,9 @@ export default function StudentInboxPage() {
                     <Badge variant="outline">From employer</Badge>
                     <Badge variant="outline">From career center</Badge>
                     <Badge variant="outline">Last 7 days</Badge>
-                    <Button variant="ghost" size="sm">Clear</Button>
+                    <Button variant="ghost" size="sm">
+                      Clear
+                    </Button>
                   </div>
                 </CardContent>
                 <Separator />
@@ -162,46 +349,90 @@ export default function StudentInboxPage() {
             <div className="grid grid-cols-1 md:grid-cols-[360px_1fr]">
               {/* Left column: conversations */}
               <ConversationList
-                conversations={filtered.filter(c => !c.deleted)}
+                conversations={filtered.filter((c) => !c.deleted)}
                 selectedConvId={selectedConv?.id ?? null}
                 selectedIds={selectedIds}
-                onSelectConv={setSelectedConvId}
+                onSelectConv={(id) => {
+                  setSelectedConvId(id);
+                }}
                 onToggleSelect={(id, checked) => {
-                  setSelectedIds(prev => checked ? [...new Set([...prev, id])] : prev.filter(x => x !== id));
+                  setSelectedIds((prev) =>
+                    checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id),
+                  );
                 }}
                 onToggleStar={(id) => {
-                  const idx = ALL.findIndex(c => c.id === id);
-                  if (idx >= 0) ALL[idx].starred = !ALL[idx].starred;
-                  // Force a rerender
-                  setQ(q => q + '');
+                  setConversations((prev) =>
+                    prev.map((c) =>
+                      c.id === id ? { ...c, starred: !c.starred } : c,
+                    ),
+                  );
                 }}
                 onToggleArchive={(id) => {
-                  const idx = ALL.findIndex(c => c.id === id);
-                  if (idx >= 0) ALL[idx].archived = !ALL[idx].archived;
-                  setQ(q => q + '');
+                  setConversations((prev) =>
+                    prev.map((c) =>
+                      c.id === id ? { ...c, archived: !c.archived } : c,
+                    ),
+                  );
                 }}
               />
 
-              {/* Right column: message pane (mobile shows a back button) */}
+              {/* Right column: message pane */}
               <div className="border-t md:border-l md:border-t-0">
                 {selectedConv ? (
                   <MessagePane
                     conversation={selectedConv}
-                    messages={messagesByConvId[selectedConv.id] as Message[]}
+                    messages={messagesByConvId[selectedConv.id] ?? []}
                     onBackMobile={() => setSelectedConvId(null)}
-                    onSendQuick={(text) => {
-                      // local-only optimistic append
-                      (messagesByConvId[selectedConv.id] as Message[]).push({
-                        id: 'local-' + Math.random().toString(36).slice(2),
-                        from: 'You',
-                        body: text,
-                        sentAt: Date.now(),
-                        mine: true,
-                      });
-                      selectedConv.preview = text;
-                      selectedConv.lastActivity = Date.now();
-                      selectedConv.unreadCount = 0;
-                      setQ(q => q + '');
+                    onSendQuick={async (text: string) => {
+                      if (!selectedConv) return;
+                      try {
+                        const resp = await fetch(
+                          `/api/student/inbox/threads/${selectedConv.id}`,
+                          {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              text,
+                            }),
+                          },
+                        );
+                        if (!resp.ok) {
+                          throw new Error('Failed to send');
+                        }
+                        const data = await resp.json();
+
+                        setMessagesByConvId((prev) => ({
+                          ...prev,
+                          [selectedConv.id]: [
+                            ...(prev[selectedConv.id] ?? []),
+                            {
+                              id: String(data.id),
+                              from: 'You',
+                              body: data.body,
+                              sentAt: data.sentAt,
+                              mine: true,
+                            },
+                          ],
+                        }));
+
+                        setConversations((prev) =>
+                          prev.map((c) =>
+                            c.id === selectedConv.id
+                              ? {
+                                  ...c,
+                                  preview: text,
+                                  lastActivity: data.sentAt,
+                                  unreadCount: 0,
+                                }
+                              : c,
+                          ),
+                        );
+                      } catch (err) {
+                        console.error(err);
+                        toast.error('Could not send message');
+                      }
                     }}
                   />
                 ) : (

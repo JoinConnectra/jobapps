@@ -1,3 +1,4 @@
+// src/app/university/dashboard/inbox/_components/MessagePane.tsx
 'use client';
 
 import React, { useMemo, useState } from 'react';
@@ -6,10 +7,8 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, Paperclip, Send, Star } from 'lucide-react';
-import Image from 'next/image';
 
 import { Conversation, Message } from '../_types';
-import skans from '../../events/skans.jpeg';
 
 type Props = {
   conversation: Conversation;
@@ -18,12 +17,7 @@ type Props = {
   onSendQuick: (text: string) => void;
 };
 
-export function MessagePane({
-  conversation,
-  messages,
-  onBackMobile,
-  onSendQuick,
-}: Props) {
+export function MessagePane({ conversation, messages, onBackMobile, onSendQuick }: Props) {
   const [draft, setDraft] = useState('');
 
   const sorted = useMemo(
@@ -33,21 +27,10 @@ export function MessagePane({
 
   const quickReplies = [
     'Thanks for reaching out!',
-    'Can we schedule a quick call?',
-    'I’ll share my resume shortly.',
-    'Sounds good to me.',
+    'Can we schedule a quick info session?',
+    'We’ll review and get back to you soon.',
+    'Sounds good to us.',
   ];
-
-  // 🔍 Hide noisy technical labels (company, org:2, etc.)
-  const visibleLabels = useMemo(() => {
-    const raw = conversation.labels ?? [];
-    return raw.filter((l) => {
-      const lower = l.toLowerCase();
-      if (lower === 'company') return false;
-      if (lower.startsWith('org:')) return false;
-      return true;
-    });
-  }, [conversation.labels]);
 
   return (
     <div className="flex h-[75vh] flex-col md:h-[calc(100vh-260px)]">
@@ -63,15 +46,13 @@ export function MessagePane({
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <div className="relative h-8 w-8 overflow-hidden rounded-md border bg-white">
-            <Image src={skans} alt="avatar" fill className="object-cover" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border bg-white text-xs font-medium">
+            {conversation.title.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold">{conversation.title}</p>
-              {conversation.starred && (
-                <Star className="h-4 w-4 fill-current" />
-              )}
+              {conversation.starred && <Star className="h-4 w-4 fill-current" />}
             </div>
             <p className="text-xs text-muted-foreground">
               {conversation.participants.join(', ')}
@@ -80,7 +61,7 @@ export function MessagePane({
         </div>
 
         <div className="flex items-center gap-2">
-          {visibleLabels.map((l) => (
+          {conversation.labels.map((l) => (
             <Badge key={l} variant="secondary">
               {l}
             </Badge>
@@ -93,10 +74,7 @@ export function MessagePane({
         {sorted.map((m) => (
           <div
             key={m.id}
-            className={[
-              'flex',
-              m.mine ? 'justify-end' : 'justify-start',
-            ].join(' ')}
+            className={['flex', m.mine ? 'justify-end' : 'justify-start'].join(' ')}
           >
             <div
               className={[
@@ -120,12 +98,7 @@ export function MessagePane({
         {/* Quick replies */}
         <div className="flex flex-wrap gap-2">
           {quickReplies.map((q) => (
-            <Button
-              key={q}
-              size="sm"
-              variant="outline"
-              onClick={() => setDraft(q)}
-            >
+            <Button key={q} size="sm" variant="outline" onClick={() => setDraft(q)}>
               {q}
             </Button>
           ))}
