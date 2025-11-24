@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, gt, ilike } from "drizzle-orm";
 
 import { db } from "@/db";
-import { inboxThreads, users } from "@/db/schema-pg";
+import { inboxThreads, organizations, users } from "@/db/schema-pg";
 import { getCurrentUser } from "@/lib/auth";
 
 type InboxTab = "all" | "unread" | "starred" | "archived";
@@ -50,27 +50,40 @@ async function getDbUserOrResp(req: NextRequest) {
   return dbUser;
 }
 
-function mapRowToConversation(
-  row: typeof inboxThreads.$inferSelect,
-): Conversation {
-  const lastTs = row.lastMessageAt ?? row.createdAt;
+function mapRowToConversation(row: {
+  thread: typeof inboxThreads.$inferSelect;
+  orgName: string | null;
+}): Conversation {
+  const t = row.thread;
+  const lastTs = t.lastMessageAt ?? t.createdAt;
 
-  // For now, just use subject. Later we can join organizations to show company name.
-  const baseTitle = row.subject || "Conversation";
-  const title = baseTitle;
+  // ✅ For candidate view, title/participants should be the COMPANY NAME
+  const companyName = row.orgName || "Employer";
+  const title = companyName;
+  const participants: string[] = [companyName];
 
-  // For candidate view, "participants" = employer/company (placeholder for now)
-  const participants: string[] = ["Employer"];
+  // ✅ Build clean labels: show "Employer", hide technical ones like "candidate" / "org:2"
+  const labels: string[] = [];
+  labels.push("Employer");
+  if (Array.isArray(t.labels)) {
+    for (const raw of t.labels) {
+      const l = raw || "";
+      const lower = l.toLowerCase();
+      if (lower === "candidate") continue; // this is "you" from employer POV
+      if (lower.startsWith("org:")) continue; // internal routing label
+      labels.push(l);
+    }
+  }
 
   return {
-    id: String(row.id),
+    id: String(t.id),
     title,
-    preview: row.lastMessageSnippet ?? "",
-    unreadCount: row.unreadCount ?? 0,
-    starred: row.starred ?? false,
-    archived: row.archived ?? false,
+    preview: t.lastMessageSnippet ?? "",
+    unreadCount: t.unreadCount ?? 0,
+    starred: t.starred ?? false,
+    archived: t.archived ?? false,
     deleted: false,
-    labels: row.labels ?? [],
+    labels,
     lastActivity: lastTs ? new Date(lastTs).getTime() : Date.now(),
     participants,
     pinned: false,
@@ -89,14 +102,13 @@ export async function GET(req: NextRequest) {
 
   // Build conditions as an array to avoid type issues with `where`
   const conditions = [
-    // This candidate is the counterparty
+    // This candidate is the counterparty on the employer thread
     eq(inboxThreads.counterpartyUserId, me.id),
   ];
 
   // Tab filters
   if (tab === "unread") {
     conditions.push(gt(inboxThreads.unreadCount, 0));
-    // and exclude archived
     conditions.push(eq(inboxThreads.archived, false));
   } else if (tab === "starred") {
     conditions.push(eq(inboxThreads.starred, true));
@@ -108,15 +120,20 @@ export async function GET(req: NextRequest) {
     conditions.push(eq(inboxThreads.archived, false));
   }
 
-  // Simple text search on subject
+  // Simple text search on subject or company name
   if (q) {
     const pattern = `%${q.toLowerCase()}%`;
     conditions.push(ilike(inboxThreads.subject, pattern));
   }
 
+  // 🔗 Join organizations so we can show company name to the candidate
   const rows = await db
-    .select()
+    .select({
+      thread: inboxThreads,
+      orgName: organizations.name,
+    })
     .from(inboxThreads)
+    .leftJoin(organizations, eq(inboxThreads.orgId, organizations.id))
     .where(and(...conditions))
     .orderBy(
       desc(inboxThreads.lastMessageAt),
