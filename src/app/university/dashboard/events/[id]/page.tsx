@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import UniversityDashboardShell from "@/components/university/UniversityDashboardShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   CalendarDays,
   MapPin,
@@ -19,7 +20,6 @@ import {
   Link2,
   Clock3,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 
 type EventRecord = {
   id: number;
@@ -43,6 +43,18 @@ type EventRecord = {
   updated_at?: string;
 };
 
+type EventAttendee = {
+  userId: number | null;
+  studentProfileId: number | null;
+  name: string | null;
+  email: string;
+  program: string | null;
+  gradYear: number | null;
+  resumeUrl: string | null;
+  registered: boolean;
+  checkedIn: boolean;
+};
+
 export default function UniversityEventDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -52,6 +64,12 @@ export default function UniversityEventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [attendees, setAttendees] = useState<EventAttendee[]>([]);
+  const [attendeesLoading, setAttendeesLoading] = useState(false);
+  const [attendeesError, setAttendeesError] = useState<string | null>(
+    null
+  );
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -77,6 +95,37 @@ export default function UniversityEventDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Load attendees list
+  useEffect(() => {
+    if (!id) return;
+    setAttendeesLoading(true);
+    setAttendeesError(null);
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/university/events/${id}/attendees`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(
+            data?.error || "Failed to load attendees."
+          );
+        }
+        setAttendees(Array.isArray(data) ? data : []);
+      } catch (e: any) {
+        console.error("Error loading attendees", e);
+        setAttendees([]);
+        setAttendeesError(
+          e?.message || "Failed to load attendees."
+        );
+      } finally {
+        setAttendeesLoading(false);
+      }
+    })();
+  }, [id]);
 
   async function handleDelete() {
     if (!id) return;
@@ -264,11 +313,17 @@ export default function UniversityEventDetailPage() {
                       {statusLabel}
                     </Badge>
                   )}
-                  <Badge variant="outline" className="flex items-center gap-1">
+                  <Badge
+                    variant="outline"
+                    className="flex items-center gap-1"
+                  >
                     <Building2 className="h-3 w-3" />
                     {hostLabel}
                   </Badge>
-                  <Badge variant="outline" className="flex items-center gap-1">
+                  <Badge
+                    variant="outline"
+                    className="flex items-center gap-1"
+                  >
                     <Globe2 className="h-3 w-3" />
                     {mediumLabel}
                   </Badge>
@@ -320,7 +375,7 @@ export default function UniversityEventDetailPage() {
                 <Metric
                   label="Check-ins"
                   value={metrics.checkins}
-                  icon={CheckIcon} // tiny inline icon component below
+                  icon={CheckIcon}
                 />
                 <Metric
                   label="Capacity"
@@ -417,6 +472,129 @@ export default function UniversityEventDetailPage() {
               </section>
             )}
 
+            {/* Attendees table */}
+            <section className="border-t pt-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">
+                    Attendees
+                  </h2>
+                </div>
+                {!attendeesLoading && attendees.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {attendees.length} unique student
+                    {attendees.length !== 1 && "s"}
+                  </span>
+                )}
+              </div>
+
+              {attendeesLoading ? (
+                <p className="text-xs text-muted-foreground">
+                  Loading attendees…
+                </p>
+              ) : attendeesError ? (
+                <p className="text-xs text-red-600">
+                  {attendeesError}
+                </p>
+              ) : attendees.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No student attendees recorded for this event yet.
+                </p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-muted/60 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left">
+                          Student
+                        </th>
+                        <th className="px-3 py-2 text-left">
+                          Program / Year
+                        </th>
+                        <th className="px-3 py-2 text-left">
+                          Status
+                        </th>
+                        <th className="px-3 py-2 text-right">
+                          Profile
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attendees.map((a) => (
+                        <tr
+                          key={a.email}
+                          className="border-t hover:bg-muted/40"
+                        >
+                          <td className="px-3 py-2 align-top">
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {a.name || "Unknown student"}
+                              </span>
+                              <span className="text-xs text-muted-foreground break-all">
+                                {a.email}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                            {a.program || "—"}
+                            {a.gradYear
+                              ? ` • Class of ${a.gradYear}`
+                              : ""}
+                          </td>
+                          <td className="px-3 py-2 align-top">
+                            <div className="flex flex-wrap gap-1">
+                              {a.registered && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px]"
+                                >
+                                  Registered
+                                </Badge>
+                              )}
+                              {a.checkedIn && (
+                                <Badge className="text-[10px]">
+                                  Checked in
+                                </Badge>
+                              )}
+                              {!a.registered &&
+                                !a.checkedIn && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    Added manually
+                                  </Badge>
+                                )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-top text-right">
+                            {a.studentProfileId ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  router.push(
+                                    `/university/dashboard/students/${a.studentProfileId}`
+                                  )
+                                }
+                              >
+                                View profile
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                No profile
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
             {/* Meta (created / updated) */}
             <section className="border-t pt-3 text-xs text-muted-foreground flex flex-wrap gap-4">
               {event.created_at && (
@@ -464,7 +642,7 @@ function Metric({
   );
 }
 
-// Tiny "checkmark" icon using Lucide's Users-style sizing
+// Tiny "checkmark" icon
 function CheckIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg

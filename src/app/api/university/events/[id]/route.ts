@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseService } from "@/lib/supabase";
 
-type RouteParams = { params: { id: string } };
+// NOTE: in Next 15+, `params` is a Promise in route handlers
+type RouteParams = { params: Promise<{ id: string }> };
 
 // GET /api/university/events/[id]
 // Return a single event (from event_aggregates so we get attendees, capacity, etc.)
-export async function GET(_req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, context: RouteParams) {
   try {
-    const eventId = Number(params.id);
+    const { id } = await context.params;
+    const eventId = Number(id);
     if (!Number.isFinite(eventId)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
@@ -31,16 +33,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     console.error("GET /api/university/events/[id] error:", e);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 // PATCH /api/university/events/[id]
 // Update the underlying `events` row for a university-owned event
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
+export async function PATCH(req: NextRequest, context: RouteParams) {
   try {
-    const eventId = Number(params.id);
+    const { id } = await context.params;
+    const eventId = Number(id);
     if (!Number.isFinite(eventId)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
@@ -62,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (!title || !startsAt) {
       return NextResponse.json(
         { error: "title and startsAt are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -104,19 +107,17 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     console.error("PATCH /api/university/events/[id] error:", e);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 // DELETE /api/university/events/[id]
 // Delete the underlying `events` row for a university-owned event
-export async function DELETE(
-  _req: NextRequest,
-  { params }: RouteParams
-) {
+export async function DELETE(_req: NextRequest, context: RouteParams) {
   try {
-    const eventId = Number(params.id);
+    const { id } = await context.params;
+    const eventId = Number(id);
     if (!Number.isFinite(eventId)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
@@ -136,7 +137,7 @@ export async function DELETE(
     console.error("DELETE /api/university/events/[id] error:", e);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
