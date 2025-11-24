@@ -732,74 +732,80 @@ export default function UniversityApplicationsPage() {
         </div>
 
         {/* KPI row */}
+                {/* Slim KPI row — matches Events / Partners / Students */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          {/* Total applications */}
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Total applications
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.totalApplications}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                All-time from students at this university
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                All-time from this university
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          {/* Students applying */}
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Students applying
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.uniqueStudents}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Distinct students with at least one application
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Distinct students with ≥1 application
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          {/* Partner companies */}
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Partner companies
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.uniqueCompanies}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Companies receiving applications
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          {/* Offers & interviews */}
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Offers & interviews
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.offers}
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                <span className="ml-1 text-[11px] font-normal text-muted-foreground">
                   offers
                 </span>
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {kpis.interviews} interviews · {kpis.rejected} rejections
               </p>
             </CardContent>
           </Card>
         </div>
+
 
         {/* Main content card */}
         <Card className="border border-slate-200 shadow-sm bg-white">

@@ -356,67 +356,67 @@ export default function UniversityEventsPage() {
           </div>
         </div>
 
-        {/* KPI row — only the important ones */}
+        {/* KPI row — slimmer height like students/jobs */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Total events
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.totalEvents}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Hosted or shared with your students
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Upcoming events
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.upcomingEvents}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Still ahead on the calendar
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 This month
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.thisMonthEvents}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Events still to come this month
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Career fairs & expos
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.careerFairEvents}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Major recruiting touchpoints
               </p>
             </CardContent>

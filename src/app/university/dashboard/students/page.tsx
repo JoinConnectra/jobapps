@@ -352,67 +352,67 @@ export default function UniversityStudentsPage() {
           </div>
         </div>
 
-        {/* KPI row (same style as jobs/events/apps KPIs) */}
+        {/* KPI row (same style as jobs/events/apps KPIs, but slimmer height) */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Total students
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {students.length}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Linked to this university
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Final-year students
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {studentStats.finalYear}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground text-[11px]">
                 Graduating this year
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 With resumes
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {studentStats.withResume}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Students who have uploaded a resume
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Active last 30 days
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {studentStats.activeLast30}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 At-risk final-year:{" "}
                 <span className="font-semibold">
                   {studentStats.atRiskFinalYear}

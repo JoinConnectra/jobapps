@@ -1,3 +1,4 @@
+// src/app/university/dashboard/jobs/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
@@ -326,68 +327,68 @@ export default function UniversityJobsPage() {
           </div>
         </div>
 
-        {/* KPI row – styled like partner KPIs */}
+        {/* KPI row – slimmer height, consistent across all 4 cards */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Total jobs
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.totalJobs}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Published and targeted to your university
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Partner companies
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.uniqueCompanies}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Distinct employers sharing jobs here
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 Work modes
               </p>
             </CardHeader>
-            <CardContent className="pt-0 text-xs text-muted-foreground">
+            <CardContent className="pt-0 pb-2 text-xs text-muted-foreground">
               <div className="text-xl font-semibold text-foreground">
                 {kpis.remote + kpis.hybrid + kpis.onsite}
               </div>
-              <p className="mt-1">
+              <p className="mt-0.5 text-[11px]">
                 {kpis.remote} remote · {kpis.hybrid} hybrid · {kpis.onsite}{" "}
                 onsite
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 shadow-sm bg-white">
-            <CardHeader className="pb-2">
+          <Card className="border border-slate-200 shadow-sm bg-white py-2">
+            <CardHeader className="pt-1 pb-1">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 New in last 30 days
               </p>
             </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-slate-900">
+            <CardContent className="pt-0 pb-2">
+              <p className="text-xl font-semibold text-slate-900">
                 {kpis.postedLast30}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Recently posted opportunities
               </p>
             </CardContent>
