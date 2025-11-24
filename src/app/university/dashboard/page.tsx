@@ -15,6 +15,8 @@ import {
   FileText,
   CalendarDays,
   ArrowRight,
+  AlertTriangle,
+  Users,
 } from "lucide-react";
 import { EventItem } from "@/components/events/types";
 
@@ -32,6 +34,11 @@ type StudentItem = {
   verified: boolean | null;
   resumeUrl: string | null;
   createdAt: string | null;
+
+  // extra fields from API (optional, but we can use if present)
+  skills?: string[] | null;
+  applicationsCount?: number | null;
+  lastApplicationAt?: string | null;
 };
 
 type JobItem = {
@@ -90,6 +97,18 @@ function isWithinLastDays(iso: string | null | undefined, days: number) {
   const now = new Date();
   const diff = now.getTime() - d.getTime();
   return diff >= 0 && diff <= days * 24 * 60 * 60 * 1000;
+}
+
+function getInitials(name: string | null): string {
+  if (!name || !name.trim()) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    return parts[0].charAt(0).toUpperCase();
+  }
+  return (
+    parts[0].charAt(0).toUpperCase() +
+    parts[parts.length - 1].charAt(0).toUpperCase()
+  );
 }
 
 // --------------------
@@ -230,9 +249,54 @@ export default function UniversityDashboardPage() {
     loadOverview();
   }, [orgId, loadOverview]);
 
+  const loading = loadingOrg || loadingData;
+
   // 3) Derived metrics
 
   const totalStudents = students.length;
+
+  const {
+    finalYearStudents,
+    atRiskFinalYear,
+    studentsWithResume,
+    activeStudentsLast30,
+  } = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    let finalYear = 0;
+    let atRisk = 0;
+    let withResume = 0;
+    let activeLast30 = 0;
+
+    const nowMs = Date.now();
+
+    students.forEach((s) => {
+      const appsCount = Number(s.applicationsCount ?? 0);
+
+      if (s.gradYear === currentYear) {
+        finalYear += 1;
+        if (appsCount === 0) {
+          atRisk += 1;
+        }
+      }
+
+      if (s.resumeUrl) withResume += 1;
+
+      if (s.lastApplicationAt) {
+        const t = new Date(s.lastApplicationAt).getTime();
+        if (!Number.isNaN(t)) {
+          const diffDays = (nowMs - t) / (1000 * 60 * 60 * 24);
+          if (diffDays <= 30) activeLast30 += 1;
+        }
+      }
+    });
+
+    return {
+      finalYearStudents: finalYear,
+      atRiskFinalYear: atRisk,
+      studentsWithResume: withResume,
+      activeStudentsLast30: activeLast30,
+    };
+  }, [students]);
 
   const totalPartners = useMemo(
     () =>
@@ -240,7 +304,21 @@ export default function UniversityDashboardPage() {
     [partnerRequests],
   );
 
+  const pendingPartnerRequests = useMemo(
+    () => partnerRequests.filter((r) => r.status === "pending"),
+    [partnerRequests],
+  );
+
   const totalJobs = jobs.length;
+
+  const activeJobs = useMemo(
+    () =>
+      jobs.filter((j) => {
+        const s = (j.status || "").toLowerCase();
+        return !s.includes("closed");
+      }).length,
+    [jobs],
+  );
 
   const applicationsLast30Days = useMemo(
     () =>
@@ -249,6 +327,29 @@ export default function UniversityDashboardPage() {
       ).length,
     [applications],
   );
+
+  const pipeline = useMemo(() => {
+    let reviewing = 0;
+    let interviewing = 0;
+    let offers = 0;
+
+    applications.forEach((app) => {
+      const s = (app.stage || "").toLowerCase();
+      if (!s) {
+        reviewing += 1;
+      } else if (s.includes("interview")) {
+        interviewing += 1;
+      } else if (s.includes("offer") || s.includes("hired")) {
+        offers += 1;
+      } else if (s.includes("screen")) {
+        reviewing += 1;
+      } else {
+        reviewing += 1;
+      }
+    });
+
+    return { reviewing, interviewing, offers };
+  }, [applications]);
 
   const recentJobs = useMemo(() => {
     const sorted = [...jobs].sort((a, b) => {
@@ -278,7 +379,15 @@ export default function UniversityDashboardPage() {
     return sorted.slice(0, 5);
   }, [applications]);
 
-  const loading = loadingOrg || loadingData;
+  const topAtRiskFinalYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return students
+      .filter((s) => {
+        const appsCount = Number(s.applicationsCount ?? 0);
+        return s.gradYear === currentYear && appsCount === 0;
+      })
+      .slice(0, 4);
+  }, [students]);
 
   // --------------------
   // Render
@@ -287,42 +396,54 @@ export default function UniversityDashboardPage() {
   return (
     <UniversityDashboardShell title="Overview">
       <div className="space-y-6">
-        {/* Welcome / intro */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold">
-            Welcome to your University Portal
-          </h2>
-          <p className="text-sm text-gray-600 mt-2">
-            Track your students, partners, jobs, applications, and
-            events in one place.
-          </p>
-        </div>
+        {/* Top hero / summary */}
+        <Card className="border border-slate-200 bg-gradient-to-r from-[#F5F1E8] via-white to-[#F5F1E8]">
+          <CardContent className="py-4 md:py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              University career overview
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-900 md:text-2xl">
+              See how your students, partners, and jobs connect.
+            </h2>
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+              Monitor student engagement, partner activity, and upcoming
+              recruiting moments in a single, actionable view.
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* KPI row */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {/* Students */}
           <MetricCard
             icon={<GraduationCap className="h-5 w-5 text-[#3d6a4a]" />}
-            label="Students"
+            label="Students in system"
+            helper="Across all class years."
             value={totalStudents}
             loading={loading}
             href="/university/dashboard/students"
           />
 
-          {/* Partners */}
+          {/* Final-year + at-risk */}
           <MetricCard
-            icon={<Building2 className="h-5 w-5 text-[#3d6a4a]" />}
-            label="Approved partners"
-            value={totalPartners}
+            icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
+            label="Final-year at risk"
+            helper={
+              finalYearStudents > 0
+                ? `${atRiskFinalYear} of ${finalYearStudents} final-year students with no applications.`
+                : "We’ll flag final-year students with low activity."
+            }
+            value={atRiskFinalYear}
             loading={loading}
-            href="/university/dashboard/partners"
+            href="/university/dashboard/students"
           />
 
-          {/* Jobs */}
+          {/* Active jobs */}
           <MetricCard
             icon={<Briefcase className="h-5 w-5 text-[#3d6a4a]" />}
             label="Active jobs"
-            value={totalJobs}
+            helper="Open roles targeted to your students."
+            value={activeJobs || totalJobs}
             loading={loading}
             href="/university/dashboard/jobs"
           />
@@ -331,14 +452,272 @@ export default function UniversityDashboardPage() {
           <MetricCard
             icon={<FileText className="h-5 w-5 text-[#3d6a4a]" />}
             label="Applications (last 30 days)"
+            helper="Recent activity across all jobs."
             value={applicationsLast30Days}
             loading={loading}
             href="/university/dashboard/applications"
           />
         </div>
 
-        {/* Three columns: jobs, events, applications */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Middle row: Student engagement + Pipeline + Partners */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {/* Student engagement snapshot */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-semibold">
+                  Student engagement
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Quick snapshot of how students are engaging with jobs.
+                </p>
+              </div>
+              <Link
+                href="/university/dashboard/students"
+                className="inline-flex items-center text-xs text-[#3d6a4a]"
+              >
+                Open students
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ) : totalStudents === 0 ? (
+                <p className="text-muted-foreground">
+                  Once students join and start applying, you’ll see their
+                  engagement summary here.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      With resumes uploaded
+                    </span>
+                    <span className="font-medium">
+                      {studentsWithResume} / {totalStudents}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Active last 30 days
+                    </span>
+                    <span className="font-medium">
+                      {activeStudentsLast30}
+                    </span>
+                  </div>
+                  <div className="mt-2 border-t pt-2">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      At-risk final-year students
+                    </p>
+                    {topAtRiskFinalYears.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        No at-risk final-year students detected yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {topAtRiskFinalYears.map((s) => (
+                          <div
+                            key={s.id}
+                            className="flex items-center justify-between rounded-md border border-red-100 bg-red-50 px-2 py-1.5"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-[10px] font-semibold text-red-800">
+                                {getInitials(s.name)}
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-red-900">
+                                  {s.name || "Unnamed student"}
+                                </p>
+                                <p className="text-[10px] text-red-800">
+                                  {s.program || "Program not set"}
+                                  {s.gradYear
+                                    ? ` • Class of ${s.gradYear}`
+                                    : ""}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="border-red-200 bg-red-50 text-[10px] uppercase tracking-wide text-red-700"
+                            >
+                              No applications
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Applications pipeline snapshot */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-semibold">
+                  Applications pipeline
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Where student applications are sitting today.
+                </p>
+              </div>
+              <Link
+                href="/university/dashboard/applications"
+                className="inline-flex items-center text-xs text-[#3d6a4a]"
+              >
+                View pipeline
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ) : applications.length === 0 ? (
+                <p className="text-muted-foreground">
+                  No applications yet. As students apply and move through
+                  stages, you’ll see their distribution here.
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      In review / screening
+                    </span>
+                    <span className="font-medium">
+                      {pipeline.reviewing}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Interviewing
+                    </span>
+                    <span className="font-medium">
+                      {pipeline.interviewing}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Offers / hired
+                    </span>
+                    <span className="font-medium">
+                      {pipeline.offers}
+                    </span>
+                  </div>
+                  <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-[11px] text-muted-foreground">
+                    Total applications:{" "}
+                    <span className="font-semibold">
+                      {applications.length}
+                    </span>
+                    . Last 30 days:{" "}
+                    <span className="font-semibold">
+                      {applicationsLast30Days}
+                    </span>
+                    .
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Partner activity */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-semibold">
+                  Employer partners
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Track partnerships and incoming requests.
+                </p>
+              </div>
+              <Link
+                href="/university/dashboard/partners"
+                className="inline-flex items-center text-xs text-[#3d6a4a]"
+              >
+                Manage partners
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              {loading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-40" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Approved partners
+                    </span>
+                    <span className="flex items-center gap-1 font-medium">
+                      <Building2 className="h-3.5 w-3.5 text-[#3d6a4a]" />
+                      {totalPartners}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Pending requests
+                    </span>
+                    <span className="font-medium">
+                      {pendingPartnerRequests.length}
+                    </span>
+                  </div>
+
+                  {pendingPartnerRequests.length > 0 && (
+                    <div className="mt-2 rounded-md border border-amber-100 bg-amber-50 px-3 py-2">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                        Pending approvals
+                      </p>
+                      <div className="space-y-1">
+                        {pendingPartnerRequests.slice(0, 3).map((r) => (
+                          <div
+                            key={r.id}
+                            className="flex items-center justify-between text-[11px]"
+                          >
+                            <span className="truncate">
+                              {r.companyName || "Unknown company"}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className="border-amber-200 bg-amber-50 text-[10px] uppercase tracking-wide text-amber-800"
+                            >
+                              Pending
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                      {pendingPartnerRequests.length > 3 && (
+                        <p className="mt-1 text-[10px] text-amber-800">
+                          +{pendingPartnerRequests.length - 3} more
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {pendingPartnerRequests.length === 0 && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      No pending partner requests right now.
+                    </p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Bottom row: jobs, events, applications */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Recent jobs */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2">
@@ -346,7 +725,7 @@ export default function UniversityDashboardPage() {
                 <CardTitle className="text-sm font-semibold">
                   Recent jobs
                 </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Latest roles targeted to your students.
                 </p>
               </div>
@@ -367,9 +746,8 @@ export default function UniversityDashboardPage() {
                 </div>
               ) : recentJobs.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No jobs available yet. Once your partners post
-                  roles targeting your university, they will show
-                  here.
+                  No jobs available yet. Once your partners post roles
+                  targeting your university, they will show here.
                 </p>
               ) : (
                 <div className="space-y-2 text-sm">
@@ -379,11 +757,11 @@ export default function UniversityDashboardPage() {
                       className="rounded-md border border-gray-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-medium truncate">
+                        <div className="truncate font-medium">
                           {job.title || "Untitled job"}
                         </div>
                         {job.createdAt && (
-                          <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                          <span className="whitespace-nowrap text-[11px] text-muted-foreground">
                             {formatDate(job.createdAt)}
                           </span>
                         )}
@@ -405,7 +783,7 @@ export default function UniversityDashboardPage() {
                 <CardTitle className="text-sm font-semibold">
                   Upcoming events
                 </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Career fairs, info sessions, and employer events.
                 </p>
               </div>
@@ -426,8 +804,8 @@ export default function UniversityDashboardPage() {
                 </div>
               ) : upcomingEvents.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No upcoming events. Create a new event or ask
-                  partners to schedule sessions for your students.
+                  No upcoming events. Create a new event or ask partners
+                  to schedule sessions for your students.
                 </p>
               ) : (
                 <div className="space-y-2 text-sm">
@@ -437,10 +815,10 @@ export default function UniversityDashboardPage() {
                       className="rounded-md border border-gray-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-medium truncate">
+                        <div className="truncate font-medium">
                           {ev.title}
                         </div>
-                        <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                        <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground">
                           <CalendarDays className="h-3 w-3" />
                           {formatDateTime(ev.startsAt)}
                         </span>
@@ -462,7 +840,7 @@ export default function UniversityDashboardPage() {
                 <CardTitle className="text-sm font-semibold">
                   Recent applications
                 </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   What your students have applied to recently.
                 </p>
               </div>
@@ -483,9 +861,8 @@ export default function UniversityDashboardPage() {
                 </div>
               ) : recentApplications.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No applications recorded yet. As students start
-                  applying to jobs via your platform, they’ll show
-                  up here.
+                  No applications recorded yet. As students start applying
+                  to jobs via your platform, they’ll show up here.
                 </p>
               ) : (
                 <div className="space-y-2 text-sm">
@@ -495,10 +872,10 @@ export default function UniversityDashboardPage() {
                       className="rounded-md border border-gray-200 bg-white px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-medium truncate">
+                        <div className="truncate font-medium">
                           {app.studentName || "Unnamed student"}
                         </div>
-                        <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                        <span className="whitespace-nowrap text-[11px] text-muted-foreground">
                           {formatDate(app.createdAt)}
                         </span>
                       </div>
@@ -508,16 +885,21 @@ export default function UniversityDashboardPage() {
                           : "Job title not available"}
                         {app.companyName ? ` @ ${app.companyName}` : ""}
                       </div>
-                      {app.stage && (
-                        <div className="mt-1">
+                      <div className="mt-1 flex items-center justify-between">
+                        {app.stage && (
                           <Badge
                             variant="outline"
                             className="text-[10px] uppercase tracking-wide"
                           >
                             {app.stage}
                           </Badge>
-                        </div>
-                      )}
+                        )}
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <Users className="h-3 w-3" />
+                          {app.program || "Program not set"}
+                          {app.gradYear ? ` • ${app.gradYear}` : ""}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -537,30 +919,39 @@ export default function UniversityDashboardPage() {
 function MetricCard({
   icon,
   label,
+  helper,
   value,
   loading,
   href,
 }: {
   icon: React.ReactNode;
   label: string;
+  helper?: string;
   value: number;
   loading: boolean;
   href?: string;
 }) {
-  const content = (
-    <Card className="h-full">
-      <CardContent className="p-4 flex flex-col gap-2">
+  const inner = (
+    <Card className="h-full border border-slate-200 transition hover:border-[#3d6a4a]/70 hover:shadow-sm">
+      <CardContent className="flex h-full flex-col gap-2 p-4">
         <div className="flex items-center justify-between">
-          <div className="rounded-full bg-[#F5F1E8] p-2 flex items-center justify-center">
+          <div className="flex items-center justify-center rounded-full bg-[#F5F1E8] p-2">
             {icon}
           </div>
         </div>
         <div className="mt-1">
           <p className="text-xs text-muted-foreground">{label}</p>
           {loading ? (
-            <Skeleton className="h-6 w-16 mt-1" />
+            <Skeleton className="mt-1 h-6 w-16" />
           ) : (
-            <p className="text-2xl font-semibold">{value}</p>
+            <p className="text-2xl font-semibold text-slate-900">
+              {value}
+            </p>
+          )}
+          {helper && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {helper}
+            </p>
           )}
         </div>
       </CardContent>
@@ -570,10 +961,10 @@ function MetricCard({
   if (href) {
     return (
       <Link href={href} className="block">
-        {content}
+        {inner}
       </Link>
     );
   }
 
-  return content;
+  return inner;
 }

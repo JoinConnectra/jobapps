@@ -1,3 +1,4 @@
+// src/app/university/dashboard/events/page.tsx
 "use client";
 
 import React, {
@@ -13,11 +14,9 @@ import { EventItem } from "@/components/events/types";
 import { useSession } from "@/lib/auth-client";
 
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Filter,
   Search,
   Plus,
   CalendarDays,
@@ -25,6 +24,7 @@ import {
   List as ListIcon,
   ArrowUpDown,
   X,
+  Users,
 } from "lucide-react";
 
 import {
@@ -59,6 +59,25 @@ function isWithinDays(d: Date, days: number) {
   const limit = new Date();
   limit.setDate(now.getDate() + days);
   return d >= now && d <= limit;
+}
+
+function isCareerFairLike(ev: EventItem) {
+  const title = (ev.title || "").toLowerCase();
+  const tagStr = Array.isArray(ev.tags)
+    ? ev.tags.join(" ").toLowerCase()
+    : "";
+
+  // Heuristic: catch "career fair", "job fair", "expo", etc.
+  return (
+    title.includes("career fair") ||
+    title.includes("job fair") ||
+    title.includes("career day") ||
+    title.includes("expo") ||
+    tagStr.includes("career fair") ||
+    tagStr.includes("job fair") ||
+    tagStr.includes("career_fair") ||
+    tagStr.includes("career-day")
+  );
 }
 
 type UniFilters = {
@@ -146,12 +165,52 @@ export default function UniversityEventsPage() {
     load();
   }, [load]);
 
-  const counts = useMemo(() => ({ all: items.length }), [items]);
+  // Core KPIs only
+  const kpis = useMemo(() => {
+    const now = new Date();
+
+    const upcomingEvents = items.filter((ev) => {
+      const d = new Date((ev as any).startsAt);
+      return d >= now;
+    });
+
+    const thisMonthEvents = items.filter((ev) => {
+      const d = new Date((ev as any).startsAt);
+      const sameYear = d.getFullYear() === now.getFullYear();
+      const sameMonth = d.getMonth() === now.getMonth();
+      return d >= now && sameYear && sameMonth;
+    });
+
+    const careerFairEvents = items.filter((ev) => isCareerFairLike(ev));
+
+    return {
+      totalEvents: items.length,
+      upcomingEvents: upcomingEvents.length,
+      thisMonthEvents: thisMonthEvents.length,
+      careerFairEvents: careerFairEvents.length,
+    };
+  }, [items]);
 
   const featured = useMemo(() => {
     return items
-      .filter((e) => !!e.featured)
-      .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))
+      .filter((e: any) => !!e.featured)
+      .sort(
+        (a, b) =>
+          +new Date((a as any).startsAt) -
+          +new Date((b as any).startsAt)
+      )
+      .slice(0, 8);
+  }, [items]);
+
+  // Career fairs / major events strip
+  const careerFairs = useMemo(() => {
+    return items
+      .filter((ev) => isCareerFairLike(ev))
+      .sort(
+        (a, b) =>
+          +new Date((a as any).startsAt) -
+          +new Date((b as any).startsAt)
+      )
       .slice(0, 8);
   }, [items]);
 
@@ -179,34 +238,38 @@ export default function UniversityEventsPage() {
     // medium filter
     if (filters.medium !== "ANY") {
       list = list.filter(
-        (ev) => (ev.medium ?? "IN_PERSON") === filters.medium,
+        (ev) => (ev.medium ?? "IN_PERSON") === filters.medium
       );
     }
 
     // date windows
     if (filters.dateRange === "THIS_WEEK") {
-      list = list.filter((ev) => isWithinDays(new Date(ev.startsAt), 7));
+      list = list.filter((ev) =>
+        isWithinDays(new Date((ev as any).startsAt), 7)
+      );
     } else if (filters.dateRange === "THIS_MONTH") {
       const now = new Date();
       const startOfNextMonth = new Date(
         now.getFullYear(),
         now.getMonth() + 1,
-        1,
+        1
       );
       list = list.filter((ev) => {
-        const d = new Date(ev.startsAt);
+        const d = new Date((ev as any).startsAt);
         return d >= now && d < startOfNextMonth;
       });
     }
 
     if (filters.featuredOnly) {
-      list = list.filter((ev) => !!ev.featured);
+      list = list.filter((ev: any) => !!ev.featured);
     }
 
     // sort
     if (sort === "soonest") {
       list.sort(
-        (a, b) => +new Date(a.startsAt) - +new Date(b.startsAt),
+        (a, b) =>
+          +new Date((a as any).startsAt) -
+          +new Date((b as any).startsAt)
       );
     } else if (sort === "mostPopular") {
       const ac = (e: EventItem) =>
@@ -214,7 +277,9 @@ export default function UniversityEventsPage() {
       list.sort((a, b) => ac(b) - ac(a));
     } else if (sort === "featured") {
       list.sort(
-        (a, b) => Number(!!b.featured) - Number(!!a.featured),
+        (a, b) =>
+          Number(!!(b as any).featured) -
+          Number(!!(a as any).featured)
       );
     }
 
@@ -226,7 +291,7 @@ export default function UniversityEventsPage() {
     const w: EventItem[] = [];
     const l: EventItem[] = [];
     filtered.forEach((ev) => {
-      const d = new Date(ev.startsAt);
+      const d = new Date((ev as any).startsAt);
       if (isToday(d)) t.push(ev);
       else if (isWithinDays(d, 7)) w.push(ev);
       else l.push(ev);
@@ -234,17 +299,44 @@ export default function UniversityEventsPage() {
     return { today: t, thisWeek: w, later: l };
   }, [filtered]);
 
+  const totalFiltered =
+    today.length + thisWeek.length + later.length;
+
+  const handleClearFilters = useCallback(() => {
+    setFilters(defaultFilters);
+    setQ("");
+  }, []);
+
   return (
     <UniversityDashboardShell title="Events">
-      {/* Top actions row */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+      {/* Top row: breadcrumb + search + New Event */}
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="text-xs md:text-sm text-muted-foreground">
           <span className="font-medium">Dashboard</span>
           <span className="mx-1">›</span>
           <span>Events</span>
         </div>
-
-        <div className="flex gap-2">
+        <div className="flex w-full max-w-md items-center gap-2 md:justify-end">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search title, location, or tag…"
+                className="pl-8"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => setQ("")}
+                  className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
           <Button
             size="sm"
             asChild
@@ -257,140 +349,229 @@ export default function UniversityEventsPage() {
           >
             <Link href="/university/dashboard/events/new">
               <Plus className="mr-2 h-4 w-4" />
-              New Event
+              New event
             </Link>
           </Button>
         </div>
       </div>
 
-      {/* Sticky toolbar (search / filters / view toggle) */}
-      <Card className="sticky top-2 z-10 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium">Browse</CardTitle>
-        </CardHeader>
+      {/* KPI row — only the important ones */}
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Total events
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">
+              {kpis.totalEvents}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Hosted or shared with your students
+            </p>
+          </CardContent>
+        </Card>
 
-        <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          {/* Search + Sort + View */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search title, location, or tag…"
-                className="w-[340px] pl-8"
-              />
-              {q && (
-                <button
-                  onClick={() => setQ("")}
-                  className="absolute right-2 top-2.5 hover:text-foreground text-muted-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Upcoming events
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">
+              {kpis.upcomingEvents}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Still ahead on the calendar
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              This month
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">
+              {kpis.thisMonthEvents}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Events still to come this month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200">
+          <CardHeader className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Career fairs & expos
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-2xl font-semibold">
+              {kpis.careerFairEvents}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Major recruiting touchpoints
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main content card: summary + filters */}
+      <Card>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle className="text-base md:text-lg">
+              Events for your students
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              All events targeted to this university, with tools to
+              highlight gaps and key recruiting moments.
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground">
+            <div>
+              Showing{" "}
+              <span className="font-semibold">
+                {loading ? "…" : totalFiltered}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold">
+                {kpis.totalEvents}
+              </span>{" "}
+              events.
             </div>
-
-            <DropdownSort sort={sort} setSort={setSort} />
-
-            {/* View toggle */}
-            <div className="ml-1 flex rounded-md border">
-              <Button
-                variant={view === "grid" ? "default" : "ghost"}
-                onClick={() => setView("grid")}
-                className="rounded-none"
-                title="Grid"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={view === "list" ? "default" : "ghost"}
-                onClick={() => setView("list")}
-                className="rounded-none"
-                title="List"
-              >
-                <ListIcon className="h-4 w-4" />
-              </Button>
-            </div>
-
             <Button
+              type="button"
               variant="outline"
-              onClick={() => setFilters(defaultFilters)}
+              size="sm"
+              className="h-7 px-3 text-[11px]"
+              onClick={handleClearFilters}
             >
-              <Filter className="mr-2 h-4 w-4" />
-              Reset Filters
+              Clear filters
             </Button>
           </div>
+        </CardHeader>
 
-          {/* Tabs (only All for now) */}
-          <Tabs value="all">
-            <TabsList className="grid grid-cols-1">
-              <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardContent>
+        <CardContent>
+          {/* Filters block (aligned with jobs/students pattern) */}
+          <div className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+            <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Filters
+              </span>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="font-medium uppercase tracking-wide">
+                  Sort by
+                </span>
+                <DropdownSort sort={sort} setSort={setSort} />
 
-        {/* Quick filter chips */}
-        <CardContent className="pt-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <QuickChip
-              active={filters.host === "CAREER_CENTER"}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  host:
-                    filters.host === "CAREER_CENTER"
-                      ? "ANY"
-                      : "CAREER_CENTER",
-                })
-              }
-              label="Career center"
-            />
-            <QuickChip
-              active={filters.host === "EMPLOYER"}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  host:
-                    filters.host === "EMPLOYER" ? "ANY" : "EMPLOYER",
-                })
-              }
-              label="Employer hosted"
-            />
-            <QuickChip
-              active={filters.medium === "VIRTUAL"}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  medium:
-                    filters.medium === "VIRTUAL" ? "ANY" : "VIRTUAL",
-                })
-              }
-              label="Virtual"
-            />
-            <QuickChip
-              active={filters.dateRange === "THIS_WEEK"}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  dateRange:
-                    filters.dateRange === "THIS_WEEK"
-                      ? "ANY"
-                      : "THIS_WEEK",
-                })
-              }
-              label="This week"
-            />
-            <QuickChip
-              active={filters.featuredOnly}
-              onClick={() =>
-                setFilters({
-                  ...filters,
-                  featuredOnly: !filters.featuredOnly,
-                })
-              }
-              label="Featured"
-            />
+                {/* View toggle */}
+                <div className="ml-1 flex rounded-md border">
+                  <Button
+                    type="button"
+                    variant={view === "grid" ? "default" : "ghost"}
+                    onClick={() => setView("grid")}
+                    className="rounded-none h-7 px-2"
+                    title="Grid"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={view === "list" ? "default" : "ghost"}
+                    onClick={() => setView("list")}
+                    className="rounded-none h-7 px-2"
+                    title="List"
+                  >
+                    <ListIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick filters as chips */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <QuickChip
+                active={filters.host === "CAREER_CENTER"}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    host:
+                      prev.host === "CAREER_CENTER"
+                        ? "ANY"
+                        : "CAREER_CENTER",
+                  }))
+                }
+                label="Career center hosted"
+              />
+              <QuickChip
+                active={filters.host === "EMPLOYER"}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    host:
+                      prev.host === "EMPLOYER" ? "ANY" : "EMPLOYER",
+                  }))
+                }
+                label="Employer hosted"
+              />
+              <QuickChip
+                active={filters.medium === "VIRTUAL"}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    medium:
+                      prev.medium === "VIRTUAL" ? "ANY" : "VIRTUAL",
+                  }))
+                }
+                label="Virtual"
+              />
+              <QuickChip
+                active={filters.dateRange === "THIS_WEEK"}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateRange:
+                      prev.dateRange === "THIS_WEEK"
+                        ? "ANY"
+                        : "THIS_WEEK",
+                  }))
+                }
+                label="This week"
+              />
+              <QuickChip
+                active={filters.dateRange === "THIS_MONTH"}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateRange:
+                      prev.dateRange === "THIS_MONTH"
+                        ? "ANY"
+                        : "THIS_MONTH",
+                  }))
+                }
+                label="This month"
+              />
+              <QuickChip
+                active={filters.featuredOnly}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    featuredOnly: !prev.featuredOnly,
+                  }))
+                }
+                label="Featured only"
+              />
+            </div>
           </div>
+
+          {/* If no events after filter, defer to EmptyState below buckets */}
         </CardContent>
       </Card>
 
@@ -399,10 +580,12 @@ export default function UniversityEventsPage() {
         <section className="mt-4">
           <div className="mb-2 flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold">Featured this month</h2>
+            <h2 className="text-sm font-semibold">
+              Featured this month
+            </h2>
           </div>
           <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
-            {featured.map((ev) => (
+            {featured.map((ev: any) => (
               <div
                 key={ev.id}
                 className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
@@ -419,14 +602,38 @@ export default function UniversityEventsPage() {
         </section>
       )}
 
+      {/* Career fairs / major events strip */}
+      {careerFairs.length > 0 && (
+        <section className="mt-6">
+          <div className="mb-2 flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold">
+              Career fairs & major events
+            </h2>
+          </div>
+          <div className="no-scrollbar flex overflow-x-auto gap-3 pb-1 snap-x">
+            {careerFairs.map((ev: any) => (
+              <div
+                key={ev.id}
+                className="min-w-[320px] max-w-[360px] flex-[0_0_auto] snap-start"
+              >
+                <UniversityEventCard event={ev} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Buckets */}
       <section className="mt-4 space-y-6">
         <Bucket title="Today" items={today} view={view} />
         <Bucket title="This week" items={thisWeek} view={view} />
         <Bucket title="Later" items={later} view={view} />
-        {today.length + thisWeek.length + later.length === 0 && (
+        {totalFiltered === 0 && (
           <EmptyState
-            title={loading ? "Loading…" : "No events match your filters"}
+            title={
+              loading ? "Loading…" : "No events match your filters"
+            }
           />
         )}
       </section>
@@ -448,8 +655,8 @@ function DropdownSort({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">
-          <ArrowUpDown className="mr-2 h-4 w-4" />
+        <Button variant="outline" className="h-7 px-2 text-[11px]">
+          <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
           {sort === "soonest"
             ? "Soonest first"
             : sort === "mostPopular"
@@ -485,12 +692,13 @@ function QuickChip({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={[
-        "rounded-full border px-3 py-1 text-xs transition",
+        "rounded-full border px-3 py-1 text-[11px] transition",
         active
-          ? "bg-primary text-primary-foreground"
-          : "hover:bg-accent",
+          ? "bg-slate-900 text-white border-slate-900"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
       ].join(" ")}
     >
       {label}
@@ -522,7 +730,7 @@ function Bucket({
       >
         {items.map((ev) => (
           <div key={ev.id} className={view === "list" ? "" : "h-full"}>
-            <UniversityEventCard event={ev} />
+            <UniversityEventCard event={ev as any} />
           </div>
         ))}
       </div>

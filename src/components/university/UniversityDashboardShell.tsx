@@ -137,7 +137,7 @@ export default function UniversityDashboardShell({
               }`}
               onClick={() => router.push("/university/dashboard/requests")}
             >
-              <Users2 className="w-4 h-4 mr-3" /> Partner Requests
+              <Users2 className="w-4 h-4 mr-3" /> Partner Companies
             </Button>
 
             <Button
@@ -152,7 +152,7 @@ export default function UniversityDashboardShell({
   <Users2 className="w-4 h-4 mr-3" /> Applications
 </Button>
 
-            {/* Approved Companies */}
+            {/* Approved Companies 
             <Button
               variant="ghost"
               className={`w-full justify-start text-gray-700 ${
@@ -164,6 +164,7 @@ export default function UniversityDashboardShell({
             >
               <Building2 className="w-4 h-4 mr-3" /> Approved Companies
             </Button>
+            */}
 
             {/* Events */}
             <Button

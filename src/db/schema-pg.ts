@@ -618,6 +618,44 @@ export const eventAggregates = pgTable('event_aggregates', {
   registrationUrl: text('registration_url'),
 });
 
+export const universityPartnerMeta = pgTable(
+  "university_partner_meta",
+  {
+    id: serial("id").primaryKey(),
+
+    authorizationId: integer("authorization_id").notNull(),
+    universityOrgId: integer("university_org_id").notNull(),
+    companyOrgId: integer("company_org_id").notNull(),
+
+    // Priority of this partner for this university (app-enforced enum: 'high' | 'normal' | 'low')
+    priority: text("priority").notNull().default("normal"),
+
+    // Primary recruiter contact details (owned by the university / career center)
+    primaryContactName: text("primary_contact_name"),
+    primaryContactEmail: text("primary_contact_email"),
+    primaryContactRole: text("primary_contact_role"),
+    primaryContactPhone: text("primary_contact_phone"),
+
+    // Last meaningful touch point
+    lastMeetingDate: date("last_meeting_date"),
+
+    // Internal notes (MVP for "log interactions")
+    internalNotes: text("internal_notes"),
+
+    createdAt: timestamp("created_at", { withTimezone: false })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: false })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    authorizationUnique: uniqueIndex(
+      "university_partner_meta_authorization_unique",
+    ).on(table.authorizationId),
+  }),
+);
+
 
 
 export const eventRegistrations = pgTable('event_registrations', {
