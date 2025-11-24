@@ -93,12 +93,22 @@ type StudentLink = {
   url: string | null;
 };
 
+type StudentStats = {
+  totalApplications: number;
+  activeApplications: number;
+  lastApplicationAt: string | null;
+  eventsRegistered: number;
+  eventsAttended: number;
+  savedJobsCount: number;
+};
+
 type ApiResponse = {
   student: StudentDetail;
   applications: StudentApplication[];
   experiences: StudentExperience[];
   educations: StudentEducation[];
   links: StudentLink[];
+  stats: StudentStats;
 };
 
 function formatDate(iso: string | null | undefined) {
@@ -135,6 +145,7 @@ export default function UniversityStudentDetailPage() {
   const [experiences, setExperiences] = useState<StudentExperience[]>([]);
   const [educations, setEducations] = useState<StudentEducation[]>([]);
   const [links, setLinks] = useState<StudentLink[]>([]);
+  const [stats, setStats] = useState<StudentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -156,6 +167,7 @@ export default function UniversityStudentDetailPage() {
       setExperiences(payload.experiences || []);
       setEducations(payload.educations || []);
       setLinks(payload.links || []);
+      setStats(payload.stats || null);
     } catch (e: any) {
       console.error("Error loading student detail", e);
       setError(e?.message || "Something went wrong.");
@@ -164,6 +176,7 @@ export default function UniversityStudentDetailPage() {
       setExperiences([]);
       setEducations([]);
       setLinks([]);
+      setStats(null);
     } finally {
       setLoading(false);
     }
@@ -219,7 +232,7 @@ export default function UniversityStudentDetailPage() {
         </Card>
       ) : (
         <div className="space-y-6 max-w-3xl">
-          {/* Student info */}
+          {/* Student info + stats */}
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -298,6 +311,50 @@ export default function UniversityStudentDetailPage() {
                 </div>
               </div>
             </CardHeader>
+            {stats && (
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-3 text-xs text-muted-foreground">
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {stats.totalApplications}
+                    </div>
+                    <div>Total applications</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {stats.activeApplications}
+                    </div>
+                    <div>Active applications</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {stats.savedJobsCount}
+                    </div>
+                    <div>Saved jobs</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {stats.eventsRegistered}
+                    </div>
+                    <div>Events registered</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {stats.eventsAttended}
+                    </div>
+                    <div>Events attended</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {stats.lastApplicationAt
+                        ? formatDate(stats.lastApplicationAt)
+                        : "—"}
+                    </div>
+                    <div>Last application activity</div>
+                  </div>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
           {/* Profile: about, skills, links */}
@@ -416,6 +473,96 @@ export default function UniversityStudentDetailPage() {
             </Card>
           )}
 
+          {/* Work preferences / logistics */}
+          {(student.workAuth ||
+            student.remotePref ||
+            student.willingRelocate !== null ||
+            student.willingRelocate === true ||
+            student.needSponsorship !== null ||
+            student.needSponsorship === true ||
+            student.earliestStart ||
+            student.salaryExpectation ||
+            student.expectedSalaryPkr ||
+            student.noticePeriodDays) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-muted-foreground" />
+                  Work preferences
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 sm:grid-cols-2 text-sm">
+                {student.workAuth && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Work authorization
+                    </p>
+                    <p>{student.workAuth}</p>
+                  </div>
+                )}
+                {student.needSponsorship !== null &&
+                  student.needSponsorship !== undefined && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Sponsorship needed
+                      </p>
+                      <p>{student.needSponsorship ? "Yes" : "No"}</p>
+                    </div>
+                  )}
+                {student.remotePref && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Remote / onsite preference
+                    </p>
+                    <p>{student.remotePref}</p>
+                  </div>
+                )}
+                {student.willingRelocate !== null &&
+                  student.willingRelocate !== undefined && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Willing to relocate
+                      </p>
+                      <p>{student.willingRelocate ? "Yes" : "No"}</p>
+                    </div>
+                  )}
+                {student.earliestStart && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Earliest start
+                    </p>
+                    <p>{student.earliestStart}</p>
+                  </div>
+                )}
+                {(student.salaryExpectation || student.expectedSalaryPkr) && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Salary expectations
+                    </p>
+                    <p>
+                      {student.salaryExpectation
+                        ? student.salaryExpectation
+                        : ""}
+                      {student.expectedSalaryPkr
+                        ? `${
+                            student.salaryExpectation ? " • " : ""
+                          }PKR ${student.expectedSalaryPkr.toLocaleString()}`
+                        : ""}
+                    </p>
+                  </div>
+                )}
+                {student.noticePeriodDays && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Notice period
+                    </p>
+                    <p>{student.noticePeriodDays} days</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Experience */}
           {experiences.length > 0 && (
             <Card>
@@ -467,13 +614,9 @@ export default function UniversityStudentDetailPage() {
                       {[edu.degree, edu.field].filter(Boolean).join(" • ")}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {edu.startYear
-                        ? `${edu.startYear}`
-                        : ""}
+                      {edu.startYear ? `${edu.startYear}` : ""}
                       {edu.endYear ? ` – ${edu.endYear}` : ""}
-                      {edu.gpa
-                        ? ` • GPA ${edu.gpa}`
-                        : ""}
+                      {edu.gpa ? ` • GPA ${edu.gpa}` : ""}
                     </div>
                   </div>
                 ))}

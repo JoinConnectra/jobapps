@@ -10,15 +10,18 @@ import {
   studentExperiences,
   studentEducations,
   studentLinks,
+  eventRegistrations,
+  eventCheckins,
+  savedJobs,
 } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // ✅ Await params because Next.js now passes it as a Promise
+    // ✅ Await params because Next.js passes it as a Promise
     const { id } = await context.params;
     const idNum = Number(id);
 
@@ -91,9 +94,69 @@ export async function GET(
       .from(applications)
       .leftJoin(jobs, eq(applications.jobId, jobs.id))
       .leftJoin(organizations, eq(jobs.orgId, organizations.id))
-      .where(eq(applications.applicantUserId, studentRow.userId));
+      .where(eq(applications.applicantUserId, studentRow.userId))
+      .orderBy(desc(applications.createdAt));
 
-    // 3) Load experiences
+    // 🔹 Compute application stats in TS
+    const totalApplications = apps.length;
+
+    const CLOSED_STAGES = ["rejected", "withdrawn", "ghosted", "no_show"];
+    const activeApplications = apps.filter((a) => {
+      if (!a.stage) return true;
+      const s = a.stage.toLowerCase();
+      return !CLOSED_STAGES.includes(s);
+    }).length;
+
+    let lastApplicationAt: string | null = null;
+    if (apps.length > 0) {
+      const newest = apps[0]; // because we ordered desc(createdAt)
+      if (newest.createdAt instanceof Date) {
+        lastApplicationAt = newest.createdAt.toISOString();
+      } else if (typeof newest.createdAt === "string") {
+        lastApplicationAt = newest.createdAt;
+      }
+    }
+
+    // 3) Events stats (registered / attended) using email
+    let eventsRegistered = 0;
+    let eventsAttended = 0;
+
+    if (studentRow.email) {
+      const [regRow] = await db
+        .select({
+          count: sql<number>`count(*)`,
+        })
+        .from(eventRegistrations)
+        .where(eq(eventRegistrations.userEmail, studentRow.email));
+
+      const [checkRow] = await db
+        .select({
+          count: sql<number>`count(*)`,
+        })
+        .from(eventCheckins)
+        .where(eq(eventCheckins.userEmail, studentRow.email));
+
+      eventsRegistered = Number(
+        (regRow?.count as unknown as number | string) ?? 0
+      );
+      eventsAttended = Number(
+        (checkRow?.count as unknown as number | string) ?? 0
+      );
+    }
+
+    // 4) Saved jobs count
+    const [savedRow] = await db
+      .select({
+        count: sql<number>`count(*)`,
+      })
+      .from(savedJobs)
+      .where(eq(savedJobs.userId, studentRow.userId));
+
+    const savedJobsCount = Number(
+      (savedRow?.count as unknown as number | string) ?? 0
+    );
+
+    // 5) Load experiences
     const experiences = await db
       .select({
         id: studentExperiences.id,
@@ -108,7 +171,7 @@ export async function GET(
       .where(eq(studentExperiences.userId, studentRow.userId))
       .orderBy(desc(studentExperiences.startDate));
 
-    // 4) Load educations
+    // 6) Load educations
     const educations = await db
       .select({
         id: studentEducations.id,
@@ -123,7 +186,7 @@ export async function GET(
       .where(eq(studentEducations.userId, studentRow.userId))
       .orderBy(desc(studentEducations.endYear));
 
-    // 5) Load custom links
+    // 7) Load custom links
     const links = await db
       .select({
         id: studentLinks.id,
@@ -139,6 +202,14 @@ export async function GET(
       experiences,
       educations,
       links,
+      stats: {
+        totalApplications,
+        activeApplications,
+        lastApplicationAt,
+        eventsRegistered,
+        eventsAttended,
+        savedJobsCount,
+      },
     });
   } catch (error) {
     console.error("GET /api/university/students/[id] error:", error);
