@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ interface InviteDetails {
   orgType: string;
 }
 
-export default function InviteRegistrationPage() {
+function InviteRegistrationInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -83,11 +83,15 @@ export default function InviteRegistrationPage() {
     setEmailError("");
 
     try {
-      const response = await fetch(`/api/users/check-email?email=${encodeURIComponent(email)}`);
+      const response = await fetch(
+        `/api/users/check-email?email=${encodeURIComponent(email)}`
+      );
       const data = await response.json();
 
       if (data.exists) {
-        setEmailError("An account with this email already exists. Please sign in instead.");
+        setEmailError(
+          "An account with this email already exists. Please sign in instead."
+        );
         setIsCheckingEmail(false);
         return true;
       } else {
@@ -102,10 +106,11 @@ export default function InviteRegistrationPage() {
     }
   };
 
-  const handleChange = (field: "name" | "email" | "password" | "confirmPassword") =>
+  const handleChange =
+    (field: "name" | "email" | "password" | "confirmPassword") =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setFormData((prev) => ({ ...prev, [field]: event.target.value }));
-      
+
       // Clear email error when user changes email
       if (field === "email" && emailError) {
         setEmailError("");
@@ -114,7 +119,7 @@ export default function InviteRegistrationPage() {
 
   const handleEmailBlur = () => {
     if (formData.email && !invite?.email) {
-      checkEmailExists(formData.email);
+      void checkEmailExists(formData.email);
     }
   };
 
@@ -126,7 +131,12 @@ export default function InviteRegistrationPage() {
       return;
     }
 
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword
+    ) {
       toast.error("Please fill out all fields.");
       return;
     }
@@ -143,7 +153,7 @@ export default function InviteRegistrationPage() {
 
     // Check email before submitting (only if email is not from invite)
     if (!invite.email && emailError) {
-      toast.error('Please fix the email error before submitting');
+      toast.error("Please fix the email error before submitting");
       return;
     }
 
@@ -151,7 +161,9 @@ export default function InviteRegistrationPage() {
     if (!invite.email) {
       const emailExists = await checkEmailExists(formData.email);
       if (emailExists) {
-        toast.error('An account with this email already exists. Please sign in instead.');
+        toast.error(
+          "An account with this email already exists. Please sign in instead."
+        );
         return;
       }
     }
@@ -174,7 +186,9 @@ export default function InviteRegistrationPage() {
           });
 
           if (loginAttempt?.error) {
-            toast.error("Account already exists. Please verify your password or reset it.");
+            toast.error(
+              "Account already exists. Please verify your password or reset it."
+            );
             setSubmitting(false);
             return;
           }
@@ -219,7 +233,11 @@ export default function InviteRegistrationPage() {
       router.push("/dashboard");
     } catch (error) {
       console.error("Invite acceptance failed:", error);
-      toast.error(error instanceof Error ? error.message : "An unexpected error occurred.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -240,8 +258,13 @@ export default function InviteRegistrationPage() {
     return (
       <div className="min-h-screen bg-[#FEFEFA] flex items-center justify-center">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-semibold text-gray-900">Invite not found</h1>
-          <p className="text-sm text-gray-600">This invite link is no longer valid. Please ask your admin to send a new one.</p>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Invite not found
+          </h1>
+          <p className="text-sm text-gray-600">
+            This invite link is no longer valid. Please ask your admin to send a
+            new one.
+          </p>
           <Button onClick={() => router.push("/")}>Go to homepage</Button>
         </div>
       </div>
@@ -262,8 +285,14 @@ export default function InviteRegistrationPage() {
             </div>
           </div>
           <div className="space-y-2 text-sm text-white/85">
-            <p>You have been invited to collaborate on the {invite.orgName} employer workspace.</p>
-            <p>Complete your account to access jobs, talent pipelines, assessments, and more.</p>
+            <p>
+              You have been invited to collaborate on the {invite.orgName} employer
+              workspace.
+            </p>
+            <p>
+              Complete your account to access jobs, talent pipelines, assessments,
+              and more.
+            </p>
           </div>
         </div>
       </div>
@@ -271,8 +300,12 @@ export default function InviteRegistrationPage() {
       <div className="w-full max-w-md bg-white flex items-center justify-center p-8">
         <div className="w-full space-y-8">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-semibold text-gray-900">Create your account</h2>
-            <p className="text-sm text-gray-600">You'll join {invite.orgName} as a {invite.role}.</p>
+            <h2 className="text-2xl font-semibold text-gray-900">
+              Create your account
+            </h2>
+            <p className="text-sm text-gray-600">
+              You'll join {invite.orgName} as a {invite.role}.
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -303,7 +336,9 @@ export default function InviteRegistrationPage() {
                   value={formData.email}
                   onChange={handleChange("email")}
                   onBlur={handleEmailBlur}
-                  className={`pl-10 ${emailError ? "border-red-500 focus:ring-red-500" : ""} ${isCheckingEmail ? "opacity-50" : ""}`}
+                  className={`pl-10 ${
+                    emailError ? "border-red-500 focus:ring-red-500" : ""
+                  } ${isCheckingEmail ? "opacity-50" : ""}`}
                   required
                   readOnly={Boolean(invite.email)}
                   disabled={isCheckingEmail}
@@ -319,7 +354,9 @@ export default function InviteRegistrationPage() {
                 <p className="mt-1 text-xs text-gray-500">Checking email...</p>
               )}
               {invite.email && (
-                <p className="mt-1 text-xs text-gray-500">Invite is restricted to {invite.email}</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Invite is restricted to {invite.email}
+                </p>
               )}
             </div>
 
@@ -364,7 +401,9 @@ export default function InviteRegistrationPage() {
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#6a994e]"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  onClick={() =>
+                    setShowConfirmPassword((prev) => !prev)
+                  }
                 >
                   {showConfirmPassword ? "Hide" : "Show"}
                 </button>
@@ -382,7 +421,13 @@ export default function InviteRegistrationPage() {
           </form>
 
           <p className="text-center text-xs text-gray-500">
-            Already have an account? <button onClick={() => router.push("/login")} className="text-[#6a994e] hover:underline">Sign in</button>
+            Already have an account?{" "}
+            <button
+              onClick={() => router.push("/login")}
+              className="text-[#6a994e] hover:underline"
+            >
+              Sign in
+            </button>
           </p>
         </div>
       </div>
@@ -390,3 +435,20 @@ export default function InviteRegistrationPage() {
   );
 }
 
+// ✅ Suspense-wrapped default export so useSearchParams is safe
+export default function InviteRegistrationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#FEFEFA] flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="mx-auto h-9 w-9 rounded-full border-4 border-[#6a994e] border-t-transparent animate-spin" />
+            <p className="text-sm text-gray-600">Checking invite...</p>
+          </div>
+        </div>
+      }
+    >
+      <InviteRegistrationInner />
+    </Suspense>
+  );
+}

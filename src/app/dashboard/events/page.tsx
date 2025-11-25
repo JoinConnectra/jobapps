@@ -1,6 +1,11 @@
-'use client';
+"use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  Suspense,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -61,7 +66,7 @@ type SortKey = "startSoon" | "createdNew" | "mostInterest";
 type MediumFilter = "all" | Medium;
 type TimeFilter = "all" | "thisWeek";
 
-export default function EmployerEventsPage() {
+function EmployerEventsPageInner() {
   const { session, isPending } = useEmployerAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -132,10 +137,13 @@ export default function EmployerEventsPage() {
   // Initialize filters from URL (q, medium, time, requireReg, tab)
   useEffect(() => {
     const initQ = searchParams.get("q") ?? "";
-    const initMedium = (searchParams.get("medium") as MediumFilter | null) ?? "all";
-    const initTime = (searchParams.get("time") as TimeFilter | null) ?? "all";
+    const initMedium =
+      (searchParams.get("medium") as MediumFilter | null) ?? "all";
+    const initTime =
+      (searchParams.get("time") as TimeFilter | null) ?? "all";
     const initRequire = searchParams.get("hasReg") === "1";
-    const initTab = (searchParams.get("tab") as EventStatus | "all" | null) ?? "all";
+    const initTab =
+      (searchParams.get("tab") as EventStatus | "all" | null) ?? "all";
 
     setQ(initQ);
     setMediumFilter(initMedium);
@@ -606,7 +614,9 @@ export default function EmployerEventsPage() {
                         className="h-6 text-xs px-2 cursor-pointer"
                         onClick={() =>
                           setMediumFilter(
-                            mediumFilter === "VIRTUAL" ? "all" : "VIRTUAL"
+                            mediumFilter === "VIRTUAL"
+                              ? "all"
+                              : "VIRTUAL"
                           )
                         }
                       >
@@ -619,18 +629,26 @@ export default function EmployerEventsPage() {
                         className="h-6 text-xs px-2 cursor-pointer"
                         onClick={() =>
                           setMediumFilter(
-                            mediumFilter === "IN_PERSON" ? "all" : "IN_PERSON"
+                            mediumFilter === "IN_PERSON"
+                              ? "all"
+                              : "IN_PERSON"
                           )
                         }
                       >
                         In-person
                       </Badge>
                       <Badge
-                        variant={timeFilter === "thisWeek" ? "default" : "outline"}
+                        variant={
+                          timeFilter === "thisWeek"
+                            ? "default"
+                            : "outline"
+                        }
                         className="h-6 text-xs px-2 cursor-pointer"
                         onClick={() =>
                           setTimeFilter(
-                            timeFilter === "thisWeek" ? "all" : "thisWeek"
+                            timeFilter === "thisWeek"
+                              ? "all"
+                              : "thisWeek"
                           )
                         }
                       >
@@ -715,7 +733,8 @@ export default function EmployerEventsPage() {
                         ? ev.checkinsCount
                         : undefined;
                     const capacity =
-                      typeof ev.capacity === "number" && !Number.isNaN(ev.capacity)
+                      typeof ev.capacity === "number" &&
+                      !Number.isNaN(ev.capacity)
                         ? ev.capacity
                         : undefined;
 
@@ -728,7 +747,9 @@ export default function EmployerEventsPage() {
                       <div
                         key={ev.id}
                         className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40"
-                        onClick={() => router.push(`/dashboard/events/${ev.id}`)}
+                        onClick={() =>
+                          router.push(`/dashboard/events/${ev.id}`)
+                        }
                       >
                         <Checkbox
                           checked={selectedIds.includes(ev.id)}
@@ -792,7 +813,8 @@ export default function EmployerEventsPage() {
                               <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
                                 <span>Utilization</span>
                                 <span>
-                                  {registered}/{capacity} ({Math.round(utilization)}%)
+                                  {registered}/{capacity} (
+                                  {Math.round(utilization)}%)
                                 </span>
                               </div>
                               <div className="h-1.5 w-40 bg-gray-100 rounded-full overflow-hidden">
@@ -929,4 +951,19 @@ function getTemporalLabel(ev: CompanyEvent): "Upcoming" | "Ongoing" | "Past" {
   if (end < now) return "Past";
   if (start <= now && end >= now) return "Ongoing";
   return "Upcoming";
+}
+
+// ✅ Suspense-wrapped default export to satisfy Next.js
+export default function EmployerEventsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <EmployerEventsPageInner />
+    </Suspense>
+  );
 }
