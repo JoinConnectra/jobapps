@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 
-export default function RegisterStep2Page() {
+function RegisterStep2Inner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const accountType = searchParams.get('type') as "applicant" | "employer";
-  
+  const accountType = searchParams.get("type") as "applicant" | "employer";
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
@@ -25,8 +25,8 @@ export default function RegisterStep2Page() {
   });
 
   useEffect(() => {
-    if (!accountType || !['applicant', 'employer'].includes(accountType)) {
-      router.push('/register');
+    if (!accountType || !["applicant", "employer"].includes(accountType)) {
+      router.push("/register");
     }
   }, [accountType, router]);
 
@@ -40,11 +40,15 @@ export default function RegisterStep2Page() {
     setEmailError("");
 
     try {
-      const response = await fetch(`/api/users/check-email?email=${encodeURIComponent(email)}`);
+      const response = await fetch(
+        `/api/users/check-email?email=${encodeURIComponent(email)}`
+      );
       const data = await response.json();
 
       if (data.exists) {
-        setEmailError("An account with this email already exists. Please sign in instead.");
+        setEmailError(
+          "An account with this email already exists. Please sign in instead."
+        );
         setIsCheckingEmail(false);
         return true;
       } else {
@@ -63,7 +67,7 @@ export default function RegisterStep2Page() {
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value;
     setFormData({ ...formData, email: newEmail });
-    
+
     // Clear error when user starts typing
     if (emailError) {
       setEmailError("");
@@ -72,37 +76,44 @@ export default function RegisterStep2Page() {
 
   const handleEmailBlur = () => {
     if (formData.email) {
-      checkEmailExists(formData.email);
+      void checkEmailExists(formData.email);
     }
   };
 
   const handleContinue = async () => {
     // Validate form - EXACTLY like the original registration
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-      toast.error('Please fill in all required fields');
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword
+    ) {
+      toast.error("Please fill in all required fields");
       return;
     }
-    
+
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error("Passwords do not match");
       return;
     }
-    
+
     if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters long');
+      toast.error("Password must be at least 8 characters long");
       return;
     }
 
     // Check email before continuing
     if (emailError) {
-      toast.error('Please fix the email error before continuing');
+      toast.error("Please fix the email error before continuing");
       return;
     }
 
     // Double-check email one more time before proceeding
     const emailExists = await checkEmailExists(formData.email);
     if (emailExists) {
-      toast.error('An account with this email already exists. Please sign in instead.');
+      toast.error(
+        "An account with this email already exists. Please sign in instead."
+      );
       return; // Don't proceed if email exists
     }
 
@@ -114,7 +125,7 @@ export default function RegisterStep2Page() {
       phone: formData.phone,
       password: formData.password,
     });
-    
+
     router.push(`/register/step3?${params.toString()}`);
   };
 
@@ -125,8 +136,8 @@ export default function RegisterStep2Page() {
   return (
     <div className="min-h-screen flex relative">
       {/* Back Button */}
-      <Link 
-        href="/register" 
+      <Link
+        href="/register"
         className="absolute top-6 left-6 z-10 flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
       >
         <ArrowLeft className="w-5 h-5" />
@@ -135,11 +146,11 @@ export default function RegisterStep2Page() {
 
       {/* Left Side - Background Image */}
       <div className="w-1/2 h-screen relative overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-no-repeat"
           style={{
             backgroundImage: "url('/register_bg.png')",
-            backgroundPosition: 'right center'
+            backgroundPosition: "right center",
           }}
         />
         {/* Logo in top right corner */}
@@ -166,135 +177,170 @@ export default function RegisterStep2Page() {
               <h1 className="font-display font-semibold text-[#1A1A1A] text-3xl md:text-4xl mb-2">
                 Basic Information
               </h1>
-              <p className="text-sm text-gray-500">
-                Tell us about yourself
-              </p>
+              <p className="text-sm text-gray-500">Tell us about yourself</p>
             </div>
 
-          {/* Form */}
-          <div className="space-y-4">
-            {/* Full Name */}
-            <div className="space-y-2">
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Full name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                autoComplete="name"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm"
-                placeholder="Ahmed Khan"
-              />
-            </div>
-
-            {/* Email */}
-            <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={formData.email}
-                onChange={handleEmailChange}
-                onBlur={handleEmailBlur}
-                className={`w-full h-10 px-3 py-2 border rounded focus:outline-none focus:ring-2 transition-all text-sm ${
-                  emailError
-                    ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                    : "border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
-                } ${isCheckingEmail ? "opacity-50" : ""}`}
-                placeholder="you@example.com"
-                disabled={isCheckingEmail}
-              />
-              {emailError && (
-                <p className="text-sm text-red-600 flex items-center gap-1">
-                  <span>⚠️</span>
-                  <span>{emailError}</span>
-                </p>
-              )}
-              {isCheckingEmail && !emailError && (
-                <p className="text-xs text-gray-500">Checking email...</p>
-              )}
-            </div>
-
-            {/* Phone */}
-            <div className="space-y-2">
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                Phone number <span className="text-gray-500 text-xs">(optional)</span>
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                autoComplete="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm"
-                placeholder="+92 300 1234567"
-              />
-            </div>
-
-            {/* Password */}
-            <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="off"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm pr-10"
-                  placeholder="At least 8 characters"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            {/* Form */}
+            <div className="space-y-4">
+              {/* Full Name */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="name"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                  Full name
+                </label>
+                <input
+                  id="name"
+                  name="name"
+                  type="text"
+                  autoComplete="name"
+                  required
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm"
+                  placeholder="Ahmed Khan"
+                />
+              </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Email address
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={formData.email}
+                  onChange={handleEmailChange}
+                  onBlur={handleEmailBlur}
+                  className={`w-full h-10 px-3 py-2 border rounded focus:outline-none focus:ring-2 transition-all text-sm ${
+                    emailError
+                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-200 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a]"
+                  } ${isCheckingEmail ? "opacity-50" : ""}`}
+                  placeholder="you@example.com"
+                  disabled={isCheckingEmail}
+                />
+                {emailError && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span>⚠️</span>
+                    <span>{emailError}</span>
+                  </p>
+                )}
+                {isCheckingEmail && !emailError && (
+                  <p className="text-xs text-gray-500">Checking email...</p>
+                )}
+              </div>
+
+              {/* Phone */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="phone"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Phone number{" "}
+                  <span className="text-gray-500 text-xs">(optional)</span>
+                </label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
+                  className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm"
+                  placeholder="+92 300 1234567"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="off"
+                    required
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm pr-10"
+                    placeholder="At least 8 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Confirm password
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="off"
+                    required
+                    value={formData.confirmPassword}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        confirmPassword: e.target.value,
+                      })
+                    }
+                    className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm pr-10"
+                    placeholder="Re-enter your password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowConfirmPassword(!showConfirmPassword)
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* Confirm Password */}
-            <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm password
-              </label>
-              <div className="relative">
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  autoComplete="off"
-                  required
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="w-full h-10 px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#3d6a4a]/40 focus:border-[#3d6a4a] transition-all text-sm pr-10"
-                  placeholder="Re-enter your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
 
             {/* Continue Button */}
             <button
@@ -309,7 +355,10 @@ export default function RegisterStep2Page() {
             <div className="text-center">
               <p className="text-sm text-gray-500">
                 Already have an account?{" "}
-                <Link href="/login" className="text-[#3d6a4a] hover:text-[#2f5239] font-medium">
+                <Link
+                  href="/login"
+                  className="text-[#3d6a4a] hover:text-[#2f5239] font-medium"
+                >
                   Sign in
                 </Link>
               </p>
@@ -318,5 +367,25 @@ export default function RegisterStep2Page() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Suspense wrapper so useSearchParams is safe in Next 15
+export default function RegisterStep2Page() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4 text-muted-foreground">
+              Loading registration...
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <RegisterStep2Inner />
+    </Suspense>
   );
 }

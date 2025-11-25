@@ -10,7 +10,7 @@
  * - List/Grid switch, keyboard shortcuts (/, G, R, ⌘K)
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -75,7 +75,7 @@ function hslFromString(s: string) {
   return `hsl(${hue} 65% 45%)`;
 }
 
-export default function TalentPage() {
+function TalentPageInner() {
   // ----- Session & routing -----
   const { session, isPending } = useEmployerAuth();
   const router = useRouter();
@@ -168,14 +168,10 @@ export default function TalentPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openCommandPalette]);
 
-  // Load data whenever URL params change
-  useEffect(() => {
-    if (session?.user) fetchTalent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, session?.user]);
-
+  // Helper to push filters into URL
   const pushQuery = (p = page) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -217,16 +213,28 @@ export default function TalentPage() {
     }
   };
 
+  // Load data whenever URL params change
+  useEffect(() => {
+    if (session?.user) fetchTalent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, session?.user]);
+
   // ---------------- Derived KPIs ----------------
   const kpis = useMemo(() => {
     const totalTalent = total;
     const verifiedCount = items.filter((i) => i.verified).length;
     const avgExp =
       items.length > 0
-        ? (items.reduce((s, i) => s + (Number(i.experienceYears) || 0), 0) / items.length).toFixed(1)
+        ? (items.reduce((s, i) => s + (Number(i.experienceYears) || 0), 0) / items.length).toFixed(
+            1,
+          )
         : "0.0";
     const distinctCities = new Set(
-      items.map((i) => [i.locationCity, i.locationCountry].filter(Boolean).join(", ")).filter(Boolean),
+      items
+        .map((i) =>
+          [i.locationCity, i.locationCountry].filter(Boolean).join(", "),
+        )
+        .filter(Boolean),
     ).size;
 
     return { totalTalent, verifiedCount, avgExp, distinctCities };
@@ -253,7 +261,7 @@ export default function TalentPage() {
     return clone;
   }, [items, sortKey, sortDir]);
 
-  const pages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total]);
+  const pages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
   // ----- Loading & empty-session states -----
   if (isPending || (loading && !lastRefreshedAt)) {
@@ -487,7 +495,9 @@ export default function TalentPage() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <Label className="mb-1 block text-xs text-gray-500">Skills (comma-sep)</Label>
+                      <Label className="mb-1 block text-xs text-gray-500">
+                        Skills (comma-sep)
+                      </Label>
                       <Input
                         value={skillsQuery}
                         onChange={(e) => setSkillsQuery(e.target.value)}
@@ -517,7 +527,9 @@ export default function TalentPage() {
                         Reset
                       </Button>
                       <span className="text-xs text-gray-500 ml-auto">
-                        {lastRefreshedAt ? `Last refreshed: ${lastRefreshedAt.toLocaleTimeString()}` : ""}
+                        {lastRefreshedAt
+                          ? `Last refreshed: ${lastRefreshedAt.toLocaleTimeString()}`
+                          : ""}
                       </span>
                     </div>
                   </div>
@@ -568,8 +580,7 @@ export default function TalentPage() {
               {sorted.map((it) => {
                 const displayName = it.name || "Unnamed Candidate";
                 const loc =
-                  [it.locationCity, it.locationCountry].filter(Boolean).join(", ") ||
-                  "—";
+                  [it.locationCity, it.locationCountry].filter(Boolean).join(", ") || "—";
                 return (
                   <li
                     key={it.id}
@@ -639,7 +650,10 @@ export default function TalentPage() {
 
                       <div className="shrink-0 pt-1">
                         <Link href={`/dashboard/talent/${it.id}`}>
-                          <Button size="sm" className="bg-[#6a994e] hover:bg-[#5a8743] text-white">
+                          <Button
+                            size="sm"
+                            className="bg-[#6a994e] hover:bg-[#5a8743] text-white"
+                          >
                             View Profile
                           </Button>
                         </Link>
@@ -682,7 +696,7 @@ export default function TalentPage() {
                             )}
                           </div>
                           <div className="text-[11px] text-gray-500 mt-1">
-                            {(it.program || "—")}
+                            {it.program || "—"}
                             {it.experienceYears != null ? ` • ${it.experienceYears} yrs` : ""}
                           </div>
                           <div className="text-[11px] text-gray-500 mt-0.5 truncate">
@@ -699,10 +713,7 @@ export default function TalentPage() {
                       {(it.skills || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-3">
                           {it.skills.slice(0, 6).map((s) => (
-                            <span
-                              key={s}
-                              className="text-[10px] px-2 py-1 rounded-full border"
-                            >
+                            <span key={s} className="text-[10px] px-2 py-1 rounded-full border">
                               {s}
                             </span>
                           ))}
@@ -806,5 +817,20 @@ export default function TalentPage() {
         />
       </main>
     </div>
+  );
+}
+
+// ✅ Suspense-wrapped default export so useSearchParams is safe in Next 15
+export default function TalentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#FEFEFA]">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <TalentPageInner />
+    </Suspense>
   );
 }

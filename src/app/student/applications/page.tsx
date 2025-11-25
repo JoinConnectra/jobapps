@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { absoluteUrl } from "@/lib/url";
 import {
@@ -22,7 +29,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -33,7 +48,7 @@ dayjs.extend(relativeTime);
 
 /** ----------------------------- Types ----------------------------- */
 type Stage =
-  | "applied"         // <— add this
+  | "applied"
   | "submitted"
   | "in_review"
   | "assessment"
@@ -55,13 +70,15 @@ type Application = {
   salaryRange?: string | null;
   tags?: string[]; // optional custom labels
   // Optional API-expanded fields (defensive)
-  job?: {
-    id: number;
-    title: string | null;
-    locationMode?: string | null;
-    salaryRange?: string | null;
-    organization?: { name?: string | null } | null;
-  } | null;
+  job?:
+    | {
+        id: number;
+        title: string | null;
+        locationMode?: string | null;
+        salaryRange?: string | null;
+        organization?: { name?: string | null } | null;
+      }
+    | null;
 };
 
 type ServerListResponse = {
@@ -74,15 +91,25 @@ type ServerListResponse = {
 /** ----------------------------- Helpers ----------------------------- */
 const STAGE_META: Record<
   Stage,
-  { label: string; tone: "default" | "secondary" | "destructive" | "outline" | "success" | "warning"; icon: React.ElementType }
+  {
+    label: string;
+    tone:
+      | "default"
+      | "secondary"
+      | "destructive"
+      | "outline"
+      | "success"
+      | "warning";
+    icon: React.ElementType;
+  }
 > = {
-  applied:   { label: "Submitted", tone: "secondary", icon: Waypoints }, // <— add
+  applied: { label: "Submitted", tone: "secondary", icon: Waypoints },
   submitted: { label: "Submitted", tone: "secondary", icon: Waypoints },
   in_review: { label: "In Review", tone: "default", icon: BadgeCheck },
-  assessment:{ label: "Assessment", tone: "warning", icon: ArrowUpDown },
+  assessment: { label: "Assessment", tone: "warning", icon: ArrowUpDown },
   interview: { label: "Interview", tone: "success", icon: Calendar },
-  offer:     { label: "Offer", tone: "success", icon: Check },
-  rejected:  { label: "Rejected", tone: "destructive", icon: X },
+  offer: { label: "Offer", tone: "success", icon: Check },
+  rejected: { label: "Rejected", tone: "destructive", icon: X },
   withdrawn: { label: "Withdrawn", tone: "outline", icon: Circle },
 };
 
@@ -108,8 +135,8 @@ function normalize(app: Application): Application {
   return { ...app, jobTitle, organizationName, locationMode, salaryRange };
 }
 
-/** ----------------------------- Main Page ----------------------------- */
-export default function ApplicationsPage() {
+/** ----------------------------- Inner Page ----------------------------- */
+function ApplicationsPageInner() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -118,10 +145,12 @@ export default function ApplicationsPage() {
   const [stageFilter, setStageFilter] = useState<Stage | "all">(
     (params.get("stage") as Stage) ?? "all"
   );
-  const [onlyActive, setOnlyActive] = useState<boolean>(params.get("active") === "1");
-  const [sortKey, setSortKey] = useState<"updated" | "applied" | "stage" | "company" | "title">(
-    (params.get("sort") as any) ?? "updated"
+  const [onlyActive, setOnlyActive] = useState<boolean>(
+    params.get("active") === "1"
   );
+  const [sortKey, setSortKey] = useState<
+    "updated" | "applied" | "stage" | "company" | "title"
+  >((params.get("sort") as any) ?? "updated");
   const [sortDir, setSortDir] = useState<"desc" | "asc">(
     (params.get("dir") as any) ?? "desc"
   );
@@ -141,7 +170,8 @@ export default function ApplicationsPage() {
         `/api/student/applications?mine=1&limit=25&include=job,organization`
       );
       const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error(`Failed to load applications (${res.status})`);
+      if (!res.ok)
+        throw new Error(`Failed to load applications (${res.status})`);
       const data: ServerListResponse | Application[] = await res.json();
       const list = Array.isArray(data) ? data : data.items ?? [];
       const next = Array.isArray(data) ? null : data.nextCursor ?? null;
@@ -212,7 +242,9 @@ export default function ApplicationsPage() {
           a.organizationName ?? "",
           a.source ?? "",
           a.salaryRange ?? "",
-        ].join(" ").toLowerCase();
+        ]
+          .join(" ")
+          .toLowerCase();
         return fields.includes(q);
       });
     }
@@ -243,9 +275,15 @@ export default function ApplicationsPage() {
         case "stage":
           return ((a.stage ?? "").localeCompare(b.stage ?? "")) * dir;
         case "company":
-          return ((a.organizationName ?? "").localeCompare(b.organizationName ?? "")) * dir;
+          return (
+            (a.organizationName ?? "").localeCompare(
+              b.organizationName ?? ""
+            ) * dir
+          );
         case "title":
-          return ((a.jobTitle ?? "").localeCompare(b.jobTitle ?? "")) * dir;
+          return (
+            (a.jobTitle ?? "").localeCompare(b.jobTitle ?? "") * dir
+          );
         default:
           return 0;
       }
@@ -286,7 +324,8 @@ export default function ApplicationsPage() {
     });
 
   const clearSelection = () => setSelected(new Set());
-  const selectAllVisible = () => setSelected(new Set(filtered.map((x) => x.id)));
+  const selectAllVisible = () =>
+    setSelected(new Set(filtered.map((x) => x.id)));
 
   // Bulk actions (client-only placeholders; wire to API if you like)
   const bulkWithdraw = () => {
@@ -337,7 +376,9 @@ export default function ApplicationsPage() {
     sp.set("sort", sortKey);
     sp.set("dir", sortDir);
     const qs = sp.toString();
-    const href = qs ? `/student/applications?${qs}` : `/student/applications`;
+    const href = qs
+      ? `/student/applications?${qs}`
+      : `/student/applications`;
     window.history.replaceState(null, "", href);
   }, [query, stageFilter, onlyActive, sortKey, sortDir]);
 
@@ -346,9 +387,12 @@ export default function ApplicationsPage() {
       {/* Header */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Applications</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Applications
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Track your progress, interviews, and offers — all in one place.
+            Track your progress, interviews, and offers — all in one
+            place.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -372,9 +416,17 @@ export default function ApplicationsPage() {
           value={counts.active}
           hint="(excludes rejected/withdrawn)"
         />
-        <StatCard icon={Briefcase} title="Interviews" value={counts.interview} />
+        <StatCard
+          icon={Briefcase}
+          title="Interviews"
+          value={counts.interview}
+        />
         <StatCard icon={Check} title="Offers" value={counts.offer} />
-        <StatCard icon={BadgeCheck} title="In Review" value={counts.in_review} />
+        <StatCard
+          icon={BadgeCheck}
+          title="In Review"
+          value={counts.in_review}
+        />
       </div>
 
       {/* Filters Row */}
@@ -417,9 +469,7 @@ export default function ApplicationsPage() {
               ] as const).map(([key, label]) => (
                 <DropdownMenuItem
                   key={key}
-                  onClick={() =>
-                    setSortKey(key as typeof sortKey)
-                  }
+                  onClick={() => setSortKey(key as typeof sortKey)}
                 >
                   <ArrowUpDown className="mr-2 h-4 w-4" />
                   {label} {sortKey === key ? `(${sortDir})` : ""}
@@ -427,7 +477,9 @@ export default function ApplicationsPage() {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+                onClick={() =>
+                  setSortDir((d) => (d === "desc" ? "asc" : "desc"))
+                }
               >
                 Toggle direction ({sortDir})
               </DropdownMenuItem>
@@ -455,21 +507,48 @@ export default function ApplicationsPage() {
       >
         <TabsList className="flex w-full flex-wrap">
           <Tab value="all" label={`All (${counts.all})`} />
-          <Tab value="in_review" label={`In Review (${counts.in_review})`} />
-          <Tab value="assessment" label={`Assessment (${counts.assessment})`} />
-          <Tab value="interview" label={`Interviews (${counts.interview})`} />
+          <Tab
+            value="in_review"
+            label={`In Review (${counts.in_review})`}
+          />
+          <Tab
+            value="assessment"
+            label={`Assessment (${counts.assessment})`}
+          />
+          <Tab
+            value="interview"
+            label={`Interviews (${counts.interview})`}
+          />
           <Tab value="offer" label={`Offers (${counts.offer})`} />
-          <Tab value="submitted" label={`Submitted (${counts.submitted})`} />
-          <Tab value="rejected" label={`Rejected (${counts.rejected})`} />
-          <Tab value="withdrawn" label={`Withdrawn (${counts.withdrawn})`} />
+          <Tab
+            value="submitted"
+            label={`Submitted (${counts.submitted})`}
+          />
+          <Tab
+            value="rejected"
+            label={`Rejected (${counts.rejected})`}
+          />
+          <Tab
+            value="withdrawn"
+            label={`Withdrawn (${counts.withdrawn})`}
+          />
         </TabsList>
 
-        <TabsContent value={stageFilter === "all" ? "all" : stageFilter} className="mt-4">
+        <TabsContent
+          value={stageFilter === "all" ? "all" : stageFilter}
+          className="mt-4"
+        >
           {/* Table / Card grid */}
           {loading ? (
             <LoadingList />
           ) : filtered.length === 0 ? (
-            <EmptyState onReset={() => { setQuery(""); setStageFilter("all"); setOnlyActive(false); }} />
+            <EmptyState
+              onReset={() => {
+                setQuery("");
+                setStageFilter("all");
+                setOnlyActive(false);
+              }}
+            />
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filtered.map((a) => (
@@ -478,7 +557,9 @@ export default function ApplicationsPage() {
                   app={a}
                   selected={selected.has(a.id)}
                   onToggle={() => toggleSelect(a.id)}
-                  onOpen={(id) => router.push(`/student/applications/${id}`)}
+                  onOpen={(id) =>
+                    router.push(`/student/applications/${id}`)
+                  }
                 />
               ))}
             </div>
@@ -489,7 +570,9 @@ export default function ApplicationsPage() {
           {loadingMore && (
             <div className="mt-4 flex items-center justify-center">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Loading more…</span>
+              <span className="text-sm text-muted-foreground">
+                Loading more…
+              </span>
             </div>
           )}
         </TabsContent>
@@ -500,17 +583,26 @@ export default function ApplicationsPage() {
 
 /** ----------------------------- Small Components ----------------------------- */
 
-function StatCard(props: { icon: React.ElementType; title: string; value: number | string; hint?: string }) {
+function StatCard(props: {
+  icon: React.ElementType;
+  title: string;
+  value: number | string;
+  hint?: string;
+}) {
   const Icon = props.icon;
   return (
     <Card className="rounded-2xl">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{props.title}</CardTitle>
+        <CardTitle className="text-sm font-medium">
+          {props.title}
+        </CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{props.value}</div>
-        {props.hint && <p className="text-xs text-muted-foreground">{props.hint}</p>}
+        {props.hint && (
+          <p className="text-xs text-muted-foreground">{props.hint}</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -518,7 +610,10 @@ function StatCard(props: { icon: React.ElementType; title: string; value: number
 
 function Tab({ value, label }: { value: string; label: string }) {
   return (
-    <TabsTrigger value={value} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+    <TabsTrigger
+      value={value}
+      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+    >
       {label}
     </TabsTrigger>
   );
@@ -546,7 +641,9 @@ function EmptyState({ onReset }: { onReset: () => void }) {
     <Card className="rounded-2xl border-dashed">
       <CardContent className="flex flex-col items-center justify-center gap-3 p-10 text-center">
         <Sparkles className="h-8 w-8 text-muted-foreground" />
-        <h3 className="text-lg font-semibold">No applications match your filters</h3>
+        <h3 className="text-lg font-semibold">
+          No applications match your filters
+        </h3>
         <p className="text-sm text-muted-foreground">
           Try clearing filters or searching with a different term.
         </p>
@@ -559,7 +656,8 @@ function EmptyState({ onReset }: { onReset: () => void }) {
 }
 
 function StatusBadge({ stage }: { stage?: Stage }) {
-  const meta = (stage && STAGE_META[stage]) ? STAGE_META[stage] : STAGE_META.submitted; // <— fallback
+  const meta =
+    stage && STAGE_META[stage] ? STAGE_META[stage] : STAGE_META.submitted;
   const Icon = meta.icon;
   const variant =
     meta.tone === "success"
@@ -608,7 +706,9 @@ function ApplicationCard({
                 onChange={onToggle}
                 className="h-4 w-4 rounded border-muted-foreground/30"
               />
-              <h3 className="truncate text-base font-semibold">{title}</h3>
+              <h3 className="truncate text-base font-semibold">
+                {title}
+              </h3>
             </div>
             <p className="truncate text-sm text-muted-foreground">
               {company}
@@ -621,9 +721,13 @@ function ApplicationCard({
 
         {/* Middle meta */}
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {app.source && <Badge variant="outline">Source: {app.source}</Badge>}
+          {app.source && (
+            <Badge variant="outline">Source: {app.source}</Badge>
+          )}
           {app.tags?.map((t) => (
-            <Badge key={t} variant="outline">{t}</Badge>
+            <Badge key={t} variant="outline">
+              {t}
+            </Badge>
           ))}
           {when && <span>Updated {dayjs(when).fromNow()}</span>}
         </div>
@@ -640,12 +744,19 @@ function ApplicationCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => onOpen(app.id)}>Open</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Reminder added")}>
+              <DropdownMenuItem onClick={() => onOpen(app.id)}>
+                Open
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => toast.success("Reminder added")}
+              >
                 Add Reminder
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={() => toast("Withdraw (preview)")}>
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => toast("Withdraw (preview)")}
+              >
                 Withdraw
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -653,5 +764,24 @@ function ApplicationCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** ----------------------------- Suspense Wrapper ----------------------------- */
+
+export default function ApplicationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="mt-4 text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <ApplicationsPageInner />
+    </Suspense>
   );
 }
