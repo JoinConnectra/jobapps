@@ -1,23 +1,11 @@
+// /src/app/api/organizations/[id]/logo/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { db } from "@/db";
 import { organizations } from "@/db/schema-pg";
 import { eq } from "drizzle-orm";
+import { supabaseService } from "@/lib/supabase";
 
 const BUCKET = "company-logos"; // Bucket for company logos
-
-function getSupabaseAdmin() {
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-
-  if (!url || !key) {
-    throw new Error("Missing Supabase configuration");
-  }
-  return createClient(url, key);
-}
 
 export async function POST(
   req: NextRequest,
@@ -39,7 +27,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify organization exists and user has access (simplified - you may want to check membership)
+    // Verify organization exists and user has access (simplified)
     const orgRows = await db
       .select()
       .from(organizations)
@@ -64,10 +52,19 @@ export async function POST(
     }
 
     // Validate file type (images only)
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    const allowedTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ];
     if (file.type && !allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: "Unsupported file type. Upload JPEG, PNG, GIF, or WebP" },
+        {
+          error:
+            "Unsupported file type. Upload JPEG, PNG, GIF, or WebP",
+        },
         { status: 415 }
       );
     }
@@ -81,9 +78,13 @@ export async function POST(
       );
     }
 
-    const supabase = getSupabaseAdmin();
-    const ext = file.name?.includes(".") ? file.name.split(".").pop() : "png";
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const supabase = supabaseService;
+    const ext = file.name?.includes(".")
+      ? file.name.split(".").pop()
+      : "png";
+    const filename = `${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${ext}`;
     const path = `logos/${orgId}/${filename}`;
 
     // Upload to Supabase Storage
@@ -122,8 +123,11 @@ export async function POST(
       })
       .where(eq(organizations.id, orgId))
       .returning();
-    
-    console.log("Logo upload: Updated organization:", updateResult[0]?.logoUrl);
+
+    console.log(
+      "Logo upload: Updated organization:",
+      updateResult[0]?.logoUrl
+    );
 
     return NextResponse.json(
       {
@@ -136,9 +140,11 @@ export async function POST(
   } catch (err) {
     console.error("POST /api/organizations/[id]/logo error:", err);
     return NextResponse.json(
-      { error: "Internal server error: " + (err as Error).message },
+      {
+        error:
+          "Internal server error: " + (err as Error).message,
+      },
       { status: 500 }
     );
   }
 }
-
