@@ -1,11 +1,12 @@
 // /src/app/student/dashboard/interviews/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Calendar, Clock, MapPin, Briefcase } from "lucide-react";
 
 type StudentInterview = {
   bookingId: number;
@@ -19,6 +20,14 @@ type StudentInterview = {
   locationDetail: string | null;
   applicationId: number | null;
   applicantEmail: string | null;
+};
+
+type InviteGroup = {
+  key: string;
+  jobTitle: string | null;
+  orgName: string | null;
+  applicationId: number | null;
+  options: StudentInterview[];
 };
 
 export default function StudentInterviewsPage() {
@@ -47,9 +56,7 @@ export default function StudentInterviewsPage() {
       setErrorMsg(null);
     } catch (err) {
       console.error("StudentInterviewsPage error", err);
-      if (!errorMsg) {
-        setErrorMsg("Failed to load interviews.");
-      }
+      setErrorMsg("Failed to load interviews.");
     } finally {
       setLoading(false);
     }
@@ -105,84 +112,226 @@ export default function StudentInterviewsPage() {
   const invites = items.filter((iv) => iv.status === "invited");
   const confirmed = items.filter((iv) => iv.status !== "invited");
 
+  // Group invites so you don't see each availability as a separate big card
+  const groupedInvites: InviteGroup[] = useMemo(() => {
+    const map: Record<string, InviteGroup> = {};
+
+    invites.forEach((iv) => {
+      const key =
+        iv.applicationId != null
+          ? `app-${iv.applicationId}`
+          : `${iv.orgName ?? "Org"}-${iv.jobTitle ?? "Role"}`;
+
+      if (!map[key]) {
+        map[key] = {
+          key,
+          jobTitle: iv.jobTitle,
+          orgName: iv.orgName,
+          applicationId: iv.applicationId,
+          options: [],
+        };
+      }
+      map[key].options.push(iv);
+    });
+
+    // Sort options in each group by time
+    Object.values(map).forEach((group) => {
+      group.options.sort(
+        (a, b) =>
+          new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+      );
+    });
+
+    // Sort groups by earliest option
+    return Object.values(map).sort((a, b) => {
+      const aTime = new Date(a.options[0].startAt).getTime();
+      const bTime = new Date(b.options[0].startAt).getTime();
+      return aTime - bTime;
+    });
+  }, [invites]);
+
+  const formatDateRange = (iv: StudentInterview) => {
+    const start = new Date(iv.startAt);
+    const end = new Date(iv.endAt);
+    const dateStr = start.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    const startTime = start.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const endTime = end.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return { dateStr, startTime, endTime };
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          My Interviews
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          See your interview invitations and confirmed interviews in one place.
-        </p>
+      {/* Header */}
+      <div className="rounded-xl bg-white border border-gray-200 px-4 py-4 sm:px-6 sm:py-5 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <Calendar className="h-4 w-4" />
+          </span>
+          <div>
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-slate-900">
+              My Interviews
+            </h1>
+            <p className="text-sm text-slate-600">
+              Review invitations, pick a time that works for you, and keep track
+              of upcoming interviews.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending invitations</CardTitle>
+      {/* Pending invitations */}
+      <Card className="border border-emerald-100/80 shadow-sm rounded-xl">
+        <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-base font-semibold">
+              Pending invitations
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              For each interview, choose one time that works best for you.
+            </p>
+          </div>
+          {invites.length > 0 && !loading && !errorMsg && (
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700 border border-emerald-100">
+              {invites.length} open time option
+              {invites.length === 1 ? "" : "s"}
+            </span>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
             </div>
           ) : errorMsg ? (
             <p className="text-sm text-muted-foreground">{errorMsg}</p>
-          ) : invites.length === 0 ? (
+          ) : groupedInvites.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               You don&apos;t have any pending interview invitations.
             </p>
           ) : (
-            <div className="space-y-2">
-              {invites.map((iv) => (
-                <div
-                  key={iv.bookingId}
-                  className="flex flex-col gap-2 rounded-md border px-3 py-2 text-sm"
-                >
-                  <div className="flex justify-between items-center">
-                    <div className="font-medium">
-                      {iv.jobTitle || "Interview"}{" "}
-                      {iv.orgName ? `· ${iv.orgName}` : ""}
+            <div className="space-y-4">
+              {groupedInvites.map((group) => {
+                const first = group.options[0];
+                const { dateStr } = formatDateRange(first);
+
+                return (
+                  <div
+                    key={group.key}
+                    className="rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-3 sm:px-4 sm:py-4 space-y-3"
+                  >
+                    {/* Header row per interview (job + company) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
+                            <Briefcase className="h-4 w-4 text-emerald-700" />
+                            {group.jobTitle || "Interview"}
+                          </span>
+                          {group.orgName && (
+                            <span className="text-xs text-slate-600">
+                              · {group.orgName}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {group.options.length} time option
+                          {group.options.length === 1 ? "" : "s"} available ·
+                          starting {dateStr}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 border border-amber-100 uppercase tracking-wide">
+                        Invited
+                      </span>
                     </div>
-                    <div className="text-xs uppercase tracking-wide text-amber-600">
-                      {iv.status}
+
+                    {/* Time options list */}
+                    <div className="space-y-2">
+                      {group.options.map((iv) => {
+                        const { dateStr, startTime, endTime } =
+                          formatDateRange(iv);
+
+                        return (
+                          <div
+                            key={iv.bookingId}
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md border border-emerald-100 bg-white/80 px-3 py-2 text-xs sm:text-[13px]"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 font-medium text-slate-900">
+                                  <Calendar className="h-3 w-3 text-slate-500" />
+                                  {dateStr}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-slate-700">
+                                  <Clock className="h-3 w-3 text-slate-500" />
+                                  {startTime} – {endTime}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500">
+                                <span className="inline-flex items-center gap-1">
+                                  <MapPin className="h-3 w-3 text-slate-400" />
+                                  {iv.locationType.toUpperCase()}{" "}
+                                  {iv.locationDetail
+                                    ? `· ${iv.locationDetail}`
+                                    : ""}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex sm:items-center sm:justify-end">
+                              <Button
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => handleConfirm(iv)}
+                                disabled={submittingId === iv.bookingId}
+                              >
+                                {submittingId === iv.bookingId
+                                  ? "Confirming..."
+                                  : "Choose this time"}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
+                    <p className="text-[11px] text-slate-500">
+                      Once you confirm a time, it will move into your scheduled
+                      interviews.
+                    </p>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(iv.startAt).toLocaleString()} &rarr;{" "}
-                    {new Date(iv.endAt).toLocaleTimeString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {iv.locationType.toUpperCase()}{" "}
-                    {iv.locationDetail ? `· ${iv.locationDetail}` : ""}
-                  </div>
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      onClick={() => handleConfirm(iv)}
-                      disabled={submittingId === iv.bookingId}
-                    >
-                      {submittingId === iv.bookingId
-                        ? "Confirming..."
-                        : "Confirm this time"}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Scheduled interviews</CardTitle>
+      {/* Scheduled interviews */}
+      <Card className="shadow-sm rounded-xl">
+        <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-base font-semibold">
+              Scheduled interviews
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              All interviews you&apos;ve already confirmed.
+            </p>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
             </div>
           ) : errorMsg ? (
             <p className="text-sm text-muted-foreground">{errorMsg}</p>
@@ -191,31 +340,56 @@ export default function StudentInterviewsPage() {
               You don&apos;t have any confirmed interviews yet.
             </p>
           ) : (
-            <div className="space-y-2">
-              {confirmed.map((iv) => (
-                <div
-                  key={iv.bookingId}
-                  className="flex flex-col rounded-md border px-3 py-2 text-sm"
-                >
-                  <div className="flex justify-between">
-                    <div className="font-medium">
-                      {iv.jobTitle || "Interview"}{" "}
-                      {iv.orgName ? `· ${iv.orgName}` : ""}
+            <div className="space-y-3">
+              {confirmed
+                .slice()
+                .sort(
+                  (a, b) =>
+                    new Date(a.startAt).getTime() -
+                    new Date(b.startAt).getTime(),
+                )
+                .map((iv) => {
+                  const { dateStr, startTime, endTime } = formatDateRange(iv);
+                  return (
+                    <div
+                      key={iv.bookingId}
+                      className="flex flex-col gap-2 rounded-lg border px-3 py-2.5 text-sm bg-slate-50/80"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-slate-900">
+                              {iv.jobTitle || "Interview"}
+                            </span>
+                            {iv.orgName && (
+                              <span className="text-xs text-slate-600">
+                                · {iv.orgName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="h-3 w-3 text-slate-500" />
+                              {dateStr}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-slate-500" />
+                              {startTime} – {endTime}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 border border-emerald-100 uppercase tracking-wide">
+                          {iv.status}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-slate-400" />
+                        {iv.locationType.toUpperCase()}{" "}
+                        {iv.locationDetail ? `· ${iv.locationDetail}` : ""}
+                      </div>
                     </div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {iv.status}
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(iv.startAt).toLocaleString()} &rarr;{" "}
-                    {new Date(iv.endAt).toLocaleTimeString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {iv.locationType.toUpperCase()}{" "}
-                    {iv.locationDetail ? `· ${iv.locationDetail}` : ""}
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           )}
         </CardContent>
