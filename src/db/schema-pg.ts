@@ -808,3 +808,84 @@ export const inboxMessages = pgTable('inbox_messages', {
   createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull(),
 });
+
+
+// -----------------------------
+// Interviews (slots + bookings)
+// -----------------------------
+export const interviewSlots = pgTable('interview_slots', {
+  id: serial('id').primaryKey(),
+
+  // Org that owns this slot (company or university, but MVP is company org)
+  orgId: integer('org_id').notNull(),
+
+  // Optional link to a specific job
+  jobId: integer('job_id'),
+
+  // Who created the slot (user id from your users table)
+  createdByUserId: integer('created_by_user_id').notNull(),
+
+  // Time range for this slot
+  startAt: timestamp('start_at', { withTimezone: false }).notNull(),
+  endAt: timestamp('end_at', { withTimezone: false }).notNull(),
+
+  // Where / how the interview happens
+  locationType: text('location_type') // 'online' | 'in_person'
+    .default('online')
+    .notNull(),
+  locationDetail: text('location_detail'), // Zoom/Meet link or office address
+
+  // How many people can book this same slot (MVP = 1)
+  maxCandidates: integer('max_candidates').default(1).notNull(),
+
+  // Slot lifecycle
+  status: text('status')
+    // 'open' | 'partially_booked' | 'booked' | 'cancelled'
+    .default('open')
+    .notNull(),
+
+  notes: text('notes'),
+
+  createdAt: timestamp('created_at', { withTimezone: false })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: false })
+    .defaultNow()
+    .notNull(),
+});
+
+export const interviewBookings = pgTable(
+  'interview_bookings',
+  {
+    id: serial('id').primaryKey(),
+
+    slotId: integer('slot_id').notNull(), // FK → interview_slots.id
+
+    // Tie this back to your ATS data
+    applicationId: integer('application_id').notNull(), // FK → applications.id
+
+    // Candidate identity (either via user record or just email snapshot)
+    applicantUserId: integer('applicant_user_id'),
+    applicantEmail: text('applicant_email'),
+
+    status: text('status')
+      // 'confirmed' | 'cancelled' | 'no_show' | 'completed'
+      .default('confirmed')
+      .notNull(),
+
+    notes: text('notes'),
+
+    createdAt: timestamp('created_at', { withTimezone: false })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: false })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    // prevent duplicate bookings for same slot + application
+    slotApplicationUnique: uniqueIndex(
+      'interview_bookings_slot_application_unique',
+    ).on(table.slotId, table.applicationId),
+  }),
+);
