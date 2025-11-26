@@ -153,18 +153,18 @@ function RegisterStep3Inner() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex flex-col md:flex-row min-h-screen relative">
       {/* Back */}
       <Link
         href="/register/step2"
-        className="absolute left-6 top-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        className="absolute top-4 left-4 md:top-6 md:left-6 z-10 inline-flex items-center gap-2 text-sm text-white md:text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        <span className="font-medium">Back</span>
+        <span className="font-medium hidden sm:inline">Back</span>
       </Link>
 
       {/* Left Side - BG */}
-      <div className="w-1/2 h-screen relative overflow-hidden">
+      <div className="w-full md:w-1/2 h-48 md:h-screen relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-no-repeat"
           style={{
@@ -173,7 +173,7 @@ function RegisterStep3Inner() {
           }}
         />
         {/* Logo in top right corner */}
-        <div className="absolute top-6 right-6 z-10">
+        <div className="absolute top-4 right-4 md:top-6 md:right-6 z-10">
           <Image
             src="/images/talentflow-logo.svg"
             alt="Connectra logo"
@@ -187,8 +187,8 @@ function RegisterStep3Inner() {
       </div>
 
       {/* Right Side - Form */}
-      <div className="w-1/2 h-screen flex items-center justify-center bg-white">
-        <div className="w-full max-w-md px-6">
+      <div className="w-full md:w-1/2 min-h-[calc(100vh-12rem)] md:h-screen flex items-center justify-center bg-white py-8 md:py-0">
+        <div className="w-full max-w-md px-4 sm:px-6">
           {/* Card Container */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 space-y-6">
             <div className="text-center">

@@ -28,16 +28,16 @@ const ApplicantShowcaseSection = () => {
   const currentConfig = portalConfig[activePortal];
 
   return (
-    <section className="relative w-full bg-white py-16 md:py-20 lg:py-24">
-      <div className="container mx-auto px-6">
+    <section className="relative w-full bg-white py-12 sm:py-16 md:py-20 lg:py-24">
+      <div className="container mx-auto px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
           {/* Portal selection buttons - outside the card */}
-          <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-6 px-4">
             {(['employer', 'applicant', 'university'] as PortalType[]).map((portal) => (
               <button
                 key={portal}
                 onClick={() => setActivePortal(portal)}
-                className={`rounded bg-[#3d6a4a] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2f5239] ${
+                className={`rounded bg-[#3d6a4a] px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-medium text-white transition-colors hover:bg-[#2f5239] ${
                   activePortal === portal ? 'ring-2 ring-[#3d6a4a] ring-offset-2' : ''
                 }`}
               >
@@ -49,7 +49,7 @@ const ApplicantShowcaseSection = () => {
           {/* Card container - full width screenshot */}
           <div className="relative rounded-xl overflow-hidden shadow-lg bg-gray-100">
             {/* Full width screenshot display with gradient background */}
-            <div className="relative h-[500px] md:h-[600px]">
+            <div className="relative h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px]">
               {/* Gradient background image */}
               <div className="absolute inset-0 w-full h-full">
                 <Image
