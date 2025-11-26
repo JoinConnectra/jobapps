@@ -1,3 +1,4 @@
+// /src/app/api/interviews/book/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { applications, interviewBookings, interviewSlots } from "@/db/schema-pg";
@@ -22,12 +23,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // simple transactional guard: only book if slot exists + is open
     const result = await db.transaction(async (tx) => {
+      const slotIdInt = Number(slotId);
+      const appIdInt = Number(applicationId);
+
       const [slot] = await tx
         .select()
         .from(interviewSlots)
-        .where(eq(interviewSlots.id, Number(slotId)))
+        .where(eq(interviewSlots.id, slotIdInt))
         .limit(1);
 
       if (!slot) {
@@ -37,35 +40,50 @@ export async function POST(req: NextRequest) {
         throw new Error("Slot is not open for booking");
       }
 
-      // optional: validate application exists
       const [app] = await tx
         .select()
         .from(applications)
-        .where(eq(applications.id, Number(applicationId)))
+        .where(eq(applications.id, appIdInt))
         .limit(1);
 
       if (!app) {
         throw new Error("Application not found");
       }
 
-      const [booking] = await tx
-        .insert(interviewBookings)
-        .values({
-          slotId: slot.id,
-          applicationId: app.id,
+      // 🔵 find the invited booking that was created when employer made the slot
+      const [existingBooking] = await tx
+        .select()
+        .from(interviewBookings)
+        .where(
+          and(
+            eq(interviewBookings.slotId, slotIdInt),
+            eq(interviewBookings.applicationId, appIdInt),
+          ),
+        )
+        .limit(1);
+
+      if (!existingBooking) {
+        throw new Error("Invitation not found for this slot/application");
+      }
+
+      // 🔵 update that booking to "booked"
+      const [updatedBooking] = await tx
+        .update(interviewBookings)
+        .set({
+          status: "booked",
           applicantUserId: applicantUserId ?? app.applicantUserId ?? null,
           applicantEmail: applicantEmail ?? app.applicantEmail,
-          notes: notes ?? null,
+          notes: notes ?? existingBooking.notes,
         })
+        .where(eq(interviewBookings.id, existingBooking.id))
         .returning();
 
-      // For MVP, mark slot as 'booked' once one booking is made
       await tx
         .update(interviewSlots)
         .set({ status: "booked" })
-        .where(eq(interviewSlots.id, slot.id));
+        .where(eq(interviewSlots.id, slotIdInt));
 
-      return booking;
+      return updatedBooking;
     });
 
     return NextResponse.json({ booking: result }, { status: 201 });

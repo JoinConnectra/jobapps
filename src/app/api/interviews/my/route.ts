@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
         locationDetail: interviewSlots.locationDetail,
         orgName: organizations.name,
         jobTitle: jobs.title,
+        // 🔵 needed to call /api/interviews/book
+        applicationId: interviewBookings.applicationId,
+        applicantEmail: interviewBookings.applicantEmail,
       })
       .from(interviewBookings)
       .innerJoin(

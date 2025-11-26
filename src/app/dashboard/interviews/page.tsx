@@ -25,7 +25,16 @@ import CommandPalette from "@/components/CommandPalette";
 import SettingsModal from "@/components/SettingsModal";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 
-import { Calendar, Clock, MapPin, RefreshCw, User2, Briefcase } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  RefreshCw,
+  User2,
+  Briefcase,
+  PlusCircle,
+  X,
+} from "lucide-react";
 
 type InterviewSlot = {
   id: number;
@@ -58,6 +67,13 @@ type CandidateOption = {
   email: string;
   stage: string | null;
 };
+
+type TimeOption = {
+  date: string;
+  startTime: string;
+};
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function EmployerInterviewsPage() {
   const { data: session, isPending } = useSession();
@@ -94,11 +110,12 @@ export default function EmployerInterviewsPage() {
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [selectedApplicationId, setSelectedApplicationId] = useState<string>("");
 
-  // Time & location state
-  const [date, setDate] = useState<string>(() =>
-    new Date().toISOString().slice(0, 10) // default to today, YYYY-MM-DD
-  );
-  const [startTime, setStartTime] = useState<string>("10:00"); // default 10:00 AM
+  // Multiple time options for the SAME candidate
+  const [timeOptions, setTimeOptions] = useState<TimeOption[]>([
+    { date: todayISO(), startTime: "10:00" },
+  ]);
+
+  // Shared config
   const [durationMinutes, setDurationMinutes] = useState<string>("30");
   const [locationType, setLocationType] = useState<"online" | "in_person">(
     "online",
@@ -106,7 +123,6 @@ export default function EmployerInterviewsPage() {
   const [locationDetail, setLocationDetail] = useState<string>("");
   const [maxCandidates, setMaxCandidates] = useState<string>("1");
   const [notes, setNotes] = useState<string>("");
-
 
   // Redirect if not logged in
   useEffect(() => {
@@ -226,7 +242,6 @@ export default function EmployerInterviewsPage() {
       }
 
       const data = await resp.json();
-      // Your /api/jobs employer GET returns an array
       const mapped: JobOption[] = Array.isArray(data)
         ? data.map((j: any) => ({
             id: j.id,
@@ -244,53 +259,50 @@ export default function EmployerInterviewsPage() {
   };
 
   const loadCandidatesForJob = async (jobId: number) => {
-  if (!org?.id) return;
-  try {
-    setLoadingCandidates(true);
-    const token = localStorage.getItem("bearer_token");
-    const qs = new URLSearchParams({
-      orgId: String(org.id),
-      jobId: String(jobId),
-      limit: "200",
-    });
+    if (!org?.id) return;
+    try {
+      setLoadingCandidates(true);
+      const token = localStorage.getItem("bearer_token");
+      const qs = new URLSearchParams({
+        orgId: String(org.id),
+        jobId: String(jobId),
+        limit: "200",
+      });
 
-    const resp = await fetch(`/api/applications?${qs.toString()}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+      const resp = await fetch(`/api/applications?${qs.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
 
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || "Failed to load candidates");
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to load candidates");
+      }
+
+      const data = await resp.json();
+
+      const apps = Array.isArray(data) ? data : data.applications ?? [];
+
+      const mapped: CandidateOption[] = apps.map((a: any) => ({
+        applicationId: a.id,
+        name: a.applicantName ?? null,
+        email: a.applicantEmail,
+        stage: a.stage ?? null,
+      }));
+
+      setCandidates(mapped);
+    } catch (err: any) {
+      console.error("loadCandidatesForJob error", err);
+      toast.error(err.message || "Failed to load candidates");
+    } finally {
+      setLoadingCandidates(false);
     }
+  };
 
-    const data = await resp.json();
-
-    // ✅ /api/applications returns a plain array, NOT { applications: [...] }
-    const apps = Array.isArray(data) ? data : data.applications ?? [];
-
-    const mapped: CandidateOption[] = apps.map((a: any) => ({
-      applicationId: a.id,
-      name: a.applicantName ?? null,
-      email: a.applicantEmail,
-      stage: a.stage ?? null,
-    }));
-
-    setCandidates(mapped);
-  } catch (err: any) {
-    console.error("loadCandidatesForJob error", err);
-    toast.error(err.message || "Failed to load candidates");
-  } finally {
-    setLoadingCandidates(false);
-  }
-};
-
-
-    const resetCreateForm = () => {
+  const resetCreateForm = () => {
     setSelectedJobId("");
     setSelectedApplicationId("");
     setCandidates([]);
-    setDate(new Date().toISOString().slice(0, 10)); // reset to today
-    setStartTime("10:00"); // reset to default start time
+    setTimeOptions([{ date: todayISO(), startTime: "10:00" }]);
     setDurationMinutes("30");
     setLocationType("online");
     setLocationDetail("");
@@ -298,6 +310,28 @@ export default function EmployerInterviewsPage() {
     setNotes("");
   };
 
+  const handleAddTimeOption = () => {
+    setTimeOptions((prev) => [
+      ...prev,
+      { date: todayISO(), startTime: "10:00" },
+    ]);
+  };
+
+  const handleRemoveTimeOption = (index: number) => {
+    setTimeOptions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateTimeOption = (
+    index: number,
+    field: keyof TimeOption,
+    value: string,
+  ) => {
+    setTimeOptions((prev) =>
+      prev.map((opt, i) =>
+        i === index ? { ...opt, [field]: value } : opt,
+      ),
+    );
+  };
 
   const handleCreateSlot = async () => {
     if (!org?.id) {
@@ -315,11 +349,6 @@ export default function EmployerInterviewsPage() {
       return;
     }
 
-    if (!date || !startTime) {
-      toast.error("Please select a date and start time");
-      return;
-    }
-
     const duration = parseInt(durationMinutes, 10);
     if (isNaN(duration) || duration <= 0) {
       toast.error("Duration must be a positive number of minutes");
@@ -332,57 +361,74 @@ export default function EmployerInterviewsPage() {
       return;
     }
 
-    // Construct ISO datetimes from date + time
-    const start = new Date(`${date}T${startTime}:00`);
-    if (isNaN(start.getTime())) {
-      toast.error("Invalid date or time");
+    const validOptions = timeOptions.filter(
+      (opt) => opt.date && opt.startTime,
+    );
+
+    if (validOptions.length === 0) {
+      toast.error("Please add at least one date and start time");
       return;
     }
-    const end = new Date(start.getTime() + duration * 60 * 1000);
 
     try {
       setCreating(true);
       const token = localStorage.getItem("bearer_token");
 
-      const body = {
-        orgId: org.id,
-        jobId: Number(selectedJobId),
-        applicationId: Number(selectedApplicationId),
-        startAt: start.toISOString(),
-        endAt: end.toISOString(),
-        locationType,
-        locationDetail: locationDetail || null,
-        maxCandidates: maxCand,
-        notes: notes || null,
-      };
+      const createdSlots: InterviewSlot[] = [];
 
-      const resp = await fetch("/api/interviews/slots", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(body),
-      });
+      for (const opt of validOptions) {
+        const start = new Date(`${opt.date}T${opt.startTime}:00`);
+        if (isNaN(start.getTime())) {
+          throw new Error("Invalid date or time in one of the options");
+        }
+        const end = new Date(start.getTime() + duration * 60 * 1000);
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to create slot");
+        const body = {
+          orgId: org.id,
+          jobId: Number(selectedJobId),
+          applicationId: Number(selectedApplicationId),
+          startAt: start.toISOString(),
+          endAt: end.toISOString(),
+          locationType,
+          locationDetail: locationDetail || null,
+          maxCandidates: maxCand,
+          notes: notes || null,
+        };
+
+        const resp = await fetch("/api/interviews/slots", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to create one of the slots");
+        }
+
+        const data = await resp.json();
+        if (data.slot) {
+          createdSlots.push(data.slot as InterviewSlot);
+        }
       }
 
-      const data = await resp.json();
-      toast.success("Interview slot created");
+      if (createdSlots.length > 0) {
+        toast.success(
+          `Created ${createdSlots.length} interview option${
+            createdSlots.length > 1 ? "s" : ""
+          }`,
+        );
+        setSlots((prev) => [...createdSlots, ...prev]);
+      }
+
       resetCreateForm();
       setIsCreateOpen(false);
-
-      if (data.slot) {
-        setSlots((prev) => [data.slot, ...prev]);
-      } else {
-        fetchSlots();
-      }
     } catch (err: any) {
       console.error("handleCreateSlot error", err);
-      toast.error(err.message || "Failed to create slot");
+      toast.error(err.message || "Failed to create interview slots");
     } finally {
       setCreating(false);
     }
@@ -438,7 +484,8 @@ export default function EmployerInterviewsPage() {
                   </span>
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Create and manage candidate-specific interview time slots.
+                  Send candidate-specific interview time options and track their
+                  bookings.
                 </p>
               </div>
 
@@ -460,7 +507,7 @@ export default function EmployerInterviewsPage() {
                   className="flex items-center gap-2 text-sm"
                 >
                   <Clock className="w-4 h-4" />
-                  {isCreateOpen ? "Close form" : "New time slot"}
+                  {isCreateOpen ? "Close form" : "New time options"}
                 </Button>
               </div>
             </div>
@@ -471,10 +518,11 @@ export default function EmployerInterviewsPage() {
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-1">
                     <h2 className="text-md font-semibold text-gray-900">
-                      Create a new interview slot
+                      Create interview time options
                     </h2>
                     <p className="text-sm text-gray-500">
-                      Pick a job, candidate, date, time, and how the interview will run.
+                      Pick a job, candidate, and one or more times to invite
+                      them for an interview.
                     </p>
                   </div>
                 </div>
@@ -550,28 +598,88 @@ export default function EmployerInterviewsPage() {
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-gray-700">
-                      Date
-                    </label>
-                    <Input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                    />
+                  {/* Time options (multiple rows) */}
+                  <div className="space-y-3 md:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-gray-700">
+                        Time options
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={handleAddTimeOption}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <PlusCircle className="w-3 h-3 mr-1" />
+                        Add another time
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {timeOptions.map((opt, index) => (
+                        <div
+                          key={index}
+                          className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end"
+                        >
+                          <div className="space-y-2">
+                            <label className="block text-[11px] font-medium text-gray-700">
+                              Date
+                            </label>
+                            <Input
+                              type="date"
+                              value={opt.date}
+                              onChange={(e) =>
+                                handleUpdateTimeOption(
+                                  index,
+                                  "date",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-[11px] font-medium text-gray-700">
+                              Start time
+                            </label>
+                            <Input
+                              type="time"
+                              value={opt.startTime}
+                              onChange={(e) =>
+                                handleUpdateTimeOption(
+                                  index,
+                                  "startTime",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </div>
+
+                          <div className="flex md:justify-end">
+                            {timeOptions.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleRemoveTimeOption(index)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-[11px] text-gray-400">
+                      We&apos;ll create one invited slot for each time option,
+                      all tied to this candidate and job.
+                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-gray-700">
-                      Start time
-                    </label>
-                    <Input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                    />
-                  </div>
-
+                  {/* Duration */}
                   <div className="space-y-2">
                     <label className="block text-xs font-medium text-gray-700">
                       Duration (minutes)
@@ -584,6 +692,7 @@ export default function EmployerInterviewsPage() {
                     />
                   </div>
 
+                  {/* Location type */}
                   <div className="space-y-2">
                     <label className="block text-xs font-medium text-gray-700">
                       Location type
@@ -604,6 +713,7 @@ export default function EmployerInterviewsPage() {
                     </Select>
                   </div>
 
+                  {/* Location detail */}
                   <div className="space-y-2">
                     <label className="block text-xs font-medium text-gray-700">
                       Location detail
@@ -619,6 +729,7 @@ export default function EmployerInterviewsPage() {
                     />
                   </div>
 
+                  {/* Max candidates (still per-candidate = 1 but we keep field for future) */}
                   <div className="space-y-2">
                     <label className="block text-xs font-medium text-gray-700">
                       Max candidates
@@ -634,6 +745,7 @@ export default function EmployerInterviewsPage() {
                     </p>
                   </div>
 
+                  {/* Notes */}
                   <div className="space-y-2 md:col-span-2">
                     <label className="block text-xs font-medium text-gray-700">
                       Notes (optional)
@@ -663,7 +775,7 @@ export default function EmployerInterviewsPage() {
                     onClick={handleCreateSlot}
                     disabled={creating}
                   >
-                    {creating ? "Creating..." : "Create slot"}
+                    {creating ? "Creating..." : "Create time options"}
                   </Button>
                 </div>
               </div>
@@ -693,8 +805,8 @@ export default function EmployerInterviewsPage() {
                     <p className="mb-2">No interview slots yet.</p>
                     <p>
                       Use the{" "}
-                      <span className="font-medium">New time slot</span> form above to
-                      create your first candidate-specific slot.
+                      <span className="font-medium">New time options</span> form
+                      above to create your first candidate-specific options.
                     </p>
                   </div>
                 ) : (
@@ -721,7 +833,9 @@ export default function EmployerInterviewsPage() {
                             <span className="inline-flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
                               {slot.locationType.toUpperCase()}{" "}
-                              {slot.locationDetail ? `· ${slot.locationDetail}` : ""}
+                              {slot.locationDetail
+                                ? `· ${slot.locationDetail}`
+                                : ""}
                             </span>
                             <span>
                               Max candidates:{" "}
@@ -738,7 +852,9 @@ export default function EmployerInterviewsPage() {
                             {slot.jobId && !slot.jobTitle && (
                               <span className="text-gray-400">
                                 Job ID:{" "}
-                                <span className="font-medium">{slot.jobId}</span>
+                                <span className="font-medium">
+                                  {slot.jobId}
+                                </span>
                               </span>
                             )}
                           </div>

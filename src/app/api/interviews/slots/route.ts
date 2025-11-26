@@ -7,7 +7,7 @@ import {
   users,
   jobs,
 } from "@/db/schema-pg";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       endAt,
       locationType = "online",
       locationDetail,
-      maxCandidates, // ignored in Model B; we force 1
+      maxCandidates, // we’ll still force 1 for now
       notes,
     } = body || {};
 
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Model B: per-candidate slot → application required
+    // Per-candidate invite: application is required
     if (!applicationId || Number.isNaN(applicationIdInt)) {
       return NextResponse.json(
         { error: "applicationId is required for per-candidate slots" },
@@ -150,9 +150,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // (Optional) sanity check that this application belongs to the same job
+    // Optional sanity-check that this application belongs to the same job
     if (jobIdInt && applicationRow.jobId && applicationRow.jobId !== jobIdInt) {
-      // not fatal, but better to block bad data
       return NextResponse.json(
         { error: "Application does not belong to this job" },
         { status: 400 },
@@ -168,7 +167,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Insert slot – per-candidate, so maxCandidates = 1 & status "booked"
+    // 🔵 Step 1: Insert slot as an OPEN invite (awaiting candidate booking)
     const [insertedSlot] = await db
       .insert(interviewSlots)
       .values({
@@ -179,13 +178,13 @@ export async function POST(req: NextRequest) {
         endAt: end,
         locationType,
         locationDetail: locationDetail ?? null,
-        maxCandidates: 1,
-        status: "booked",
+        maxCandidates: 1, // per-candidate
+        status: "open",    // <- key change: slot is open, not booked yet
         notes: notes ?? null,
       })
       .returning();
 
-    // Link slot to application via interviewBookings
+    // 🔵 Step 2: Create an INVITED booking for that specific application
     const [insertedBooking] = await db
       .insert(interviewBookings)
       .values({
@@ -193,11 +192,12 @@ export async function POST(req: NextRequest) {
         applicationId: applicationIdInt,
         applicantUserId: applicationRow.applicantUserId ?? null,
         applicantEmail: applicationRow.applicantEmail,
-        status: "confirmed",
+        status: "invited", // <- important: this is an invitation, not confirmed
         notes: null,
       })
       .returning();
 
+    // Response enriched with candidate meta (for employer UI)
     return NextResponse.json(
       {
         slot: {
