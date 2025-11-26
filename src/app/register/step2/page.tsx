@@ -134,18 +134,18 @@ function RegisterStep2Inner() {
   }
 
   return (
-    <div className="min-h-screen flex relative">
+    <div className="min-h-screen flex flex-col md:flex-row relative">
       {/* Back Button */}
       <Link
         href="/register"
-        className="absolute top-6 left-6 z-10 flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
+        className="absolute top-4 left-4 md:top-6 md:left-6 z-10 flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
       >
         <ArrowLeft className="w-5 h-5" />
-        <span className="font-medium">Back</span>
+        <span className="font-medium hidden sm:inline">Back</span>
       </Link>
 
       {/* Left Side - Background Image */}
-      <div className="w-1/2 h-screen relative overflow-hidden">
+      <div className="w-full md:w-1/2 h-48 md:h-screen relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-no-repeat"
           style={{
@@ -154,7 +154,7 @@ function RegisterStep2Inner() {
           }}
         />
         {/* Logo in top right corner */}
-        <div className="absolute top-6 right-6 z-10">
+        <div className="absolute top-4 right-4 md:top-6 md:right-6 z-10">
           <Image
             src="/images/talentflow-logo.svg"
             alt="Connectra logo"
@@ -168,8 +168,8 @@ function RegisterStep2Inner() {
       </div>
 
       {/* Right Side - Basic Information Form */}
-      <div className="w-1/2 h-screen flex items-center justify-center bg-white">
-        <div className="w-full max-w-md px-6">
+      <div className="w-full md:w-1/2 min-h-[calc(100vh-12rem)] md:h-screen flex items-center justify-center bg-white py-8 md:py-0">
+        <div className="w-full max-w-md px-4 sm:px-6">
           {/* Card Container */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 space-y-6">
             {/* Header */}
