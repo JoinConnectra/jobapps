@@ -4,16 +4,16 @@ import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "Connectra",
-  description: "Connectra - Smart hiring & university talent platform",
+  description: "Connectra connects employers, universities, and students through an intelligent hiring platform. Streamline recruitment, manage talent pipelines, and discover the perfect match between companies and university graduates.",
   icons: {
-    icon: "/images/talentflow-logo.svg",
-    shortcut: "/images/talentflow-logo.svg",
-    apple: "/images/talentflow-logo.svg",
+    icon: "/images/connectra-logo.png",
+    shortcut: "/images/connectra-logo.png",
+    apple: "/images/connectra-logo.png",
   },
   openGraph: {
     title: "Connectra",
-    description: "Connectra - Smart hiring & university talent platform",
-    images: ["/images/talentflow-logo.svg"],
+    description: "Connectra connects employers, universities, and students through an intelligent hiring platform. Streamline recruitment, manage talent pipelines, and discover the perfect match between companies and university graduates.",
+    images: ["/images/connectra-logo.png"],
   },
 };
 
