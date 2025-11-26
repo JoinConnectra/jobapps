@@ -53,6 +53,7 @@
         "@tsparticles/react": "^3.0.0",
         "@tsparticles/slim": "^3.8.1",
         "@uiw/react-codemirror": "^4.25.3",
+        "@vercel/analytics": "^1.5.0",
         "atmn": "^0.0.24",
         "autumn-js": "^0.1.40",
         "bcrypt": "^6.0.0",

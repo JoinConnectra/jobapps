@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "Connectra",
@@ -27,6 +28,7 @@ export default function RootLayout({
       <body className="antialiased">
         {children}
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );
