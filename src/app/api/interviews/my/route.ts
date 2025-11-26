@@ -1,29 +1,40 @@
+// /src/app/api/interviews/my/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
-  applications,
   interviewBookings,
   interviewSlots,
   jobs,
   organizations,
+  users,
 } from "@/db/schema-pg";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, isNull } from "drizzle-orm";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const applicantUserIdParam = searchParams.get("applicantUserId");
-
-  if (!applicantUserIdParam) {
-    // TODO: replace with session-based user id
-    return NextResponse.json(
-      { error: "applicantUserId is required for now" },
-      { status: 400 },
-    );
-  }
-
-  const applicantUserId = Number(applicantUserIdParam);
-
   try {
+    // ✅ Use session to resolve the current user
+    const sessionUser = await getCurrentUser(req);
+    if (!sessionUser?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const [dbUser] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.email, sessionUser.email))
+      .limit(1);
+
+    if (!dbUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 401 });
+    }
+
+    // ✅ Fetch all bookings for this user:
+    //  - either matching applicantUserId
+    //  - or legacy bookings where applicantUserId is null but email matches
     const rows = await db
       .select({
         bookingId: interviewBookings.id,
@@ -43,7 +54,15 @@ export async function GET(req: NextRequest) {
       )
       .leftJoin(jobs, eq(interviewSlots.jobId, jobs.id))
       .leftJoin(organizations, eq(interviewSlots.orgId, organizations.id))
-      .where(eq(interviewBookings.applicantUserId, applicantUserId));
+      .where(
+        or(
+          eq(interviewBookings.applicantUserId, dbUser.id),
+          and(
+            isNull(interviewBookings.applicantUserId),
+            eq(interviewBookings.applicantEmail, dbUser.email),
+          ),
+        ),
+      );
 
     return NextResponse.json({ interviews: rows });
   } catch (err) {

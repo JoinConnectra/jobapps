@@ -1,3 +1,4 @@
+// /src/app/student/dashboard/interviews/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -19,16 +20,30 @@ type StudentInterview = {
 export default function StudentInterviewsPage() {
   const [items, setItems] = useState<StudentInterview[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch("/api/interviews/my");
-        if (!res.ok) throw new Error("Failed to load interviews");
+
+        if (res.status === 401) {
+          setErrorMsg("Please sign in to see your interviews.");
+          setItems([]);
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error("Failed to load interviews");
+        }
+
         const data = await res.json();
         setItems(data.interviews ?? []);
       } catch (err) {
-        console.error(err);
+        console.error("StudentInterviewsPage error", err);
+        if (!errorMsg) {
+          setErrorMsg("Failed to load interviews.");
+        }
       } finally {
         setLoading(false);
       }
@@ -56,6 +71,8 @@ export default function StudentInterviewsPage() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
+          ) : errorMsg ? (
+            <p className="text-sm text-muted-foreground">{errorMsg}</p>
           ) : items.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               You don&apos;t have any interviews scheduled yet.
