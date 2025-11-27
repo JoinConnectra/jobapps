@@ -32,7 +32,7 @@ interface Job {
 interface Question {
   id: number;
   prompt: string;
-  kind?: "voice" | "text";
+  kind?: "voice" | "text" | "yesno";
   maxSec: number;
   maxChars?: number | null;
   required: boolean;
@@ -51,7 +51,7 @@ interface TextAnswerState {
   text: string;
 }
 
-// ADDED: helper to coerce date-like strings to YYYY-MM-DD for <input type="date">
+// helper to coerce date-like strings to YYYY-MM-DD for <input type="date">
 function toDateInputValue(v: any): string {
   if (!v) return "";
   const s = String(v);
@@ -123,7 +123,7 @@ export default function StudentApplyPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // ADDED: one-time guard so profile prefill runs once
+  // one-time guard so profile prefill runs once
   const [prefilled, setPrefilled] = useState(false);
 
   useEffect(() => {
@@ -131,7 +131,7 @@ export default function StudentApplyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  // ADDED: fetch student profile to prefill the form once
+  // fetch student profile to prefill the form once
   useEffect(() => {
     (async () => {
       if (prefilled) return;
@@ -142,12 +142,12 @@ export default function StudentApplyPage() {
 
         // basic user
         setApplicantName((v) => v || p?.name || "");
-        setApplicantEmail((v) => v || p?.email || ""); // email may be present in your API (add if not)
+        setApplicantEmail((v) => v || p?.email || "");
         setPhone((v) => v || p?.phone || "");
 
         // standard profile → defaults
         setWhatsapp((v) => v || p?.whatsapp || "");
-        setLocation((v) => v || p?.location || ""); // freeform (your API may not set this; safe no-op)
+        setLocation((v) => v || p?.location || "");
         setCity((v) => v || p?.locationCity || "");
         setProvince((v) => v || p?.province || "");
         setCnic((v) => v || p?.cnic || "");
@@ -158,10 +158,18 @@ export default function StudentApplyPage() {
 
         setWorkAuth((v) => v || p?.workAuth || "");
         setNeedSponsorship((v) =>
-          v === null ? (p?.needSponsorship === null || p?.needSponsorship === undefined ? null : !!p.needSponsorship) : v
+          v === null
+            ? p?.needSponsorship === null || p?.needSponsorship === undefined
+              ? null
+              : !!p.needSponsorship
+            : v
         );
         setWillingRelocate((v) =>
-          v === null ? (p?.willingRelocate === null || p?.willingRelocate === undefined ? null : !!p.willingRelocate) : v
+          v === null
+            ? p?.willingRelocate === null || p?.willingRelocate === undefined
+              ? null
+              : !!p.willingRelocate
+            : v
         );
         setRemotePref((v) => v || p?.remotePref || "");
         setEarliestStart((v) => v || toDateInputValue(p?.earliestStart));
@@ -175,9 +183,6 @@ export default function StudentApplyPage() {
         setExperienceYears((v) =>
           v || (p?.experienceYears != null ? String(p.experienceYears) : "")
         );
-
-        // education snapshot seed (if you want to use first education row you can extend GET to return it)
-        // we already show manual fields here; if your GET returns educations, you can seed from there on the client
 
         setPrefilled(true);
       } catch (e) {
@@ -207,10 +212,10 @@ export default function StudentApplyPage() {
 
       const questionsResponse = await fetch(`/api/jobs/${params.id}/questions`);
       if (questionsResponse.ok) {
-        const questionsData = await questionsResponse.json();
+        const questionsData: Question[] = await questionsResponse.json();
         setQuestions(questionsData);
         setVoiceAnswers(
-          questionsData.map((q: Question) => ({
+          questionsData.map((q) => ({
             questionId: q.id,
             blob: null,
             duration: 0,
@@ -218,7 +223,7 @@ export default function StudentApplyPage() {
           }))
         );
         setTextAnswers(
-          questionsData.map((q: Question) => ({
+          questionsData.map((q) => ({
             questionId: q.id,
             text: "",
           }))
@@ -328,11 +333,16 @@ export default function StudentApplyPage() {
       return;
     }
 
+    // Required question validation for text + yes/no
     const missingAnswers = questions.filter((q, idx) => {
       if (!q.required) return false;
-      if (q.kind === "text") return !textAnswers[idx]?.text?.trim();
-      return false; // voice never blocks submit
+      if (q.kind === "text" || q.kind === "yesno") {
+        return !textAnswers[idx]?.text?.trim();
+      }
+      // voice questions do not block submission
+      return false;
     });
+
     if (missingAnswers.length > 0) {
       toast.error("Please answer all required questions");
       return;
@@ -378,7 +388,7 @@ export default function StudentApplyPage() {
           gpa: gpa || null,
           gpaScale: gpaScale || null,
 
-          coverLetter: coverLetter.trim() || null, // API will ignore if column not present
+          coverLetter: coverLetter.trim() || null,
           source: "student-portal",
         }),
       });
@@ -398,7 +408,8 @@ export default function StudentApplyPage() {
       // 3) Persist answers
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
-        if (q.kind === "text") {
+
+        if (q.kind === "text" || q.kind === "yesno") {
           const ta = textAnswers[i];
           if (ta?.text?.trim()) {
             await fetch("/api/answers", {
@@ -407,11 +418,12 @@ export default function StudentApplyPage() {
               body: JSON.stringify({
                 applicationId: application.id,
                 questionId: q.id,
-                textAnswer: ta.text.trim(),
+                textAnswer: ta.text.trim(), // "yes"/"no" or free text
               }),
             });
           }
         } else {
+          // voice (or default)
           const va = voiceAnswers[i];
           if (va?.blob) {
             const formData = new FormData();
@@ -447,7 +459,9 @@ export default function StudentApplyPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground mb-2">Job not found</h1>
-          <p className="text-muted-foreground">This job posting may have been removed or doesn't exist.</p>
+          <p className="text-muted-foreground">
+            This job posting may have been removed or doesn&apos;t exist.
+          </p>
         </div>
       </div>
     );
@@ -483,12 +497,19 @@ export default function StudentApplyPage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Applicant Info */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
-              <h2 className="text-2xl font-display font-bold text-foreground mb-6">Your Information</h2>
+              <h2 className="text-2xl font-display font-bold text-foreground mb-6">
+                Your Information
+              </h2>
 
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="name">Full Name *</Label>
-                  <Input id="name" value={applicantName} onChange={(e) => setApplicantName(e.target.value)} required />
+                  <Input
+                    id="name"
+                    value={applicantName}
+                    onChange={(e) => setApplicantName(e.target.value)}
+                    required
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -517,23 +538,43 @@ export default function StudentApplyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="whatsapp">WhatsApp (optional)</Label>
-                    <Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+92 3XX XXX XXXX" />
+                    <Input
+                      id="whatsapp"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      placeholder="+92 3XX XXX XXXX"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="cnic">CNIC (optional)</Label>
-                    <Input id="cnic" value={cnic} onChange={(e) => setCnic(e.target.value)} placeholder="35101XXXXXXXXX" />
+                    <Input
+                      id="cnic"
+                      value={cnic}
+                      onChange={(e) => setCnic(e.target.value)}
+                      placeholder="35101XXXXXXXXX"
+                    />
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor="location">Location (freeform)</Label>
-                  <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., DHA, Lahore" />
+                  <Input
+                    id="location"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g., DHA, Lahore"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="city">City</Label>
-                    <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Lahore / Karachi / Islamabad …" />
+                    <Input
+                      id="city"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Lahore / Karachi / Islamabad …"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="province">Province / Territory</Label>
@@ -558,13 +599,23 @@ export default function StudentApplyPage() {
                   </div>
                   <div>
                     <Label htmlFor="portfolio">Portfolio / Website</Label>
-                    <Input id="portfolio" value={portfolioUrl} onChange={(e) => setPortfolioUrl(e.target.value)} placeholder="https://your.site" />
+                    <Input
+                      id="portfolio"
+                      value={portfolioUrl}
+                      onChange={(e) => setPortfolioUrl(e.target.value)}
+                      placeholder="https://your.site"
+                    />
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor="github">GitHub (optional)</Label>
-                  <Input id="github" value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/username" />
+                  <Input
+                    id="github"
+                    value={githubUrl}
+                    onChange={(e) => setGithubUrl(e.target.value)}
+                    placeholder="https://github.com/username"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -578,19 +629,37 @@ export default function StudentApplyPage() {
                     >
                       <option value="">Select…</option>
                       <option value="Citizen/PR">Citizen / Permanent Resident</option>
-                      <option value="Authorized (no sponsorship)">Authorized (no sponsorship)</option>
+                      <option value="Authorized (no sponsorship)">
+                        Authorized (no sponsorship)
+                      </option>
                       <option value="Needs sponsorship">Needs sponsorship</option>
-                      <option value="Other / Not specified">Other / Not specified</option>
+                      <option value="Other / Not specified">
+                        Other / Not specified
+                      </option>
                     </select>
                   </div>
 
                   <div>
-                    <Label htmlFor="needSponsorship">Require Future Sponsorship?</Label>
+                    <Label htmlFor="needSponsorship">
+                      Require Future Sponsorship?
+                    </Label>
                     <select
                       id="needSponsorship"
                       className="w-full border border-border rounded-lg h-10 px-3 bg-white"
-                      value={needSponsorship === null ? "" : needSponsorship ? "yes" : "no"}
-                      onChange={(e) => setNeedSponsorship(e.target.value === "" ? null : e.target.value === "yes")}
+                      value={
+                        needSponsorship === null
+                          ? ""
+                          : needSponsorship
+                          ? "yes"
+                          : "no"
+                      }
+                      onChange={(e) =>
+                        setNeedSponsorship(
+                          e.target.value === ""
+                            ? null
+                            : e.target.value === "yes"
+                        )
+                      }
                     >
                       <option value="">Select…</option>
                       <option value="yes">Yes</option>
@@ -605,8 +674,20 @@ export default function StudentApplyPage() {
                     <select
                       id="relocate"
                       className="w-full border border-border rounded-lg h-10 px-3 bg-white"
-                      value={willingRelocate === null ? "" : willingRelocate ? "yes" : "no"}
-                      onChange={(e) => setWillingRelocate(e.target.value === "" ? null : e.target.value === "yes")}
+                      value={
+                        willingRelocate === null
+                          ? ""
+                          : willingRelocate
+                          ? "yes"
+                          : "no"
+                      }
+                      onChange={(e) =>
+                        setWillingRelocate(
+                          e.target.value === ""
+                            ? null
+                            : e.target.value === "yes"
+                        )
+                      }
                     >
                       <option value="">Select…</option>
                       <option value="yes">Yes</option>
@@ -633,11 +714,23 @@ export default function StudentApplyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="start">Earliest Start Date</Label>
-                    <Input id="start" type="date" value={earliestStart} onChange={(e) => setEarliestStart(e.target.value)} />
+                    <Input
+                      id="start"
+                      type="date"
+                      value={earliestStart}
+                      onChange={(e) => setEarliestStart(e.target.value)}
+                    />
                   </div>
                   <div>
-                    <Label htmlFor="salary">Salary Expectation (optional)</Label>
-                    <Input id="salary" value={salaryExpectation} onChange={(e) => setSalaryExpectation(e.target.value)} placeholder="PKR range or text" />
+                    <Label htmlFor="salary">
+                      Salary Expectation (optional)
+                    </Label>
+                    <Input
+                      id="salary"
+                      value={salaryExpectation}
+                      onChange={(e) => setSalaryExpectation(e.target.value)}
+                      placeholder="PKR range or text"
+                    />
                   </div>
                 </div>
 
@@ -645,15 +738,32 @@ export default function StudentApplyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="expYears">Experience (years)</Label>
-                    <Input id="expYears" value={experienceYears} onChange={(e) => setExperienceYears(e.target.value)} placeholder="e.g., 2.5" />
+                    <Input
+                      id="expYears"
+                      value={experienceYears}
+                      onChange={(e) => setExperienceYears(e.target.value)}
+                      placeholder="e.g., 2.5"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="expectedPkr">Expected Salary (PKR)</Label>
-                    <Input id="expectedPkr" type="number" value={expectedSalaryPkr} onChange={(e) => setExpectedSalaryPkr(e.target.value)} placeholder="e.g., 150000" />
+                    <Input
+                      id="expectedPkr"
+                      type="number"
+                      value={expectedSalaryPkr}
+                      onChange={(e) => setExpectedSalaryPkr(e.target.value)}
+                      placeholder="e.g., 150000"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="notice">Notice Period (days)</Label>
-                    <Input id="notice" type="number" value={noticePeriodDays} onChange={(e) => setNoticePeriodDays(e.target.value)} placeholder="e.g., 30" />
+                    <Input
+                      id="notice"
+                      type="number"
+                      value={noticePeriodDays}
+                      onChange={(e) => setNoticePeriodDays(e.target.value)}
+                      placeholder="e.g., 30"
+                    />
                   </div>
                 </div>
 
@@ -661,32 +771,65 @@ export default function StudentApplyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="university">University</Label>
-                    <Input id="university" value={university} onChange={(e) => setUniversity(e.target.value)} placeholder="e.g., LUMS, NUST, FAST, IBA…" />
+                    <Input
+                      id="university"
+                      value={university}
+                      onChange={(e) => setUniversity(e.target.value)}
+                      placeholder="e.g., LUMS, NUST, FAST, IBA…"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="degree">Degree</Label>
-                    <Input id="degree" value={degree} onChange={(e) => setDegree(e.target.value)} placeholder="e.g., BS CS, BBA, MS Data Science" />
+                    <Input
+                      id="degree"
+                      value={degree}
+                      onChange={(e) => setDegree(e.target.value)}
+                      placeholder="e.g., BS CS, BBA, MS Data Science"
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="gradYear">Graduation Year</Label>
-                    <Input id="gradYear" type="number" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} placeholder="e.g., 2024" />
+                    <Input
+                      id="gradYear"
+                      type="number"
+                      value={graduationYear}
+                      onChange={(e) => setGraduationYear(e.target.value)}
+                      placeholder="e.g., 2024"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="gpa">GPA / CGPA</Label>
-                    <Input id="gpa" value={gpa} onChange={(e) => setGpa(e.target.value)} placeholder="e.g., 3.45" />
+                    <Input
+                      id="gpa"
+                      value={gpa}
+                      onChange={(e) => setGpa(e.target.value)}
+                      placeholder="e.g., 3.45"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="gpaScale">GPA Scale</Label>
-                    <Input id="gpaScale" value={gpaScale} onChange={(e) => setGpaScale(e.target.value)} placeholder="4.0 / 5.0 / 100%" />
+                    <Input
+                      id="gpaScale"
+                      value={gpaScale}
+                      onChange={(e) => setGpaScale(e.target.value)}
+                      placeholder="4.0 / 5.0 / 100%"
+                    />
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor="resume">Resume (optional)</Label>
-                  <Input id="resume" type="file" accept=".pdf,.doc,.docx" onChange={(e) => setResume(e.target.files?.[0] || null)} />
+                  <Input
+                    id="resume"
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={(e) =>
+                      setResume(e.target.files?.[0] || null)
+                    }
+                  />
                 </div>
 
                 <div>
@@ -705,9 +848,12 @@ export default function StudentApplyPage() {
 
             {/* Questions */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
-              <h2 className="text-2xl font-display font-bold text-foreground mb-2">Questions</h2>
+              <h2 className="text-2xl font-display font-bold text-foreground mb-2">
+                Questions
+              </h2>
               <p className="text-muted-foreground mb-6">
-                Answer the questions below. Some may require a voice recording; others a written answer.
+                Answer the questions below. Some may require a voice recording;
+                others a written or yes/no answer.
               </p>
 
               <div className="space-y-6">
@@ -715,27 +861,51 @@ export default function StudentApplyPage() {
                   const answer = voiceAnswers[index];
                   const hasRecording = answer?.blob !== null;
 
+                  const isText = question.kind === "text";
+                  const isYesNo = question.kind === "yesno";
+                  const isVoice =
+                    !question.kind || question.kind === "voice";
+
+                  const currentText = textAnswers[index]?.text || "";
+
                   return (
-                    <div key={question.id} className="p-6 border-2 border-border rounded-lg">
+                    <div
+                      key={question.id}
+                      className="p-6 border-2 border-border rounded-lg"
+                    >
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h3 className="font-semibold text-foreground mb-1">
                             Question {index + 1}
-                            {question.required && <span className="text-destructive ml-1">*</span>}
+                            {question.required && (
+                              <span className="text-destructive ml-1">
+                                *
+                              </span>
+                            )}
                           </h3>
-                          <p className="text-muted-foreground">{question.prompt}</p>
+                          <p className="text-muted-foreground">
+                            {question.prompt}
+                          </p>
                         </div>
-                        {question.kind === "text" ? (
-                          <span className="text-xs bg-muted px-2 py-1 rounded">Text</span>
+                        {isText ? (
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            Text
+                          </span>
+                        ) : isYesNo ? (
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            Yes / No
+                          </span>
                         ) : (
-                          <span className="text-xs bg-muted px-2 py-1 rounded">Max {question.maxSec}s</span>
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            Max {question.maxSec}s
+                          </span>
                         )}
                       </div>
 
-                      {question.kind === "text" ? (
+                      {isText ? (
                         <div>
                           <textarea
-                            value={textAnswers[index]?.text || ""}
+                            value={currentText}
                             onChange={(e) => {
                               const updated = [...textAnswers];
                               updated[index] = {
@@ -751,9 +921,45 @@ export default function StudentApplyPage() {
                           />
                           {question.maxChars ? (
                             <div className="text-xs text-muted-foreground mt-1">
-                              {(textAnswers[index]?.text?.length || 0)}/{question.maxChars} characters
+                              {currentText.length}/{question.maxChars}{" "}
+                              characters
                             </div>
                           ) : null}
+                        </div>
+                      ) : isYesNo ? (
+                        <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            variant={
+                              currentText === "yes" ? "default" : "outline"
+                            }
+                            onClick={() => {
+                              const updated = [...textAnswers];
+                              updated[index] = {
+                                questionId: question.id,
+                                text: "yes",
+                              };
+                              setTextAnswers(updated);
+                            }}
+                          >
+                            Yes
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={
+                              currentText === "no" ? "default" : "outline"
+                            }
+                            onClick={() => {
+                              const updated = [...textAnswers];
+                              updated[index] = {
+                                questionId: question.id,
+                                text: "no",
+                              };
+                              setTextAnswers(updated);
+                            }}
+                          >
+                            No
+                          </Button>
                         </div>
                       ) : !hasRecording ? (
                         <div className="space-y-3">
@@ -763,16 +969,31 @@ export default function StudentApplyPage() {
                                 <Mic className="w-8 h-8 text-white" />
                               </div>
                               <div className="text-2xl font-bold text-foreground mb-1">
-                                {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
+                                {Math.floor(recordingTime / 60)}:
+                                {(recordingTime % 60)
+                                  .toString()
+                                  .padStart(2, "0")}
                               </div>
-                              <p className="text-sm text-muted-foreground mb-4">Recording...</p>
-                              <Button type="button" variant="destructive" onClick={stopRecording} className="gap-2">
+                              <p className="text-sm text-muted-foreground mb-4">
+                                Recording...
+                              </p>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={stopRecording}
+                                className="gap-2"
+                              >
                                 <Square className="w-4 h-4" />
                                 Stop Recording
                               </Button>
                             </div>
                           ) : (
-                            <Button type="button" onClick={() => startRecording(index)} className="w-full gap-2" disabled={isRecording}>
+                            <Button
+                              type="button"
+                              onClick={() => startRecording(index)}
+                              className="w-full gap-2"
+                              disabled={isRecording}
+                            >
                               <Mic className="w-4 h-4" />
                               Start Recording
                             </Button>
@@ -783,14 +1004,26 @@ export default function StudentApplyPage() {
                           <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
                             <div className="flex items-center gap-2">
                               <CheckCircle2 className="w-5 h-5 text-green-600" />
-                              <span className="text-sm font-medium text-green-900">Recorded ({answer.duration}s)</span>
+                              <span className="text-sm font-medium text-green-900">
+                                Recorded ({answer.duration}s)
+                              </span>
                             </div>
                             {isPlaying === index ? (
-                              <Button type="button" variant="outline" size="sm" onClick={pauseAudio}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={pauseAudio}
+                              >
                                 <Pause className="w-4 h-4" />
                               </Button>
                             ) : (
-                              <Button type="button" variant="outline" size="sm" onClick={() => playAudio(index)}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => playAudio(index)}
+                              >
                                 <Play className="w-4 h-4" />
                               </Button>
                             )}
@@ -814,7 +1047,12 @@ export default function StudentApplyPage() {
 
             {/* Submit */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
-              <Button type="submit" disabled={submitting} className="w-full gap-2" size="lg">
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full gap-2"
+                size="lg"
+              >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />

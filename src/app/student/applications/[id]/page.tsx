@@ -1,3 +1,4 @@
+// src/app/student/applications/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -15,7 +16,6 @@ import {
   Download,
   FileText,
   Link as LinkIcon,
-  Loader2,
   MapPin,
   MessageSquare,
   Phone,
@@ -50,7 +50,13 @@ type Application = {
     salaryRange?: string | null;
     organization?: { name?: string | null; website?: string | null } | null;
   } | null;
-  answers?: Array<{ questionId: number; prompt: string; kind?: "text" | "voice"; answerText?: string | null; audioUrl?: string | null }>;
+  answers?: Array<{
+    questionId: number;
+    prompt: string;
+    kind?: "text" | "voice" | "yesno";
+    answerText?: string | null;
+    audioUrl?: string | null;
+  }>;
   attachments?: Array<{ name: string; url: string }>;
   timeline?: Array<{ at: string; label: string }>;
 };
@@ -244,22 +250,39 @@ export default function ApplicationDetailPage() {
             {/* Q&A / Assessments */}
             {!!data.answers?.length && (
               <section>
-                <h3 className="mb-3 text-sm font-medium text-muted-foreground">Your Responses</h3>
+                <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+                  Your Responses
+                </h3>
                 <div className="space-y-3">
-                  {data.answers.map((qa) => (
-                    <Card key={qa.questionId} className="border-muted/60">
-                      <CardContent className="space-y-2 p-4">
-                        <p className="text-sm font-medium">{qa.prompt}</p>
-                        {qa.kind === "voice" && qa.audioUrl ? (
-                          <audio controls src={qa.audioUrl} className="w-full" />
-                        ) : (
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                            {qa.answerText || "—"}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {data.answers.map((qa) => {
+                    const label =
+                      qa.kind === "voice"
+                        ? "Voice"
+                        : qa.kind === "yesno"
+                        ? "Yes / No"
+                        : "Text";
+
+                    return (
+                      <Card key={qa.questionId} className="border-muted/60">
+                        <CardContent className="space-y-2 p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium">{qa.prompt}</p>
+                            <span className="text-xs bg-muted px-2 py-1 rounded">
+                              {label}
+                            </span>
+                          </div>
+
+                          {qa.kind === "voice" && qa.audioUrl ? (
+                            <audio controls src={qa.audioUrl} className="w-full" />
+                          ) : (
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {qa.answerText || "—"}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </section>
             )}
@@ -269,7 +292,9 @@ export default function ApplicationDetailPage() {
               <>
                 <Separator />
                 <section>
-                  <h3 className="mb-3 text-sm font-medium text-muted-foreground">Attachments</h3>
+                  <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+                    Attachments
+                  </h3>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {data.attachments.map((f) => (
                       <Card key={f.url} className="border-muted/60">
@@ -303,7 +328,9 @@ export default function ApplicationDetailPage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span>
                   Applied:{" "}
-                  <strong>{data.appliedAt ? dayjs(data.appliedAt).format("MMM D, YYYY") : "—"}</strong>
+                  <strong>
+                    {data.appliedAt ? dayjs(data.appliedAt).format("MMM D, YYYY") : "—"}
+                  </strong>
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
@@ -316,7 +343,9 @@ export default function ApplicationDetailPage() {
               {data.source && (
                 <div className="flex items-center gap-2 text-sm">
                   <LinkIcon className="h-4 w-4 text-muted-foreground" />
-                  <span>Source: <strong>{data.source}</strong></span>
+                  <span>
+                    Source: <strong>{data.source}</strong>
+                  </span>
                 </div>
               )}
             </CardContent>

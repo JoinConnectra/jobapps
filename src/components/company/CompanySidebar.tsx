@@ -137,6 +137,17 @@ export default function CompanySidebar({
             className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
               active === 'events' ? 'bg-[#F5F1E8] text-gray-900' : ''
             }`}
+            onClick={() => router.push('/dashboard/interviews')}
+          >
+            <CalendarDays className="w-4 h-4 mr-3" />
+            Interviews
+          </Button>
+
+          <Button
+            variant="ghost"
+            className={`w-full justify-start text-gray-700 hover:bg-[#F5F1E8] hover:text-gray-900 ${
+              active === 'events' ? 'bg-[#F5F1E8] text-gray-900' : ''
+            }`}
             onClick={() => router.push('/dashboard/events')}
           >
             <CalendarDays className="w-4 h-4 mr-3" />

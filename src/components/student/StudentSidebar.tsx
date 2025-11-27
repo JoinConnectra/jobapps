@@ -88,8 +88,7 @@ export default function StudentSidebar() {
       { href: "/student/applications", label: "Applications", icon: FileText },
       { href: "/student/assessments", label: "Assessments", icon: ListChecks },
       { href: "/student/profile", label: "Profile", icon: GraduationCap },
-      { href: "/student/settings", label: "Settings", icon: Settings },
-      { href: "/student/help", label: "Help", icon: HelpCircle },
+      { href: "/student/interviews", label: "Interviews", icon: Settings },
     ],
     []
   );

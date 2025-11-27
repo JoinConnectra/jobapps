@@ -8,7 +8,7 @@
  * Purpose:
  * - Shows a single job’s details (title, dept, location, salary, description, status)
  * - Lets recruiters edit job metadata (inline edit mode)
- * - Manages job-specific screening Questions (voice/text) and saves new ones
+ * - Manages job-specific screening Questions (voice/text/yes-no) and saves new ones
  * - Provides quick actions: View Applications, Preview public apply URL
  * - Uses the shared left sidebar (Activities / Jobs / Assessments)
  *
@@ -17,9 +17,10 @@
  * - On mount: fetch organization (for sidebar label) and the job+questions for params.id
  * - PATCH /api/jobs/[id] when saving edits or status changes
  * - POST /api/jobs/[id]/questions to create any newly added (id-less) questions
+ * - PATCH /api/jobs/[id]/questions to update existing questions
  *
  * Notes:
- * - Existing questions are displayed; only new questions get POSTed (no update/delete API shown here)
+ * - Existing questions are displayed; only new questions get POSTed
  * - Assessments nav item routes to /dashboard/organizations/[orgId]/assessments
  */
 
@@ -30,28 +31,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
-  ListChecks,
-  Plus,
-  Trash2,
-  BarChartIcon,
   Eye,
   Users,
-  Briefcase,
-  Search,
-  HelpCircle,
-  UserPlus,
-  LogOut,
-  Bell,
   Edit,
   Save,
   X,
-  Settings,
   ChevronDown,
   ChevronUp,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import CommandPalette from "@/components/CommandPalette";
@@ -61,13 +58,13 @@ import { useCommandPalette } from "@/hooks/use-command-palette";
 
 /** UI model for a screening question on a job */
 interface Question {
-  id?: number;              // present if persisted
-  prompt: string;           // the actual question
-  kind?: "voice" | "text";  // input type
-  maxSec: number;           // for voice
-  maxChars?: number | null; // for text
-  required: boolean;        // is the question required?
-  orderIndex: number;       // sort/display order
+  id?: number; // present if persisted
+  prompt: string; // the actual question
+  kind?: "voice" | "text" | "yesno"; // input type
+  maxSec: number | null; // for voice (ignored / null for yes/no or text)
+  maxChars?: number | null; // for text (ignored / null for voice/yes-no)
+  required: boolean; // is the question required?
+  orderIndex: number; // sort/display order
 }
 
 /** Minimal job model used by this page */
@@ -78,13 +75,14 @@ interface Job {
   locationMode: string | null;
   salaryRange: string | null;
   descriptionMd: string | null;
-  status: string;     // draft | published | closed (archived)
+  status: string; // draft | published | closed (archived)
   orgId: number;
 
   // NEW optional fields shown in UI
   location?: string | null;
   seniority?: "junior" | "mid" | "senior" | null;
   skillsCsv?: string | null;
+  visibility?: "public" | "institutions" | "both" | null;
 }
 
 /** Small, dependency-free collapsible text with gradient fade + toggler */
@@ -100,7 +98,10 @@ function CollapsibleText({
   if (!text || text.trim().length === 0) return null;
 
   const needsToggle = text.length > previewChars;
-  const shown = expanded || !needsToggle ? text : text.slice(0, previewChars).trimEnd() + "…";
+  const shown =
+    expanded || !needsToggle
+      ? text
+      : text.slice(0, previewChars).trimEnd() + "…";
 
   return (
     <div className="relative">
@@ -141,7 +142,7 @@ export default function JobDetailPage() {
   // ---- Command palette ----
   const {
     isOpen: isCommandPaletteOpen,
-    open: openCommandPalette,
+    open: openCommandPalette, // currently unused but keeping for future
     close: closeCommandPalette,
   } = useCommandPalette();
 
@@ -150,10 +151,15 @@ export default function JobDetailPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatingJD, setGeneratingJD] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // organization (for sidebar brand + assessments route)
-  const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
+  const [org, setOrg] = useState<{
+    id: number;
+    name: string;
+    logoUrl?: string | null;
+  } | null>(null);
 
   // edit mode & temp edit form state
   const [editing, setEditing] = useState(false);
@@ -164,11 +170,11 @@ export default function JobDetailPage() {
     salaryRange: "",
     descriptionMd: "",
     status: "",
-
     // NEW fields mirrored for inline edit
     location: "",
     seniority: "" as "" | "junior" | "mid" | "senior",
     skillsCsv: "",
+    visibility: "public" as "public" | "institutions" | "both",
   });
 
   /**
@@ -188,6 +194,7 @@ export default function JobDetailPage() {
       fetchJobData();
       fetchOrg();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, params.id]);
 
   /**
@@ -202,7 +209,11 @@ export default function JobDetailPage() {
       if (orgResp.ok) {
         const orgs = await orgResp.json();
         if (Array.isArray(orgs) && orgs.length > 0) {
-          setOrg({ id: orgs[0].id, name: orgs[0].name, logoUrl: orgs[0].logoUrl });
+          setOrg({
+            id: orgs[0].id,
+            name: orgs[0].name,
+            logoUrl: orgs[0].logoUrl,
+          });
         }
       }
     } catch (error) {
@@ -233,22 +244,45 @@ export default function JobDetailPage() {
           salaryRange: jobData.salaryRange || "",
           descriptionMd: jobData.descriptionMd || "",
           status: jobData.status || "",
-
           // seed NEW fields
           location: jobData.location || "",
           seniority: (jobData.seniority as "junior" | "mid" | "senior") || "",
           skillsCsv: jobData.skillsCsv || "",
+          visibility:
+            (jobData.visibility as "public" | "institutions" | "both") ||
+            "public",
         });
       }
 
       // Questions
-      const questionsResponse = await fetch(`/api/jobs/${params.id}/questions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const questionsResponse = await fetch(
+        `/api/jobs/${params.id}/questions`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       if (questionsResponse.ok) {
         const questionsData = await questionsResponse.json();
-        setQuestions(questionsData);
+        const normalized: Question[] = (questionsData || []).map(
+          (q: any, idx: number) => ({
+            id: q.id,
+            prompt: q.prompt ?? "",
+            kind: q.kind ?? "voice",
+            maxSec:
+              q.maxSec === null || q.maxSec === undefined ? 120 : q.maxSec,
+            maxChars:
+              q.maxChars === null || q.maxChars === undefined
+                ? null
+                : q.maxChars,
+            required: !!q.required,
+            orderIndex:
+              q.orderIndex === null || q.orderIndex === undefined
+                ? idx
+                : q.orderIndex,
+          })
+        );
+        setQuestions(normalized);
       }
     } catch (error) {
       console.error("Failed to fetch job data:", error);
@@ -275,15 +309,58 @@ export default function JobDetailPage() {
   };
 
   /** Update a field for a question by index (pure client state until save) */
-  const updateQuestion = (index: number, field: keyof Question, value: any) => {
+  const updateQuestion = (
+    index: number,
+    field: keyof Question,
+    value: any
+  ) => {
     const updated = [...questions];
     updated[index] = { ...updated[index], [field]: value };
     setQuestions(updated);
   };
 
+  /** Update question kind, with sensible defaults for each type */
+  const updateQuestionKind = (
+    index: number,
+    nextKind: "voice" | "text" | "yesno"
+  ) => {
+    const q = questions[index];
+    const updated = [...questions];
+
+    if (nextKind === "voice") {
+      updated[index] = {
+        ...q,
+        kind: "voice",
+        maxSec: q.maxSec ?? 120,
+        maxChars: null,
+      };
+    } else if (nextKind === "text") {
+      updated[index] = {
+        ...q,
+        kind: "text",
+        maxSec: null,
+        maxChars: q.maxChars ?? 400,
+      };
+    } else {
+      // yes/no
+      updated[index] = {
+        ...q,
+        kind: "yesno",
+        maxSec: null,
+        maxChars: null,
+      };
+    }
+
+    setQuestions(updated);
+  };
+
   /** Remove a question row by index (client state only) */
   const removeQuestion = (index: number) => {
-    setQuestions(questions.filter((_, i) => i !== index));
+    setQuestions((prev) =>
+      prev
+        .filter((_, i) => i !== index)
+        .map((q, idx) => ({ ...q, orderIndex: idx }))
+    );
   };
 
   /**
@@ -303,6 +380,21 @@ export default function JobDetailPage() {
           continue;
         }
 
+        const payload = {
+          jobId: params.id,
+          questionId: question.id,
+          prompt: question.prompt.trim(),
+          kind: question.kind ?? "voice",
+          maxSec:
+            question.kind === "voice" ? question.maxSec ?? 120 : null,
+          maxChars:
+            question.kind === "text"
+              ? question.maxChars ?? 400
+              : null,
+          required: question.required,
+          orderIndex: question.orderIndex,
+        };
+
         if (!question.id) {
           // Create new question
           await fetch(`/api/jobs/${params.id}/questions`, {
@@ -311,10 +403,7 @@ export default function JobDetailPage() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({
-              jobId: params.id,
-              ...question,
-            }),
+            body: JSON.stringify(payload),
           });
         } else {
           // Update existing question
@@ -324,15 +413,7 @@ export default function JobDetailPage() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({
-              questionId: question.id,
-              prompt: question.prompt,
-              kind: question.kind,
-              maxSec: question.maxSec,
-              maxChars: question.maxChars,
-              required: question.required,
-              orderIndex: question.orderIndex,
-            }),
+            body: JSON.stringify(payload),
           });
         }
       }
@@ -363,11 +444,70 @@ export default function JobDetailPage() {
         salaryRange: job.salaryRange || "",
         descriptionMd: job.descriptionMd || "",
         status: job.status || "",
-
         location: job.location || "",
         seniority: (job.seniority as "junior" | "mid" | "senior") || "",
         skillsCsv: job.skillsCsv || "",
+        visibility:
+          (job.visibility as "public" | "institutions" | "both") ||
+          "public",
       });
+    }
+  };
+
+  /**
+   * Generate Job Description with AI (like create form)
+   * - Uses current editData fields to build prompt
+   * - Updates editData.descriptionMd (user still clicks Save to persist)
+   */
+  const handleGenerateJD = async () => {
+    if (!job) return;
+    if (!editData.title) {
+      toast.error("Enter a job title first");
+      return;
+    }
+
+    setGeneratingJD(true);
+    try {
+      const token = localStorage.getItem("bearer_token");
+
+      const prompt = `Create a comprehensive job description for a ${editData.title} position${
+        editData.dept ? ` in the ${editData.dept} department` : ""
+      }. Location mode: ${
+        editData.locationMode || "not specified"
+      }${
+        editData.location ? `, Work location: ${editData.location}` : ""
+      }${
+        editData.seniority ? `. Seniority: ${editData.seniority}` : ""
+      }${
+        editData.skillsCsv ? `. Required skills: ${editData.skillsCsv}` : ""
+      }${
+        editData.salaryRange ? `. Salary: ${editData.salaryRange}` : ""
+      }. Make it suitable for the Pakistan job market with both English and Urdu context. Provide clear responsibilities and qualifications, and a short application CTA.`;
+
+      const jdResp = await fetch("/api/ai/generate-jd", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ jobId: job.id, prompt }),
+      });
+
+      if (jdResp.ok) {
+        const jd = await jdResp.json();
+        setEditData((prev) => ({
+          ...prev,
+          descriptionMd: jd.contentMd || "",
+        }));
+        toast.success("Generated description");
+      } else {
+        toast.error("Failed to generate description");
+      }
+    } catch (error) {
+      console.error("Failed to generate JD:", error);
+      toast.error("Failed to generate description");
+    } finally {
+      setGeneratingJD(false);
     }
   };
 
@@ -384,7 +524,7 @@ export default function JobDetailPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editData), // includes new fields
+        body: JSON.stringify(editData), // includes new fields + visibility
       });
 
       if (response.ok) {
@@ -462,23 +602,30 @@ export default function JobDetailPage() {
                   Jobs
                 </Link>
                 <span className="text-gray-400">&gt;</span>
-                <span className="text-gray-900 font-medium">{job.title}</span>
+                <span className="text-gray-900 font-medium">
+                  {job.title}
+                </span>
               </nav>
             </div>
 
             {/* Job Header (view/edit) */}
             <div className="bg-white rounded-lg shadow-sm p-5 mb-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-start justify-between mb-4 gap-4">
                 {/* Left: editable fields or read-only view */}
                 <div className="flex-1">
                   {editing ? (
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-xs text-gray-500 mb-1 block">Job Title</Label>
+                        <Label className="text-xs text-gray-500 mb-1 block">
+                          Job Title
+                        </Label>
                         <Input
                           value={editData.title}
                           onChange={(e) =>
-                            setEditData({ ...editData, title: e.target.value })
+                            setEditData({
+                              ...editData,
+                              title: e.target.value,
+                            })
                           }
                           className="text-sm"
                           placeholder="Enter job title"
@@ -487,33 +634,61 @@ export default function JobDetailPage() {
 
                       <div className="grid grid-cols-3 gap-3">
                         <div>
-                          <Label className="text-xs text-gray-500 mb-1 block">Department</Label>
+                          <Label className="text-xs text-gray-500 mb-1 block">
+                            Department
+                          </Label>
                           <Input
                             value={editData.dept}
                             onChange={(e) =>
-                              setEditData({ ...editData, dept: e.target.value })
+                              setEditData({
+                                ...editData,
+                                dept: e.target.value,
+                              })
                             }
                             className="text-sm"
                             placeholder="e.g. Engineering"
                           />
                         </div>
                         <div>
-                          <Label className="text-xs text-gray-500 mb-1 block">Location Mode</Label>
-                          <Input
-                            value={editData.locationMode}
-                            onChange={(e) =>
-                              setEditData({ ...editData, locationMode: e.target.value })
+                          <Label className="text-xs text-gray-500 mb-1 block">
+                            Location Mode
+                          </Label>
+                          <Select
+                            value={editData.locationMode || ""}
+                            onValueChange={(v) =>
+                              setEditData({
+                                ...editData,
+                                locationMode: v,
+                              })
                             }
-                            className="text-sm"
-                            placeholder="e.g. Remote, Hybrid, On-site"
-                          />
+                          >
+                            <SelectTrigger className="text-sm">
+                              <SelectValue placeholder="Select mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="remote">
+                                Remote
+                              </SelectItem>
+                              <SelectItem value="hybrid">
+                                Hybrid
+                              </SelectItem>
+                              <SelectItem value="onsite">
+                                On-site
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div>
-                          <Label className="text-xs text-gray-500 mb-1 block">Salary Range</Label>
+                          <Label className="text-xs text-gray-500 mb-1 block">
+                            Salary Range
+                          </Label>
                           <Input
                             value={editData.salaryRange}
                             onChange={(e) =>
-                              setEditData({ ...editData, salaryRange: e.target.value })
+                              setEditData({
+                                ...editData,
+                                salaryRange: e.target.value,
+                              })
                             }
                             className="text-sm"
                             placeholder="e.g. PKR 150,000 - 250,000/month"
@@ -524,31 +699,48 @@ export default function JobDetailPage() {
                       {/* NEW row: Work Location + Seniority */}
                       <div className="grid grid-cols-3 gap-3">
                         <div className="col-span-2">
-                          <Label className="text-xs text-gray-500 mb-1 block">Work Location (City/Office)</Label>
+                          <Label className="text-xs text-gray-500 mb-1 block">
+                            Work Location (City/Office)
+                          </Label>
                           <Input
                             value={editData.location}
                             onChange={(e) =>
-                              setEditData({ ...editData, location: e.target.value })
+                              setEditData({
+                                ...editData,
+                                location: e.target.value,
+                              })
                             }
                             className="text-sm"
                             placeholder="e.g. Lahore, PK or DHA Phase 5 Office"
                           />
                         </div>
                         <div>
-                          <Label className="text-xs text-gray-500 mb-1 block">Seniority</Label>
+                          <Label className="text-xs text-gray-500 mb-1 block">
+                            Seniority
+                          </Label>
                           <Select
                             value={editData.seniority || ""}
                             onValueChange={(v) =>
-                              setEditData({ ...editData, seniority: v as "junior" | "mid" | "senior" })
+                              setEditData({
+                                ...editData,
+                                seniority: v as
+                                  | "junior"
+                                  | "mid"
+                                  | "senior",
+                              })
                             }
                           >
                             <SelectTrigger className="text-sm">
                               <SelectValue placeholder="Select level" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="junior">Junior</SelectItem>
+                              <SelectItem value="junior">
+                                Junior
+                              </SelectItem>
                               <SelectItem value="mid">Mid</SelectItem>
-                              <SelectItem value="senior">Senior</SelectItem>
+                              <SelectItem value="senior">
+                                Senior
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -556,23 +748,90 @@ export default function JobDetailPage() {
 
                       {/* NEW: Skills CSV */}
                       <div>
-                        <Label className="text-xs text-gray-500 mb-1 block">Required Skills (comma-separated)</Label>
+                        <Label className="text-xs text-gray-500 mb-1 block">
+                          Required Skills (comma-separated)
+                        </Label>
                         <Input
                           value={editData.skillsCsv}
                           onChange={(e) =>
-                            setEditData({ ...editData, skillsCsv: e.target.value })
+                            setEditData({
+                              ...editData,
+                              skillsCsv: e.target.value,
+                            })
                           }
                           className="text-sm"
                           placeholder="e.g. React, TypeScript, Node, Postgres"
                         />
                       </div>
 
+                      {/* NEW: Visibility */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label className="text-xs text-gray-500 mb-1 block">
+                            Visibility
+                          </Label>
+                          <Select
+                            value={editData.visibility}
+                            onValueChange={(
+                              v: "public" | "institutions" | "both"
+                            ) =>
+                              setEditData({
+                                ...editData,
+                                visibility: v,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="public">
+                                Public
+                              </SelectItem>
+                              <SelectItem value="institutions">
+                                Selected Institutions Only
+                              </SelectItem>
+                              <SelectItem value="both">
+                                Institutions + Public
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
                       <div>
-                        <Label className="text-xs text-gray-500 mb-1 block">Job Description</Label>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-xs text-gray-500 block">
+                            Job Description
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleGenerateJD}
+                            disabled={generatingJD || !editData.title}
+                            className="gap-2 text-xs"
+                          >
+                            {generatingJD ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                Generate with AI
+                              </>
+                            )}
+                          </Button>
+                        </div>
                         <Textarea
                           value={editData.descriptionMd}
                           onChange={(e) =>
-                            setEditData({ ...editData, descriptionMd: e.target.value })
+                            setEditData({
+                              ...editData,
+                              descriptionMd: e.target.value,
+                            })
                           }
                           className="text-sm min-h-[100px]"
                           placeholder="Enter job description..."
@@ -581,32 +840,53 @@ export default function JobDetailPage() {
                     </div>
                   ) : (
                     <div>
-                      <h2 className="text-lg font-medium text-gray-900 mb-1">{job.title}</h2>
+                      <h2 className="text-lg font-medium text-gray-900 mb-1">
+                        {job.title}
+                      </h2>
                       <p className="text-sm text-gray-500">
-                        {job.dept || "—"} • {job.locationMode || "—"} • {job.salaryRange || "—"}
+                        {job.dept || "—"} • {job.locationMode || "—"} •{" "}
+                        {job.salaryRange || "—"}
                       </p>
 
                       {/* NEW: quick meta row */}
-                      <div className="mt-1 text-xs text-gray-500">
-                        <span className="mr-3">
-                          <strong className="text-gray-700">Work location:</strong>{" "}
+                      <div className="mt-1 text-xs text-gray-500 space-x-3">
+                        <span>
+                          <strong className="text-gray-700">
+                            Work location:
+                          </strong>{" "}
                           {job.location || "—"}
                         </span>
-                        <span className="mr-3">
-                          <strong className="text-gray-700">Seniority:</strong>{" "}
+                        <span>
+                          <strong className="text-gray-700">
+                            Seniority:
+                          </strong>{" "}
                           {job.seniority || "—"}
                         </span>
                         {job.skillsCsv ? (
                           <span>
-                            <strong className="text-gray-700">Skills:</strong> {job.skillsCsv}
+                            <strong className="text-gray-700">
+                              Skills:
+                            </strong>{" "}
+                            {job.skillsCsv}
                           </span>
                         ) : null}
                       </div>
+                      {job.visibility && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          <strong className="text-gray-700">
+                            Visibility:
+                          </strong>{" "}
+                          {job.visibility}
+                        </div>
+                      )}
 
                       {/* DESCRIPTION: collapsible with "see more / less" */}
                       {job.descriptionMd && (
                         <div className="mt-3">
-                          <CollapsibleText text={job.descriptionMd} previewChars={400} />
+                          <CollapsibleText
+                            text={job.descriptionMd}
+                            previewChars={400}
+                          />
                         </div>
                       )}
                     </div>
@@ -614,70 +894,101 @@ export default function JobDetailPage() {
                 </div>
 
                 {/* Right: actions (edit/save/cancel + status select) */}
-                <div className="flex items-center gap-2 ml-4">
-                  {editing ? (
-                    <>
-                      <Button onClick={handleSave} disabled={saving} size="sm" className="gap-1 text-xs">
-                        <Save className="w-3 h-3" />
-                        {saving ? "Saving..." : "Save"}
-                      </Button>
-                      <Button onClick={handleCancel} variant="outline" size="sm" className="gap-1 text-xs">
-                        <X className="w-3 h-3" />
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button onClick={handleEdit} variant="outline" size="sm" className="gap-1 text-xs">
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-2">
+                    {editing ? (
+                      <>
+                        <Button
+                          onClick={handleSave}
+                          disabled={saving}
+                          size="sm"
+                          className="gap-1 text-xs"
+                        >
+                          <Save className="w-3 h-3" />
+                          {saving ? "Saving..." : "Save"}
+                        </Button>
+                        <Button
+                          onClick={handleCancel}
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs"
+                        >
+                          <X className="w-3 h-3" />
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        onClick={handleEdit}
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 text-xs"
+                      >
                         <Edit className="w-3 h-3" />
                         Edit
                       </Button>
+                    )}
 
-                      {/* Status select (saves immediately via PATCH) */}
-                      <Select
-                        value={job.status}
-                        onValueChange={async (value) => {
-                          try {
-                            const token = localStorage.getItem("bearer_token");
-                            const response = await fetch(`/api/jobs/${params.id}`, {
+                    {/* Status select (saves immediately via PATCH) */}
+                    <Select
+                      value={job.status}
+                      onValueChange={async (value) => {
+                        try {
+                          const token =
+                            localStorage.getItem("bearer_token");
+                          const response = await fetch(
+                            `/api/jobs/${params.id}`,
+                            {
                               method: "PATCH",
                               headers: {
                                 "Content-Type": "application/json",
                                 Authorization: `Bearer ${token}`,
                               },
                               body: JSON.stringify({ status: value }),
-                            });
-
-                            if (response.ok) {
-                              const updatedJob = await response.json();
-                              setJob(updatedJob);
-                              toast.success("Status updated successfully!");
-                            } else {
-                              toast.error("Failed to update status");
                             }
-                          } catch (error) {
-                            toast.error("An error occurred while updating status");
+                          );
+
+                          if (response.ok) {
+                            const updatedJob = await response.json();
+                            setJob(updatedJob);
+                            toast.success(
+                              "Status updated successfully!"
+                            );
+                          } else {
+                            toast.error("Failed to update status");
                           }
-                        }}
-                      >
-                        <SelectTrigger className="w-32 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="draft">Draft</SelectItem>
-                          <SelectItem value="published">Published</SelectItem>
-                          <SelectItem value="closed">Archived</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </>
-                  )}
+                        } catch (error) {
+                          toast.error(
+                            "An error occurred while updating status"
+                          );
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-32 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="published">
+                          Published
+                        </SelectItem>
+                        <SelectItem value="closed">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
               {/* Header actions: view applications + preview public page */}
               <div className="flex gap-3">
-                <Link href={`/dashboard/jobs/${job.id}/applications`} className="flex-1">
-                  <Button variant="outline" className="w-full gap-2 text-sm">
+                <Link
+                  href={`/dashboard/jobs/${job.id}/applications`}
+                  className="flex-1"
+                >
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 text-sm"
+                  >
                     <Users className="w-4 h-4" />
                     View Applications
                   </Button>
@@ -685,7 +996,9 @@ export default function JobDetailPage() {
                 <Button
                   variant="outline"
                   className="gap-2 text-sm"
-                  onClick={() => window.open(applicationUrl, "_blank")}
+                  onClick={() =>
+                    window.open(applicationUrl, "_blank", "noopener")
+                  }
                 >
                   <Eye className="w-4 h-4" />
                   Preview
@@ -709,29 +1022,40 @@ export default function JobDetailPage() {
             <div className="bg-white rounded-lg shadow-sm p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-medium text-gray-900">Questions</h2>
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Questions
+                  </h2>
                   <p className="text-xs text-gray-500 mt-1">
-                    Configure voice or text based questions for applicants
+                    Configure voice, text, or yes/no questions for
+                    applicants
                   </p>
                 </div>
                 <Button onClick={addQuestion} className="gap-2 text-sm">
-                  <Plus className="w-4 h-4" />
-                  Add Question
+                  + Add Question
                 </Button>
               </div>
 
               {/* Empty state vs list of local question rows */}
               {questions.length === 0 ? (
                 <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-3">No questions added yet</p>
-                  <Button onClick={addQuestion} variant="outline" className="text-sm">
+                  <p className="text-sm text-gray-500 mb-3">
+                    No questions added yet
+                  </p>
+                  <Button
+                    onClick={addQuestion}
+                    variant="outline"
+                    className="text-sm"
+                  >
                     Add Your First Question
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {questions.map((question, index) => (
-                    <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
+                    <div
+                      key={question.id ?? index}
+                      className="p-4 border border-gray-200 rounded-lg space-y-3"
+                    >
                       {/* Row header w/ delete */}
                       <div className="flex items-start justify-between">
                         <span className="text-xs font-medium text-gray-500">
@@ -743,7 +1067,7 @@ export default function JobDetailPage() {
                           onClick={() => removeQuestion(index)}
                           className="text-red-600 hover:text-red-700 text-xs"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          Remove
                         </Button>
                       </div>
 
@@ -751,8 +1075,14 @@ export default function JobDetailPage() {
                       <div>
                         <Input
                           value={question.prompt}
-                          onChange={(e) => updateQuestion(index, "prompt", e.target.value)}
-                          placeholder="e.g., Tell us about your experience with React"
+                          onChange={(e) =>
+                            updateQuestion(
+                              index,
+                              "prompt",
+                              e.target.value
+                            )
+                          }
+                          placeholder="e.g., Are you comfortable working weekends?"
                           className="text-sm"
                         />
                       </div>
@@ -764,42 +1094,75 @@ export default function JobDetailPage() {
                           <select
                             value={question.kind || "voice"}
                             onChange={(e) =>
-                              updateQuestion(index, "kind", e.target.value as any)
+                              updateQuestionKind(
+                                index,
+                                e.target.value as
+                                  | "voice"
+                                  | "text"
+                                  | "yesno"
+                              )
                             }
                             className="border border-gray-300 rounded px-2 py-1 text-xs"
                           >
                             <option value="voice">Voice</option>
                             <option value="text">Text</option>
+                            <option value="yesno">Yes / No</option>
                           </select>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs">Max Duration:</Label>
-                          <Input
-                            type="number"
-                            value={question.maxSec}
-                            onChange={(e) =>
-                              updateQuestion(index, "maxSec", parseInt(e.target.value))
-                            }
-                            className="w-16 text-xs"
-                            min="30"
-                            max="300"
-                          />
-                          <span className="text-xs text-gray-500">sec</span>
-                        </div>
-
-                        {question.kind === "text" && (
+                        {/* Only for voice questions */}
+                        {question.kind === "voice" && (
                           <div className="flex items-center gap-2">
-                            <Label className="text-xs">Max chars:</Label>
+                            <Label className="text-xs">
+                              Max Duration:
+                            </Label>
                             <Input
                               type="number"
-                              value={question.maxChars || 0}
+                              value={question.maxSec ?? 120}
                               onChange={(e) =>
-                                updateQuestion(index, "maxChars", parseInt(e.target.value))
+                                updateQuestion(
+                                  index,
+                                  "maxSec",
+                                  parseInt(e.target.value || "0", 10)
+                                )
+                              }
+                              className="w-16 text-xs"
+                              min={30}
+                              max={300}
+                            />
+                            <span className="text-xs text-gray-500">
+                              sec
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Only for text questions */}
+                        {question.kind === "text" && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs">
+                              Max chars:
+                            </Label>
+                            <Input
+                              type="number"
+                              value={question.maxChars ?? 400}
+                              onChange={(e) =>
+                                updateQuestion(
+                                  index,
+                                  "maxChars",
+                                  parseInt(e.target.value || "0", 10)
+                                )
                               }
                               className="w-20 text-xs"
                             />
                           </div>
+                        )}
+
+                        {/* Yes/No questions do not need extra config,
+                            they will render as a boolean toggle in the apply flow */}
+                        {question.kind === "yesno" && (
+                          <span className="text-xs text-gray-500">
+                            Applicant will answer with a simple Yes / No.
+                          </span>
                         )}
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -807,7 +1170,11 @@ export default function JobDetailPage() {
                             type="checkbox"
                             checked={question.required}
                             onChange={(e) =>
-                              updateQuestion(index, "required", e.target.checked)
+                              updateQuestion(
+                                index,
+                                "required",
+                                e.target.checked
+                              )
                             }
                             className="w-3 h-3"
                           />
@@ -818,7 +1185,11 @@ export default function JobDetailPage() {
                   ))}
 
                   {/* Persist new questions */}
-                  <Button onClick={saveQuestions} disabled={saving} className="w-full text-sm">
+                  <Button
+                    onClick={saveQuestions}
+                    disabled={saving}
+                    className="w-full text-sm"
+                  >
                     {saving ? "Saving..." : "Save Questions"}
                   </Button>
                 </div>
@@ -839,7 +1210,20 @@ export default function JobDetailPage() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        organization={org ? { id: org.id, name: org.name, slug: '', type: 'company', plan: 'free', seatLimit: 5, createdAt: '', updatedAt: '' } : null}
+        organization={
+          org
+            ? {
+                id: org.id,
+                name: org.name,
+                slug: "",
+                type: "company",
+                plan: "free",
+                seatLimit: 5,
+                createdAt: "",
+                updatedAt: "",
+              }
+            : null
+        }
       />
     </div>
   );
