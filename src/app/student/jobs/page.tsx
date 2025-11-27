@@ -3,8 +3,6 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 
 /* ---------- Types ---------- */
 type Job = {
@@ -56,6 +54,64 @@ function daysSince(iso?: string | null) {
   if (Number.isNaN(then)) return null;
   const diff = Date.now() - then;
   return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+/* ---------- Collapsible description (same vibe as JobDetailPage) ---------- */
+
+function CollapsibleText({
+  text,
+  previewChars = 800,
+}: {
+  text: string;
+  previewChars?: number;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  if (!text || !text.trim()) return null;
+
+  // Light normalization: keep employer’s structure but make sure line breaks show nicely
+  const cleaned = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const needsToggle = cleaned.length > previewChars;
+  const shown =
+    expanded || !needsToggle
+      ? cleaned
+      : cleaned.slice(0, previewChars).trimEnd() + "…";
+
+  return (
+    <div className="relative">
+      {/* 🔧 darker text */}
+      <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+        {shown}
+      </pre>
+
+      {/* Fade overlay when truncated */}
+      {!expanded && needsToggle && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-muted to-transparent" /> // 🔧 darker fade
+      )}
+
+      {needsToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          {expanded ? (
+            <>
+              See less <ChevronUp className="w-3.5 h-3.5" />
+            </>
+          ) : (
+            <>
+              See more <ChevronDown className="w-3.5 h-3.5" />
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
 }
 
 /* ---------- Inner browser ---------- */
@@ -289,7 +345,7 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
     // 🔧 REMOVED vertical overflow-hidden here
     <div className="w-full max-w-full overflow-x-clip">
       {/* Shell background */}
-      <div className="min-h-[100dvh] w-full bg-gradient-to-b from-background via-background to-muted/30 flex items-stretch justify-center px-2 sm:px-4 py-3 sm:py-4">
+      <div className="min-h-[100dvh] w-full bg-gradient-to-b from-muted/60 via-background to-muted/80 flex items-stretch justify-center px-2 sm:px-4 py-3 sm:py-4">
         <div className="w-full max-w-6xl flex flex-col">
           {/* Top hero / summary */}
           <header className="mb-3 sm:mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -365,7 +421,9 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
               >
                 <span
                   className={`mr-1 inline-flex h-2 w-2 rounded-full ${
-                    showSavedOnly ? "bg-primary-foreground" : "bg-muted-foreground"
+                    showSavedOnly
+                      ? "bg-primary-foreground"
+                      : "bg-muted-foreground"
                   }`}
                 />
                 Show saved only
@@ -374,13 +432,13 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
           </header>
 
           {/* Main card container */}
-          <div className="rounded-xl border bg-card shadow-sm">
+          <div className="rounded-xl border bg-card shadow-md">
             {/* 🔧 REMOVED overflow-hidden on grid container */}
             <div className="grid grid-cols-[clamp(280px,30vw,420px)_minmax(0,1fr)] max-w-full">
               {/* LEFT: filters + list */}
-              <aside className="border-r bg-background/60 max-h-[75vh] flex flex-col min-w-0">
+              <aside className="border-r bg-muted/70 max-h-[75vh] flex flex-col min-w-0">
                 {/* Sticky controls */}
-                <div className="p-3 border-b bg-background/95 backdrop-blur z-10 space-y-3 sticky top-0">
+                <div className="p-3 border-b bg-muted/90 backdrop-blur z-10 space-y-3 sticky top-0">
                   <div className="flex gap-2 min-w-0">
                     <div className="relative flex-1 min-w-0">
                       <Input
@@ -482,7 +540,7 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                       )}
                     </div>
                   ) : (
-                    <ul className="divide-y">
+                    <ul className="divide-y divide-border/70">
                       {filtered.map((j) => {
                         const active =
                           selectedId?.toString() === j.id?.toString();
@@ -504,8 +562,8 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                               onClick={() => onSelect(j.id)}
                               className={`group w-full text-left px-3 py-3 transition ${
                                 active
-                                  ? "bg-accent/60"
-                                  : "hover:bg-accent/40"
+                                  ? "bg-accent"
+                                  : "hover:bg-accent/60"
                               }`}
                             >
                               <div className="flex items-start gap-3">
@@ -513,7 +571,9 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                                 {j.organizationLogoUrl ? (
                                   <img
                                     src={j.organizationLogoUrl}
-                                    alt={`${j.organizationName || "Company"} logo`}
+                                    alt={`${
+                                      j.organizationName || "Company"
+                                    } logo`}
                                     className="h-10 w-10 rounded-xl object-cover shrink-0 border border-border bg-card"
                                   />
                                 ) : (
@@ -574,7 +634,9 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                                       ) : null}
                                       <Button
                                         size="sm"
-                                        variant={savedFlag ? "default" : "outline"}
+                                        variant={
+                                          savedFlag ? "default" : "outline"
+                                        }
                                         disabled={busy}
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -607,17 +669,17 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
               </aside>
 
               {/* RIGHT: detail (independent scroll) */}
-              {/* 🔧 Make right side scrollable with a max height */}
-              <section className="bg-background/90 max-h-[75vh] overflow-y-auto min-w-0">
+              {/* 🔧 Make right side darker + scrollable */}
+              <section className="bg-background max-h-[75vh] overflow-y-auto min-w-0">
                 {!selectedJob ? (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground px-4 text-center gap-3">
                     <div className="text-sm font-medium text-foreground">
                       Select a job to view details
                     </div>
                     <p className="text-xs max-w-xs">
-                      Use the list on the left, or start typing in the search bar
-                      to narrow down roles. When something looks promising, open
-                      the full application flow and tailor your responses.
+                      Use the list on the left, or start typing in the search
+                      bar to narrow down roles. When something looks promising,
+                      open the full application flow and tailor your responses.
                     </p>
                   </div>
                 ) : (
@@ -735,33 +797,15 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                       <h3 className="text-sm font-semibold text-foreground mb-3">
                         About this role
                       </h3>
-                      <div
-                        className="
-                          prose prose-sm max-w-full dark:prose-invert leading-relaxed
-                          break-words
-                          prose-p:my-2
-                          prose-li:my-1
-                          prose-ul:my-2
-                          prose-ol:my-2
-                          prose-headings:mt-4 prose-headings:mb-2
-                          prose-a:break-words
-                          prose-pre:whitespace-pre-wrap prose-pre:overflow-x-auto
-                          prose-table:block prose-table:overflow-x-auto
-                          prose-img:max-w-full prose-img:h-auto
-                        "
-                      >
+                      {/* 🔧 darker container */}
+                      <div className="rounded-lg border bg-muted px-3 py-3">
                         {selectedJob.descriptionMd ? (
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              h1: ({ node, ...props }) => <h2 {...props} />,
-                              h2: ({ node, ...props }) => <h3 {...props} />,
-                            }}
-                          >
-                            {selectedJob.descriptionMd}
-                          </ReactMarkdown>
+                          <CollapsibleText
+                            text={selectedJob.descriptionMd}
+                            previewChars={900}
+                          />
                         ) : (
-                          <p className="text-muted-foreground">
+                          <p className="text-sm text-muted-foreground">
                             No description provided.
                           </p>
                         )}
@@ -835,7 +879,7 @@ export default function JobsPage() {
 
   if (loading) {
     return (
-      <div className="h-[100dvh] w-full flex items-center justify-center bg-gradient-to-b from-background via-background to-muted/30">
+      <div className="h-[100dvh] w-full flex items-center justify-center bg-gradient-to-b from-muted/60 via-background to-muted/80">
         <div className="rounded-xl border bg-card px-4 py-3 shadow-sm text-sm text-muted-foreground flex items-center gap-3">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           Loading opportunities…
