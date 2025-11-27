@@ -8,7 +8,7 @@
  * Purpose:
  * - Shows a single job’s details (title, dept, location, salary, description, status)
  * - Lets recruiters edit job metadata (inline edit mode)
- * - Manages job-specific screening Questions (voice/text) and saves new ones
+ * - Manages job-specific screening Questions (voice/text/yes-no) and saves new ones
  * - Provides quick actions: View Applications, Preview public apply URL
  * - Uses the shared left sidebar (Activities / Jobs / Assessments)
  *
@@ -17,9 +17,10 @@
  * - On mount: fetch organization (for sidebar label) and the job+questions for params.id
  * - PATCH /api/jobs/[id] when saving edits or status changes
  * - POST /api/jobs/[id]/questions to create any newly added (id-less) questions
+ * - PATCH /api/jobs/[id]/questions to update existing questions
  *
  * Notes:
- * - Existing questions are displayed; only new questions get POSTed (no update/delete API shown here)
+ * - Existing questions are displayed; only new questions get POSTed
  * - Assessments nav item routes to /dashboard/organizations/[orgId]/assessments
  */
 
@@ -39,23 +40,11 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
-  ListChecks,
-  Plus,
-  Trash2,
-  BarChartIcon,
   Eye,
   Users,
-  Briefcase,
-  Search,
-  HelpCircle,
-  UserPlus,
-  LogOut,
-  Bell,
   Edit,
   Save,
   X,
-  Settings,
   ChevronDown,
   ChevronUp,
   Sparkles,
@@ -71,9 +60,9 @@ import { useCommandPalette } from "@/hooks/use-command-palette";
 interface Question {
   id?: number; // present if persisted
   prompt: string; // the actual question
-  kind?: "voice" | "text"; // input type
-  maxSec: number; // for voice
-  maxChars?: number | null; // for text
+  kind?: "voice" | "text" | "yesno"; // input type
+  maxSec: number | null; // for voice (ignored / null for yes/no or text)
+  maxChars?: number | null; // for text (ignored / null for voice/yes-no)
   required: boolean; // is the question required?
   orderIndex: number; // sort/display order
 }
@@ -153,7 +142,7 @@ export default function JobDetailPage() {
   // ---- Command palette ----
   const {
     isOpen: isCommandPaletteOpen,
-    open: openCommandPalette,
+    open: openCommandPalette, // currently unused but keeping for future
     close: closeCommandPalette,
   } = useCommandPalette();
 
@@ -205,6 +194,7 @@ export default function JobDetailPage() {
       fetchJobData();
       fetchOrg();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, params.id]);
 
   /**
@@ -274,7 +264,25 @@ export default function JobDetailPage() {
 
       if (questionsResponse.ok) {
         const questionsData = await questionsResponse.json();
-        setQuestions(questionsData);
+        const normalized: Question[] = (questionsData || []).map(
+          (q: any, idx: number) => ({
+            id: q.id,
+            prompt: q.prompt ?? "",
+            kind: q.kind ?? "voice",
+            maxSec:
+              q.maxSec === null || q.maxSec === undefined ? 120 : q.maxSec,
+            maxChars:
+              q.maxChars === null || q.maxChars === undefined
+                ? null
+                : q.maxChars,
+            required: !!q.required,
+            orderIndex:
+              q.orderIndex === null || q.orderIndex === undefined
+                ? idx
+                : q.orderIndex,
+          })
+        );
+        setQuestions(normalized);
       }
     } catch (error) {
       console.error("Failed to fetch job data:", error);
@@ -311,9 +319,48 @@ export default function JobDetailPage() {
     setQuestions(updated);
   };
 
+  /** Update question kind, with sensible defaults for each type */
+  const updateQuestionKind = (
+    index: number,
+    nextKind: "voice" | "text" | "yesno"
+  ) => {
+    const q = questions[index];
+    const updated = [...questions];
+
+    if (nextKind === "voice") {
+      updated[index] = {
+        ...q,
+        kind: "voice",
+        maxSec: q.maxSec ?? 120,
+        maxChars: null,
+      };
+    } else if (nextKind === "text") {
+      updated[index] = {
+        ...q,
+        kind: "text",
+        maxSec: null,
+        maxChars: q.maxChars ?? 400,
+      };
+    } else {
+      // yes/no
+      updated[index] = {
+        ...q,
+        kind: "yesno",
+        maxSec: null,
+        maxChars: null,
+      };
+    }
+
+    setQuestions(updated);
+  };
+
   /** Remove a question row by index (client state only) */
   const removeQuestion = (index: number) => {
-    setQuestions(questions.filter((_, i) => i !== index));
+    setQuestions((prev) =>
+      prev
+        .filter((_, i) => i !== index)
+        .map((q, idx) => ({ ...q, orderIndex: idx }))
+    );
   };
 
   /**
@@ -333,6 +380,21 @@ export default function JobDetailPage() {
           continue;
         }
 
+        const payload = {
+          jobId: params.id,
+          questionId: question.id,
+          prompt: question.prompt.trim(),
+          kind: question.kind ?? "voice",
+          maxSec:
+            question.kind === "voice" ? question.maxSec ?? 120 : null,
+          maxChars:
+            question.kind === "text"
+              ? question.maxChars ?? 400
+              : null,
+          required: question.required,
+          orderIndex: question.orderIndex,
+        };
+
         if (!question.id) {
           // Create new question
           await fetch(`/api/jobs/${params.id}/questions`, {
@@ -341,10 +403,7 @@ export default function JobDetailPage() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({
-              jobId: params.id,
-              ...question,
-            }),
+            body: JSON.stringify(payload),
           });
         } else {
           // Update existing question
@@ -354,15 +413,7 @@ export default function JobDetailPage() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({
-              questionId: question.id,
-              prompt: question.prompt,
-              kind: question.kind,
-              maxSec: question.maxSec,
-              maxChars: question.maxChars,
-              required: question.required,
-              orderIndex: question.orderIndex,
-            }),
+            body: JSON.stringify(payload),
           });
         }
       }
@@ -816,7 +867,7 @@ export default function JobDetailPage() {
                             <strong className="text-gray-700">
                               Skills:
                             </strong>{" "}
-                              {job.skillsCsv}
+                            {job.skillsCsv}
                           </span>
                         ) : null}
                       </div>
@@ -975,13 +1026,12 @@ export default function JobDetailPage() {
                     Questions
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">
-                    Configure voice or text based questions for
+                    Configure voice, text, or yes/no questions for
                     applicants
                   </p>
                 </div>
                 <Button onClick={addQuestion} className="gap-2 text-sm">
-                  <Plus className="w-4 h-4" />
-                  Add Question
+                  + Add Question
                 </Button>
               </div>
 
@@ -1003,7 +1053,7 @@ export default function JobDetailPage() {
                 <div className="space-y-3">
                   {questions.map((question, index) => (
                     <div
-                      key={index}
+                      key={question.id ?? index}
                       className="p-4 border border-gray-200 rounded-lg space-y-3"
                     >
                       {/* Row header w/ delete */}
@@ -1017,7 +1067,7 @@ export default function JobDetailPage() {
                           onClick={() => removeQuestion(index)}
                           className="text-red-600 hover:text-red-700 text-xs"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          Remove
                         </Button>
                       </div>
 
@@ -1032,7 +1082,7 @@ export default function JobDetailPage() {
                               e.target.value
                             )
                           }
-                          placeholder="e.g., Tell us about your experience with React"
+                          placeholder="e.g., Are you comfortable working weekends?"
                           className="text-sm"
                         />
                       </div>
@@ -1044,42 +1094,49 @@ export default function JobDetailPage() {
                           <select
                             value={question.kind || "voice"}
                             onChange={(e) =>
-                              updateQuestion(
+                              updateQuestionKind(
                                 index,
-                                "kind",
-                                e.target.value as any
+                                e.target.value as
+                                  | "voice"
+                                  | "text"
+                                  | "yesno"
                               )
                             }
                             className="border border-gray-300 rounded px-2 py-1 text-xs"
                           >
                             <option value="voice">Voice</option>
                             <option value="text">Text</option>
+                            <option value="yesno">Yes / No</option>
                           </select>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs">
-                            Max Duration:
-                          </Label>
-                          <Input
-                            type="number"
-                            value={question.maxSec}
-                            onChange={(e) =>
-                              updateQuestion(
-                                index,
-                                "maxSec",
-                                parseInt(e.target.value || "0", 10)
-                              )
-                            }
-                            className="w-16 text-xs"
-                            min={30}
-                            max={300}
-                          />
-                          <span className="text-xs text-gray-500">
-                            sec
-                          </span>
-                        </div>
+                        {/* Only for voice questions */}
+                        {question.kind === "voice" && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs">
+                              Max Duration:
+                            </Label>
+                            <Input
+                              type="number"
+                              value={question.maxSec ?? 120}
+                              onChange={(e) =>
+                                updateQuestion(
+                                  index,
+                                  "maxSec",
+                                  parseInt(e.target.value || "0", 10)
+                                )
+                              }
+                              className="w-16 text-xs"
+                              min={30}
+                              max={300}
+                            />
+                            <span className="text-xs text-gray-500">
+                              sec
+                            </span>
+                          </div>
+                        )}
 
+                        {/* Only for text questions */}
                         {question.kind === "text" && (
                           <div className="flex items-center gap-2">
                             <Label className="text-xs">
@@ -1087,7 +1144,7 @@ export default function JobDetailPage() {
                             </Label>
                             <Input
                               type="number"
-                              value={question.maxChars || 0}
+                              value={question.maxChars ?? 400}
                               onChange={(e) =>
                                 updateQuestion(
                                   index,
@@ -1098,6 +1155,14 @@ export default function JobDetailPage() {
                               className="w-20 text-xs"
                             />
                           </div>
+                        )}
+
+                        {/* Yes/No questions do not need extra config,
+                            they will render as a boolean toggle in the apply flow */}
+                        {question.kind === "yesno" && (
+                          <span className="text-xs text-gray-500">
+                            Applicant will answer with a simple Yes / No.
+                          </span>
                         )}
 
                         <label className="flex items-center gap-2 cursor-pointer">

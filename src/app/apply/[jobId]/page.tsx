@@ -1,3 +1,4 @@
+// src/app/apply/[jobId]/page.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -28,7 +29,7 @@ interface Job {
 interface Question {
   id: number;
   prompt: string;
-  kind?: "voice" | "text";
+  kind?: "voice" | "text" | "yesno";
   maxSec: number;
   maxChars?: number | null;
   required: boolean;
@@ -129,10 +130,10 @@ export default function ApplyPage() {
         `/api/jobs/${params.jobId}/questions`
       );
       if (questionsResponse.ok) {
-        const questionsData = await questionsResponse.json();
+        const questionsData: Question[] = await questionsResponse.json();
         setQuestions(questionsData);
         setVoiceAnswers(
-          questionsData.map((q: Question) => ({
+          questionsData.map((q) => ({
             questionId: q.id,
             blob: null,
             duration: 0,
@@ -140,7 +141,7 @@ export default function ApplyPage() {
           }))
         );
         setTextAnswers(
-          questionsData.map((q: Question) => ({
+          questionsData.map((q) => ({
             questionId: q.id,
             text: "",
           }))
@@ -245,7 +246,8 @@ export default function ApplyPage() {
   const validateUrls = () => {
     const isUrl = (s: string) => !s || /^https?:\/\/.+/i.test(s.trim());
     if (!isUrl(linkedinUrl)) return "LinkedIn URL must start with http(s)://";
-    if (!isUrl(portfolioUrl)) return "Portfolio URL must start with http(s)://";
+    if (!isUrl(portfolioUrl))
+      return "Portfolio URL must start with http(s)://";
     if (!isUrl(githubUrl)) return "GitHub URL must start with http(s)://";
     return null;
   };
@@ -263,15 +265,18 @@ export default function ApplyPage() {
       return;
     }
 
+    // Required question validation:
     const missingAnswers = questions.filter((q, idx) => {
       if (!q.required) return false;
-      //commenting so doesnt block submit change later.
-      //voice required mandatory
-      //if (q.kind === "text") return !textAnswers[idx]?.text?.trim();
-      //return !voiceAnswers[idx]?.blob;    
-      if (q.kind === "text") return !textAnswers[idx]?.text?.trim();
-      return false; // voice never blocks submit
+
+      if (q.kind === "text" || q.kind === "yesno") {
+        return !textAnswers[idx]?.text?.trim();
+      }
+
+      // Voice questions currently don't block submission
+      return false;
     });
+
     if (missingAnswers.length > 0) {
       toast.error("Please answer all required questions");
       return;
@@ -309,8 +314,12 @@ export default function ApplyPage() {
           earliestStart: earliestStart || null,
           salaryExpectation: salaryExpectation.trim() || null,
 
-          expectedSalaryPkr: expectedSalaryPkr ? Number(expectedSalaryPkr) : null,
-          noticePeriodDays: noticePeriodDays ? Number(noticePeriodDays) : null,
+          expectedSalaryPkr: expectedSalaryPkr
+            ? Number(expectedSalaryPkr)
+            : null,
+          noticePeriodDays: noticePeriodDays
+            ? Number(noticePeriodDays)
+            : null,
           experienceYears: experienceYears || null,
 
           university: university.trim() || null,
@@ -339,20 +348,9 @@ export default function ApplyPage() {
       // 3) Persist answers
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
-        if (q.kind === "text") {
-          const ta = textAnswers[i];
-          if (ta?.text?.trim()) {
-            await fetch("/api/answers", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                applicationId: application.id,
-                questionId: q.id,
-                textAnswer: ta.text.trim(),
-              }),
-            });
-          }
-        } else {
+
+        if (q.kind === "voice" || !q.kind) {
+          // Voice answer
           const va = voiceAnswers[i];
           if (va?.blob) {
             const formData = new FormData();
@@ -361,6 +359,20 @@ export default function ApplyPage() {
             formData.append("questionId", q.id.toString());
             formData.append("durationSec", va.duration.toString());
             await fetch("/api/answers", { method: "POST", body: formData });
+          }
+        } else {
+          // Text or yes/no answer (sent as textAnswer)
+          const ta = textAnswers[i];
+          if (ta?.text?.trim()) {
+            await fetch("/api/answers", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                applicationId: application.id,
+                questionId: q.id,
+                textAnswer: ta.text.trim(), // "yes" / "no" or free text
+              }),
+            });
           }
         }
       }
@@ -387,9 +399,11 @@ export default function ApplyPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F1E8]">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground mb-2">Job not found</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            Job not found
+          </h1>
           <p className="text-muted-foreground">
-            This job posting may have been removed or doesn't exist.
+            This job posting may have been removed or doesn&apos;t exist.
           </p>
         </div>
       </div>
@@ -545,21 +559,41 @@ export default function ApplyPage() {
                       onChange={(e) => setWorkAuth(e.target.value)}
                     >
                       <option value="">Select…</option>
-                      <option value="Citizen/PR">Citizen / Permanent Resident</option>
-                      <option value="Authorized (no sponsorship)">Authorized (no sponsorship)</option>
-                      <option value="Needs sponsorship">Needs sponsorship</option>
-                      <option value="Other / Not specified">Other / Not specified</option>
+                      <option value="Citizen/PR">
+                        Citizen / Permanent Resident
+                      </option>
+                      <option value="Authorized (no sponsorship)">
+                        Authorized (no sponsorship)
+                      </option>
+                      <option value="Needs sponsorship">
+                        Needs sponsorship
+                      </option>
+                      <option value="Other / Not specified">
+                        Other / Not specified
+                      </option>
                     </select>
                   </div>
 
                   <div>
-                    <Label htmlFor="needSponsorship">Require Future Sponsorship?</Label>
+                    <Label htmlFor="needSponsorship">
+                      Require Future Sponsorship?
+                    </Label>
                     <select
                       id="needSponsorship"
                       className="w-full border border-border rounded-lg h-10 px-3 bg-white"
-                      value={needSponsorship === null ? "" : needSponsorship ? "yes" : "no"}
+                      value={
+                        needSponsorship === null
+                          ? ""
+                          : needSponsorship
+                          ? "yes"
+                          : "no"
+                      }
                       onChange={(e) =>
-                        setNeedSponsorship(e.target.value === "" ? null : e.target.value === "yes")
+                        setNeedSponsorship(
+                          e.target.value === ""
+                            ? null
+                            : e.target.value === "yes"
+                        )
                       }
                     >
                       <option value="">Select…</option>
@@ -575,9 +609,19 @@ export default function ApplyPage() {
                     <select
                       id="relocate"
                       className="w-full border border-border rounded-lg h-10 px-3 bg-white"
-                      value={willingRelocate === null ? "" : willingRelocate ? "yes" : "no"}
+                      value={
+                        willingRelocate === null
+                          ? ""
+                          : willingRelocate
+                          ? "yes"
+                          : "no"
+                      }
                       onChange={(e) =>
-                        setWillingRelocate(e.target.value === "" ? null : e.target.value === "yes")
+                        setWillingRelocate(
+                          e.target.value === ""
+                            ? null
+                            : e.target.value === "yes"
+                        )
                       }
                     >
                       <option value="">Select…</option>
@@ -613,7 +657,9 @@ export default function ApplyPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="salary">Salary Expectation (optional)</Label>
+                    <Label htmlFor="salary">
+                      Salary Expectation (optional)
+                    </Label>
                     <Input
                       id="salary"
                       value={salaryExpectation}
@@ -715,7 +761,9 @@ export default function ApplyPage() {
                     id="resume"
                     type="file"
                     accept=".pdf,.doc,.docx"
-                    onChange={(e) => setResume(e.target.files?.[0] || null)}
+                    onChange={(e) =>
+                      setResume(e.target.files?.[0] || null)
+                    }
                   />
                 </div>
 
@@ -739,26 +787,47 @@ export default function ApplyPage() {
                 Questions
               </h2>
               <p className="text-muted-foreground mb-6">
-                Answer the questions below. Some may require a voice recording; others a written answer.
+                Answer the questions below. Some may require a voice
+                recording; others a written or yes/no answer.
               </p>
 
               <div className="space-y-6">
                 {questions.map((question, index) => {
                   const answer = voiceAnswers[index];
                   const hasRecording = answer?.blob !== null;
+                  const isText = question.kind === "text";
+                  const isYesNo = question.kind === "yesno";
+                  const isVoice = !question.kind || question.kind === "voice";
+
+                  const currentText = textAnswers[index]?.text || "";
 
                   return (
-                    <div key={question.id} className="p-6 border-2 border-border rounded-lg">
+                    <div
+                      key={question.id}
+                      className="p-6 border-2 border-border rounded-lg"
+                    >
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h3 className="font-semibold text-foreground mb-1">
                             Question {index + 1}
-                            {question.required && <span className="text-destructive ml-1">*</span>}
+                            {question.required && (
+                              <span className="text-destructive ml-1">
+                                *
+                              </span>
+                            )}
                           </h3>
-                          <p className="text-muted-foreground">{question.prompt}</p>
+                          <p className="text-muted-foreground">
+                            {question.prompt}
+                          </p>
                         </div>
-                        {question.kind === "text" ? (
-                          <span className="text-xs bg-muted px-2 py-1 rounded">Text</span>
+                        {isText ? (
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            Text
+                          </span>
+                        ) : isYesNo ? (
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            Yes / No
+                          </span>
                         ) : (
                           <span className="text-xs bg-muted px-2 py-1 rounded">
                             Max {question.maxSec}s
@@ -766,10 +835,10 @@ export default function ApplyPage() {
                         )}
                       </div>
 
-                      {question.kind === "text" ? (
+                      {isText ? (
                         <div>
                           <textarea
-                            value={textAnswers[index]?.text || ""}
+                            value={currentText}
                             onChange={(e) => {
                               const updated = [...textAnswers];
                               updated[index] = {
@@ -785,9 +854,45 @@ export default function ApplyPage() {
                           />
                           {question.maxChars ? (
                             <div className="text-xs text-muted-foreground mt-1">
-                              {(textAnswers[index]?.text?.length || 0)}/{question.maxChars} characters
+                              {currentText.length}/{question.maxChars}{" "}
+                              characters
                             </div>
                           ) : null}
+                        </div>
+                      ) : isYesNo ? (
+                        <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            variant={
+                              currentText === "yes" ? "default" : "outline"
+                            }
+                            onClick={() => {
+                              const updated = [...textAnswers];
+                              updated[index] = {
+                                questionId: question.id,
+                                text: "yes",
+                              };
+                              setTextAnswers(updated);
+                            }}
+                          >
+                            Yes
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={
+                              currentText === "no" ? "default" : "outline"
+                            }
+                            onClick={() => {
+                              const updated = [...textAnswers];
+                              updated[index] = {
+                                questionId: question.id,
+                                text: "no",
+                              };
+                              setTextAnswers(updated);
+                            }}
+                          >
+                            No
+                          </Button>
                         </div>
                       ) : !hasRecording ? (
                         <div className="space-y-3">
@@ -798,10 +903,19 @@ export default function ApplyPage() {
                               </div>
                               <div className="text-2xl font-bold text-foreground mb-1">
                                 {Math.floor(recordingTime / 60)}:
-                                {(recordingTime % 60).toString().padStart(2, "0")}
+                                {(recordingTime % 60)
+                                  .toString()
+                                  .padStart(2, "0")}
                               </div>
-                              <p className="text-sm text-muted-foreground mb-4">Recording...</p>
-                              <Button type="button" variant="destructive" onClick={stopRecording} className="gap-2">
+                              <p className="text-sm text-muted-foreground mb-4">
+                                Recording...
+                              </p>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={stopRecording}
+                                className="gap-2"
+                              >
                                 <Square className="w-4 h-4" />
                                 Stop Recording
                               </Button>
@@ -828,11 +942,21 @@ export default function ApplyPage() {
                               </span>
                             </div>
                             {isPlaying === index ? (
-                              <Button type="button" variant="outline" size="sm" onClick={pauseAudio}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={pauseAudio}
+                              >
                                 <Pause className="w-4 h-4" />
                               </Button>
                             ) : (
-                              <Button type="button" variant="outline" size="sm" onClick={() => playAudio(index)}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => playAudio(index)}
+                              >
                                 <Play className="w-4 h-4" />
                               </Button>
                             )}
@@ -856,7 +980,12 @@ export default function ApplyPage() {
 
             {/* Submit */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
-              <Button type="submit" disabled={submitting} className="w-full gap-2" size="lg">
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full gap-2"
+                size="lg"
+              >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />

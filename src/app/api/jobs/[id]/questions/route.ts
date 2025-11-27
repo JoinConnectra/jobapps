@@ -3,6 +3,13 @@ import { db } from '@/db';
 import { jobQuestions, jobs } from '@/db/schema-pg';
 import { eq } from 'drizzle-orm';
 
+function normalizeKind(kind: unknown, fallback: string) {
+  if (kind === 'text' || kind === 'voice' || kind === 'yesno') {
+    return kind as 'text' | 'voice' | 'yesno';
+  }
+  return fallback as 'voice';
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,7 +26,8 @@ export async function GET(
     }
 
     // Verify job exists
-    const job = await db.select()
+    const job = await db
+      .select()
       .from(jobs)
       .where(eq(jobs.id, jobId))
       .limit(1);
@@ -32,7 +40,8 @@ export async function GET(
     }
 
     // Get all questions for this job
-    const questions = await db.select()
+    const questions = await db
+      .select()
       .from(jobQuestions)
       .where(eq(jobQuestions.jobId, jobId))
       .orderBy(jobQuestions.orderIndex);
@@ -73,7 +82,8 @@ export async function POST(
     }
 
     // Verify job exists
-    const job = await db.select()
+    const job = await db
+      .select()
       .from(jobs)
       .where(eq(jobs.id, jobId))
       .limit(1);
@@ -86,11 +96,14 @@ export async function POST(
     }
 
     const now = new Date();
-    const newQuestion = await db.insert(jobQuestions)
+    const normalizedKind = normalizeKind(kind, 'voice');
+
+    const newQuestion = await db
+      .insert(jobQuestions)
       .values({
         jobId,
         prompt: prompt.trim(),
-        kind: (kind === 'text' || kind === 'voice') ? kind : 'voice',
+        kind: normalizedKind,
         maxSec: maxSec || 120,
         maxChars: maxChars || null,
         required: required !== undefined ? required : true,
@@ -125,7 +138,15 @@ export async function PATCH(
       );
     }
 
-    const { questionId, prompt, maxSec, required, orderIndex, kind, maxChars } = body;
+    const {
+      questionId,
+      prompt,
+      maxSec,
+      required,
+      orderIndex,
+      kind,
+      maxChars,
+    } = body;
 
     if (!questionId) {
       return NextResponse.json(
@@ -142,7 +163,8 @@ export async function PATCH(
     }
 
     // Verify job exists
-    const job = await db.select()
+    const job = await db
+      .select()
       .from(jobs)
       .where(eq(jobs.id, jobId))
       .limit(1);
@@ -155,7 +177,8 @@ export async function PATCH(
     }
 
     // Verify question exists and belongs to this job
-    const existingQuestion = await db.select()
+    const existingQuestion = await db
+      .select()
       .from(jobQuestions)
       .where(eq(jobQuestions.id, questionId))
       .limit(1);
@@ -169,20 +192,32 @@ export async function PATCH(
 
     if (existingQuestion[0].jobId !== jobId) {
       return NextResponse.json(
-        { error: 'Question does not belong to this job', code: 'QUESTION_MISMATCH' },
+        {
+          error: 'Question does not belong to this job',
+          code: 'QUESTION_MISMATCH',
+        },
         { status: 403 }
       );
     }
 
+    const normalizedKind = normalizeKind(kind, existingQuestion[0].kind);
+
     // Update the question
-    const updatedQuestion = await db.update(jobQuestions)
+    const updatedQuestion = await db
+      .update(jobQuestions)
       .set({
         prompt: prompt.trim(),
-        kind: (kind === 'text' || kind === 'voice') ? kind : existingQuestion[0].kind,
-        maxSec: maxSec !== undefined ? maxSec : existingQuestion[0].maxSec,
-        maxChars: maxChars !== undefined ? maxChars : existingQuestion[0].maxChars,
-        required: required !== undefined ? required : existingQuestion[0].required,
-        orderIndex: orderIndex !== undefined ? orderIndex : existingQuestion[0].orderIndex,
+        kind: normalizedKind,
+        maxSec:
+          maxSec !== undefined ? maxSec : existingQuestion[0].maxSec,
+        maxChars:
+          maxChars !== undefined ? maxChars : existingQuestion[0].maxChars,
+        required:
+          required !== undefined ? required : existingQuestion[0].required,
+        orderIndex:
+          orderIndex !== undefined
+            ? orderIndex
+            : existingQuestion[0].orderIndex,
       })
       .where(eq(jobQuestions.id, questionId))
       .returning();

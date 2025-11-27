@@ -39,7 +39,7 @@ type LocationModeFilter = "all" | "onsite" | "remote" | "hybrid";
 type Question = {
   id: number;
   prompt: string;
-  kind: "voice" | "text" | null;
+  kind: "voice" | "text" | "yesno" | null;
   maxSec: number | null;
   maxChars: number | null;
   required: boolean;
@@ -461,40 +461,46 @@ export default function UniversityJobDetailPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {questions.map((q, idx) => (
-                    <div
-                      key={q.id ?? idx}
-                      className="rounded-md border border-slate-200 bg-white px-3 py-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                            Question {idx + 1}
+                  {questions.map((q, idx) => {
+                    const typeLabel =
+                      q.kind === "text"
+                        ? "Text response"
+                        : q.kind === "voice"
+                        ? "Voice response"
+                        : q.kind === "yesno"
+                        ? "Yes / No choice"
+                        : "Unspecified";
+
+                    return (
+                      <div
+                        key={q.id ?? idx}
+                        className="rounded-md border border-slate-200 bg-white px-3 py-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                              Question {idx + 1}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-800">
+                              {q.prompt}
+                            </div>
                           </div>
-                          <div className="mt-1 text-sm text-slate-800">
-                            {q.prompt}
+                          <div className="flex flex-col items-end gap-1 text-[11px] text-slate-500">
+                            <span>Type: {typeLabel}</span>
+                            {q.maxSec != null && q.kind === "voice" && (
+                              <span>Max {q.maxSec} sec</span>
+                            )}
+                            {q.maxChars != null && q.kind === "text" && (
+                              <span>Max {q.maxChars} chars</span>
+                            )}
+                            <span>
+                              {q.required ? "Required" : "Optional"}
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 text-[11px] text-slate-500">
-                          <span>
-                            Type:{" "}
-                            {q.kind === "text"
-                              ? "Text response"
-                              : "Voice response"}
-                          </span>
-                          {q.maxSec != null && q.kind === "voice" && (
-                            <span>Max {q.maxSec} sec</span>
-                          )}
-                          {q.maxChars != null && q.kind === "text" && (
-                            <span>Max {q.maxChars} chars</span>
-                          )}
-                          <span>
-                            {q.required ? "Required" : "Optional"}
-                          </span>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     These are the exact questions students will see when they
                     apply, shown here in a read-only format for your review.
