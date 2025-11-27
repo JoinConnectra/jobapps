@@ -83,14 +83,13 @@ function CollapsibleText({
 
   return (
     <div className="relative">
-      {/* 🔧 darker text */}
       <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
         {shown}
       </pre>
 
       {/* Fade overlay when truncated */}
       {!expanded && needsToggle && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-muted to-transparent" /> // 🔧 darker fade
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
       )}
 
       {needsToggle && (
@@ -345,7 +344,7 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
     // 🔧 REMOVED vertical overflow-hidden here
     <div className="w-full max-w-full overflow-x-clip">
       {/* Shell background */}
-      <div className="min-h-[100dvh] w-full bg-gradient-to-b from-muted/60 via-background to-muted/80 flex items-stretch justify-center px-2 sm:px-4 py-3 sm:py-4">
+      <div className="min-h-[100dvh] w-full bg-gradient-to-b from-background via-background to-muted/30 flex items-stretch justify-center px-2 sm:px-4 py-3 sm:py-4">
         <div className="w-full max-w-6xl flex flex-col">
           {/* Top hero / summary */}
           <header className="mb-3 sm:mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -432,13 +431,13 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
           </header>
 
           {/* Main card container */}
-          <div className="rounded-xl border bg-card shadow-md">
+          <div className="rounded-xl border bg-card shadow-sm">
             {/* 🔧 REMOVED overflow-hidden on grid container */}
             <div className="grid grid-cols-[clamp(280px,30vw,420px)_minmax(0,1fr)] max-w-full">
               {/* LEFT: filters + list */}
-              <aside className="border-r bg-muted/70 max-h-[75vh] flex flex-col min-w-0">
+              <aside className="border-r bg-background/60 max-h-[75vh] flex flex-col min-w-0">
                 {/* Sticky controls */}
-                <div className="p-3 border-b bg-muted/90 backdrop-blur z-10 space-y-3 sticky top-0">
+                <div className="p-3 border-b bg-background/95 backdrop-blur z-10 space-y-3 sticky top-0">
                   <div className="flex gap-2 min-w-0">
                     <div className="relative flex-1 min-w-0">
                       <Input
@@ -540,7 +539,7 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                       )}
                     </div>
                   ) : (
-                    <ul className="divide-y divide-border/70">
+                    <ul className="divide-y">
                       {filtered.map((j) => {
                         const active =
                           selectedId?.toString() === j.id?.toString();
@@ -562,8 +561,8 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                               onClick={() => onSelect(j.id)}
                               className={`group w-full text-left px-3 py-3 transition ${
                                 active
-                                  ? "bg-accent"
-                                  : "hover:bg-accent/60"
+                                  ? "bg-accent/60"
+                                  : "hover:bg-accent/40"
                               }`}
                             >
                               <div className="flex items-start gap-3">
@@ -654,7 +653,7 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                                   </div>
                                   {j.salaryRange ? (
                                     <div className="mt-1 text-[11px] text-muted-foreground">
-                                      {j.salaryRange}
+                                      Salary: {j.salaryRange}
                                     </div>
                                   ) : null}
                                 </div>
@@ -669,8 +668,8 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
               </aside>
 
               {/* RIGHT: detail (independent scroll) */}
-              {/* 🔧 Make right side darker + scrollable */}
-              <section className="bg-background max-h-[75vh] overflow-y-auto min-w-0">
+              {/* 🔧 Make right side scrollable with a max height */}
+              <section className="bg-background/90 max-h-[75vh] overflow-y-auto min-w-0">
                 {!selectedJob ? (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground px-4 text-center gap-3">
                     <div className="text-sm font-medium text-foreground">
@@ -717,7 +716,7 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                             <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                               {selectedJob.salaryRange ? (
                                 <span className="inline-flex items-center px-2 py-1 rounded-md bg-muted text-muted-foreground">
-                                  {selectedJob.salaryRange}
+                                  Salary: {selectedJob.salaryRange}
                                 </span>
                               ) : null}
                               {selectedJob.postedAt ? (
@@ -797,8 +796,7 @@ function JobBrowserInner({ jobs }: { jobs: Job[] }) {
                       <h3 className="text-sm font-semibold text-foreground mb-3">
                         About this role
                       </h3>
-                      {/* 🔧 darker container */}
-                      <div className="rounded-lg border bg-muted px-3 py-3">
+                      <div className="rounded-lg border bg-card/60 px-3 py-3">
                         {selectedJob.descriptionMd ? (
                           <CollapsibleText
                             text={selectedJob.descriptionMd}
@@ -879,7 +877,7 @@ export default function JobsPage() {
 
   if (loading) {
     return (
-      <div className="h-[100dvh] w-full flex items-center justify-center bg-gradient-to-b from-muted/60 via-background to-muted/80">
+      <div className="h-[100dvh] w-full flex items-center justify-center bg-gradient-to-b from-background via-background to-muted/30">
         <div className="rounded-xl border bg-card px-4 py-3 shadow-sm text-sm text-muted-foreground flex items-center gap-3">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           Loading opportunities…
