@@ -46,6 +46,7 @@ import CommandPalette from "@/components/CommandPalette";
 import SettingsModal from "@/components/SettingsModal";
 import CompanySidebar from "@/components/company/CompanySidebar";
 import { useCommandPalette } from "@/hooks/use-command-palette";
+import { MentionInput } from "@/components/ui/mention-input";
 
 const formatDateTime = (value: string) => {
   try {
@@ -197,6 +198,7 @@ export default function ApplicationDetailPage() {
   const [reactions, setReactions] = useState<Record<number, Reaction[]>>({});
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [newComment, setNewComment] = useState<Record<number, string>>({});
+  const [orgMembers, setOrgMembers] = useState<Array<{ id: number; name: string | null; email: string; avatarUrl?: string | null }>>([]);
   const [reactionDialog, setReactionDialog] = useState<ReactionDialogState>({
     open: false,
     answerId: null,
@@ -304,6 +306,32 @@ export default function ApplicationDetailPage() {
               applicationId: appData.id,
               jobId: appData.jobId,
             });
+          }
+        }
+
+        // Fetch organization members for mentions
+        if (appData.jobId) {
+          const jobResponse = await fetch(`/api/jobs?id=${appData.jobId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (jobResponse.ok) {
+            const jobData = await jobResponse.json();
+            if (jobData.orgId) {
+              const membersResponse = await fetch(`/api/organizations/${jobData.orgId}/members`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (membersResponse.ok) {
+                const membersData = await membersResponse.json();
+                setOrgMembers(
+                  membersData.map((m: any) => ({
+                    id: m.userId,
+                    name: m.userName,
+                    email: m.userEmail,
+                    avatarUrl: null, // You can add avatarUrl to the API response if available
+                  }))
+                );
+              }
+            }
           }
         }
 
@@ -1375,112 +1403,156 @@ export default function ApplicationDetailPage() {
               <h2 className="text-base font-semibold mb-2 text-gray-900">Activity</h2>
 
               <div className="flex-1 overflow-y-auto overflow-x-hidden">
-                <div className="space-y-2">
-                  {answers.map((answer) => {
-                    const answerComments = comments[answer.id] || [];
+                {(() => {
+                  // Collect all reactions from all answers
+                  const allReactions: Array<{ reaction: Reaction; questionText: string }> = [];
+                  answers.forEach((answer) => {
                     const question = questions.find((q) => q.id === answer.questionId);
                     const questionText = question?.prompt || "this answer";
+                    if (reactions[answer.id] && reactions[answer.id].length > 0) {
+                      reactions[answer.id].forEach((reaction) => {
+                        allReactions.push({ reaction, questionText });
+                      });
+                    }
+                  });
+                  // Sort by date (newest first)
+                  allReactions.sort((a, b) => {
+                    const dateA = new Date(a.reaction.updatedAt || a.reaction.createdAt).getTime();
+                    const dateB = new Date(b.reaction.updatedAt || b.reaction.createdAt).getTime();
+                    return dateB - dateA;
+                  });
 
-                    return (
-                      <div key={answer.id} className="space-y-2">
-                        {/* Reactions Section */}
-                        {reactions[answer.id] && reactions[answer.id].length > 0 && (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <div className="h-px flex-1 bg-gray-200"></div>
-                              <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Feedback</span>
-                              <div className="h-px flex-1 bg-gray-200"></div>
-                            </div>
-                            {reactions[answer.id].map((reaction) => {
-                              const actorName = reaction.userName || reaction.userEmail || "Team member";
-                              return (
-                                <div key={reaction.id} className="flex items-start gap-2 p-2 bg-gradient-to-r from-green-50/50 to-blue-50/50 border border-green-100 rounded">
-                                  <div className="mt-0.5">
-                                  {reaction.reaction === "like" ? (
-                                      <ThumbsUp className="w-3 h-3 text-green-600" />
-                                  ) : (
-                                      <ThumbsDown className="w-3 h-3 text-red-600" />
-                                  )}
-                                </div>
-                                  <div className="flex-1 min-w-0 space-y-0.5">
-                                    <p className="text-xs font-medium text-gray-900 leading-tight">
-                                      {actorName} {reaction.reaction === "like" ? "liked" : "disliked"} "{questionText}"
-                                    </p>
-                                    {reaction.explanation && (
-                                      <p className="text-xs italic text-gray-700 break-words bg-white/60 rounded px-1.5 py-0.5 mt-0.5 leading-relaxed">
-                                        "{reaction.explanation}"
-                                      </p>
-                                    )}
-                                    <span className="text-[10px] text-gray-500">
-                                      {formatDateTime(reaction.updatedAt || reaction.createdAt)}
-                                </span>
-                              </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                  // Collect all comments from all answers
+                  const allComments: Array<Comment & { answerId: number }> = [];
+                  answers.forEach((answer) => {
+                    const answerComments = comments[answer.id] || [];
+                    answerComments.forEach((comment) => {
+                      allComments.push({ ...comment, answerId: answer.id });
+                    });
+                  });
+                  // Sort by date (newest first)
+                  allComments.sort((a, b) => {
+                    const dateA = new Date(a.createdAt).getTime();
+                    const dateB = new Date(b.createdAt).getTime();
+                    return dateB - dateA;
+                  });
 
-                        {/* Comments Section */}
-                        {answerComments.length > 0 && (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <div className="h-px flex-1 bg-gray-200"></div>
-                              <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Comments</span>
-                              <div className="h-px flex-1 bg-gray-200"></div>
-                            </div>
-                            {answerComments.map((comment) => (
-                              <div key={comment.id} className="flex items-start gap-2 p-2 bg-white border border-gray-200 rounded shadow-sm">
-                                <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
-                                  <span className="text-[10px] font-medium text-white">
-                                    {comment.userName?.charAt(0)?.toUpperCase() || "U"}
-                                  </span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-0.5">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-medium text-gray-900 truncate leading-tight">
-                                        {comment.userName || "User"}
-                                      </p>
-                                      <p className="text-[10px] text-gray-500">Employer</p>
-                                    </div>
-                                    <div className="flex items-center gap-1 ml-1.5 flex-shrink-0">
-                                      <p className="text-[10px] text-gray-400">
-                                        {new Date(comment.createdAt).toLocaleDateString()}
-                                      </p>
-                                      {comment.userEmail === session?.user?.email && (
-                                        <button
-                                          onClick={() => handleDeleteComment(comment.id, answer.id)}
-                                          className="p-0.5 hover:bg-red-100 rounded transition-colors"
-                                          title="Delete comment"
-                                        >
-                                          <Trash2 className="w-2.5 h-2.5 text-red-500" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <p className="text-xs text-gray-700 break-words mt-0.5 leading-relaxed">{comment.comment}</p>
-                                </div>
-                              </div>
-                            ))}
+                  return (
+                    <div className="space-y-2">
+                      {/* Feedback Section - All reactions grouped together */}
+                      {allReactions.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="h-px flex-1 bg-gray-200"></div>
+                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Feedback</span>
+                            <div className="h-px flex-1 bg-gray-200"></div>
                           </div>
+                          {allReactions.map(({ reaction, questionText }) => {
+                        const actorName = reaction.userName || reaction.userEmail || "Team member";
+                        return (
+                          <div key={reaction.id} className="flex items-start gap-2 p-2 bg-gradient-to-r from-green-50/50 to-blue-50/50 border border-green-100 rounded">
+                            <div className="mt-0.5">
+                              {reaction.reaction === "like" ? (
+                                <ThumbsUp className="w-3 h-3 text-green-600" />
+                              ) : (
+                                <ThumbsDown className="w-3 h-3 text-red-600" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <p className="text-xs font-medium text-gray-900 leading-tight">
+                                {actorName} {reaction.reaction === "like" ? "liked" : "disliked"} "{questionText}"
+                              </p>
+                              {reaction.explanation && (
+                                <p className="text-xs italic text-gray-700 break-words bg-white/60 rounded px-1.5 py-0.5 mt-0.5 leading-relaxed">
+                                  "{reaction.explanation}"
+                                </p>
+                              )}
+                              <span className="text-[10px] text-gray-500">
+                                {formatDateTime(reaction.updatedAt || reaction.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Comments Section - All comments grouped together */}
+                      {allComments.length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="h-px flex-1 bg-gray-200"></div>
+                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Comments</span>
+                            <div className="h-px flex-1 bg-gray-200"></div>
+                          </div>
+                          {allComments.map((comment) => (
+                        <div key={comment.id} className="flex items-start gap-2 p-2 bg-white border border-gray-200 rounded shadow-sm">
+                          <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-medium text-white">
+                              {comment.userName?.charAt(0)?.toUpperCase() || "U"}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between mb-0.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-gray-900 truncate leading-tight">
+                                  {comment.userName || "User"}
+                                </p>
+                                <p className="text-[10px] text-gray-500">Employer</p>
+                              </div>
+                              <div className="flex items-center gap-1 ml-1.5 flex-shrink-0">
+                                <p className="text-[10px] text-gray-400">
+                                  {new Date(comment.createdAt).toLocaleDateString()}
+                                </p>
+                                {comment.userEmail === session?.user?.email && (
+                                  <button
+                                    onClick={() => handleDeleteComment(comment.id, comment.answerId)}
+                                    className="p-0.5 hover:bg-red-100 rounded transition-colors"
+                                    title="Delete comment"
+                                  >
+                                    <Trash2 className="w-2.5 h-2.5 text-red-500" />
+                                  </button>
                                 )}
                               </div>
-                    );
-                  })}
-                                </div>
-                              </div>
+                            </div>
+                            <p className="text-xs text-gray-700 break-words mt-0.5 leading-relaxed">
+                              {comment.comment.split(/(@[^\s@]+)/g).map((part, idx) => {
+                                const mentionMatch = part.match(/^@(.+)$/);
+                                if (mentionMatch) {
+                                  const mentionedName = mentionMatch[1].trim();
+                                  const mentionedUser = orgMembers.find(
+                                    (m) => m.name === mentionedName || m.email === mentionedName
+                                  );
+                                  return (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-medium"
+                                    >
+                                      @{mentionedUser?.name || mentionedName}
+                                    </span>
+                                  );
+                                }
+                                return <span key={idx}>{part}</span>;
+                              })}
+                            </p>
+                          </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    </div>
+                  );
+                })()}
+              </div>
 
               {/* Add Comment - Fixed at bottom */}
               <div className="border-t border-gray-200 p-2.5 bg-white">
                 <div className="flex gap-1.5">
-                          <input
-                            type="text"
-                    placeholder="Add a comment..."
+                  <MentionInput
                     value={newComment[answers[0]?.id] || ""}
-                    onChange={(e) => {
+                    onChange={(value) => {
                       if (answers[0]?.id) {
-                        setNewComment((prev) => ({ ...prev, [answers[0].id]: e.target.value }));
+                        setNewComment((prev) => ({ ...prev, [answers[0].id]: value }));
                       }
                     }}
                     onKeyDown={(e) => {
@@ -1488,16 +1560,18 @@ export default function ApplicationDetailPage() {
                         handleAddComment(answers[0].id);
                       }
                     }}
-                    className="flex-1 text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
-                          />
-                          <Button
-                            size="sm"
+                    placeholder="Add a comment... (Type @)"
+                    users={orgMembers}
+                    disabled={!answers[0]?.id}
+                  />
+                  <Button
+                    size="sm"
                     onClick={() => answers[0]?.id && handleAddComment(answers[0].id)}
                     disabled={!answers[0]?.id || !newComment[answers[0]?.id]?.trim()}
                     className="px-2 py-1.5 h-auto flex-shrink-0 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
+                  >
                     <Plus className="w-3 h-3" />
-                          </Button>
+                  </Button>
                 </div>
               </div>
             </div>

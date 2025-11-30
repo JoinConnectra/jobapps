@@ -34,6 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import {
   Briefcase,
@@ -413,6 +415,67 @@ function AllJobsPageInner() {
     return { all, published, draft, archived };
   }, [jobs]);
 
+  // Helper to calculate percentage change
+  const calculateChange = (current: number, previous: number): { value: string; type: "positive" | "negative" | "neutral" } => {
+    if (previous === 0) {
+      return current > 0 ? { value: "+100%", type: "positive" } : { value: "0%", type: "neutral" };
+    }
+    const change = ((current - previous) / previous) * 100;
+    const rounded = Math.abs(change) < 0.01 ? 0 : change;
+    return {
+      value: `${rounded >= 0 ? "+" : ""}${rounded.toFixed(2)}%`,
+      type: rounded > 0 ? "positive" : rounded < 0 ? "negative" : "neutral",
+    };
+  };
+
+  const [previousPeriodCandidates, setPreviousPeriodCandidates] = useState<number | null>(null);
+
+  // Fetch previous period candidates
+  useEffect(() => {
+    const fetchPreviousCandidates = async () => {
+      if (!orgId) return;
+      try {
+        const token = localStorage.getItem("bearer_token");
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        // Fetch all jobs for this org
+        const jobsResp = await fetch(`/api/jobs?orgId=${orgId}&limit=1000`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (jobsResp.ok) {
+          const jobsData = await jobsResp.json();
+          let previousTotal = 0;
+          
+          // For each job, count applications created before 30 days ago
+          for (const job of jobsData) {
+            const appsResp = await fetch(
+              `/api/applications?jobId=${job.id}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (appsResp.ok) {
+              const apps = await appsResp.json();
+              const previousApps = apps.filter((app: any) => {
+                const appDate = new Date(app.createdAt);
+                return appDate <= thirtyDaysAgo;
+              });
+              previousTotal += previousApps.length;
+            }
+          }
+          
+          setPreviousPeriodCandidates(previousTotal);
+        }
+      } catch (error) {
+        console.error("Failed to fetch previous period candidates:", error);
+      }
+    };
+    
+    if (orgId) {
+      fetchPreviousCandidates();
+    }
+  }, [orgId]);
+
   const totals = useMemo(() => {
     const totalCandidates = jobs.reduce(
       (s, j) => s + j.totalCandidates,
@@ -429,11 +492,13 @@ function AllJobsPageInner() {
     const funnel = totalApplied
       ? Math.round((totalHires / totalApplied) * 100)
       : 0;
-    const fillVelocity = jobs.length
-      ? (totalHires / jobs.length).toFixed(2)
-      : "0.00";
-    return { totalCandidates, funnel, fillVelocity };
-  }, [jobs]);
+    
+    // Calculate change for total candidates using real previous period data
+    const previousCandidates = previousPeriodCandidates ?? 0;
+    const candidatesChange = calculateChange(totalCandidates, previousCandidates);
+    
+    return { totalCandidates, funnel, candidatesChange };
+  }, [jobs, previousPeriodCandidates]);
 
   const statusPill = (status: string) =>
     status === "published"
@@ -598,39 +663,6 @@ function AllJobsPageInner() {
     }
   };
 
-  // Small bits for top
-  const StatTile = ({
-    icon: Icon,
-    label,
-    value,
-    sub,
-  }: {
-    icon: any;
-    label: string;
-    value: number | string;
-    sub?: string;
-  }) => (
-    <div className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow transition-shadow">
-      <div className="absolute inset-0 bg-gradient-to-tr from-[#6a994e]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-[#6a994e]/10 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-[#6a994e]" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wide text-gray-500">
-            {label}
-          </div>
-          <div className="text-2xl font-semibold text-gray-900 truncate">
-            {value}
-          </div>
-          {sub ? (
-            <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-
   // ----- Loading & empty-session states -----
   if (isPending || loading) {
     return (
@@ -713,30 +745,54 @@ function AllJobsPageInner() {
 
             {/* KPI Row - Only show when NOT creating a job */}
             {searchParams?.get("create") !== "1" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <StatTile
-                  icon={Briefcase}
-                  label="Open Jobs"
-                  value={
-                    countsByStatus.published + countsByStatus.draft
-                  }
-                />
-                <StatTile
-                  icon={User}
-                  label="Total Candidates"
-                  value={totals.totalCandidates}
-                />
-                <StatTile
-                  icon={BarChartIcon}
-                  label="Funnel (Hired/Applied)"
-                  value={`${totals.funnel}%`}
-                />
-                <StatTile
-                  icon={ListChecks}
-                  label="Fill Velocity"
-                  value={totals.fillVelocity}
-                  sub="Hires per job"
-                />
+              <div className="grid grid-cols-3 gap-px rounded-xl bg-border mb-4">
+                {[
+                  {
+                    label: "Open Jobs",
+                    value: countsByStatus.published + countsByStatus.draft,
+                  },
+                  {
+                    label: "Total Candidates",
+                    value: totals.totalCandidates,
+                    change: totals.candidatesChange,
+                  },
+                  {
+                    label: "Funnel (Hired/Applied)",
+                    value: `${totals.funnel}%`,
+                  },
+                ].map((stat, index) => (
+                  <Card
+                    key={stat.label}
+                    className={cn(
+                      "rounded-none border-0 shadow-none py-0",
+                      index === 0 && "rounded-l-xl",
+                      index === 2 && "rounded-r-xl"
+                    )}
+                  >
+                    <CardContent className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 p-3 sm:p-4">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {stat.label}
+                      </div>
+                      {stat.change && (
+                        <div
+                          className={cn(
+                            "text-xs font-medium",
+                            stat.change.type === "positive"
+                              ? "text-green-800 dark:text-green-400"
+                              : stat.change.type === "negative"
+                              ? "text-red-800 dark:text-red-400"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {stat.change.value}
+                        </div>
+                      )}
+                      <div className="w-full flex-none text-2xl font-medium tracking-tight text-foreground">
+                        {stat.value}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             )}
 

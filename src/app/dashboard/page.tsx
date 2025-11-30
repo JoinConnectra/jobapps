@@ -31,6 +31,8 @@ import SettingsModal from "@/components/SettingsModal";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import {
   User,
@@ -57,6 +59,10 @@ export default function DashboardPage() {
 
   // ---- Stats (counts only) ----
   const [stats, setStats] = useState({ jobs: 0, applications: 0 });
+  const [previousPeriodStats, setPreviousPeriodStats] = useState<{
+    jobs: number;
+    applications: number;
+  } | null>(null);
 
   // ---- Organization ----
   const [org, setOrg] = useState<{ id: number; name: string; logoUrl?: string | null } | null>(null);
@@ -101,6 +107,19 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [openCommandPalette]);
 
+  // Helper to calculate percentage change
+  const calculateChange = (current: number, previous: number): { value: string; type: "positive" | "negative" | "neutral" } => {
+    if (previous === 0) {
+      return current > 0 ? { value: "+100%", type: "positive" } : { value: "0%", type: "neutral" };
+    }
+    const change = ((current - previous) / previous) * 100;
+    const rounded = Math.abs(change) < 0.01 ? 0 : change;
+    return {
+      value: `${rounded >= 0 ? "+" : ""}${rounded.toFixed(2)}%`,
+      type: rounded > 0 ? "positive" : rounded < 0 ? "negative" : "neutral",
+    };
+  };
+
   // Load org + stats on login
   useEffect(() => {
     if (session?.user) {
@@ -134,8 +153,8 @@ export default function DashboardPage() {
 
       if (primary) {
         const [jobsResp, appsResp] = await Promise.all([
-          fetch(`/api/jobs?orgId=${primary.id}&limit=10`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`/api/applications?orgId=${primary.id}&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/jobs?orgId=${primary.id}&limit=1000`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/applications?orgId=${primary.id}&limit=1000`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (jobsResp.ok) {
@@ -146,6 +165,54 @@ export default function DashboardPage() {
           const appsData = await appsResp.json();
           setStats((prev) => ({ ...prev, applications: Array.isArray(appsData) ? appsData.length : 0 }));
         }
+
+        // Fetch previous period data (30 days ago)
+        // We need to count what existed 30 days ago, so we query for items created before that date
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        thirtyDaysAgo.setHours(23, 59, 59, 999); // End of day 30 days ago
+        
+        // For previous period, we count items that were created before 30 days ago
+        // This gives us a snapshot of what existed at that point in time
+        const [previousJobsResp, previousAppsResp] = await Promise.all([
+          fetch(`/api/jobs?orgId=${primary.id}&limit=10000`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`/api/applications?orgId=${primary.id}&limit=10000`, { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+
+        let previousJobs = 0;
+        let previousApplications = 0;
+
+        if (previousJobsResp.ok) {
+          const previousJobsData = await previousJobsResp.json();
+          if (Array.isArray(previousJobsData)) {
+            // Count jobs that were created before 30 days ago
+            // For "open jobs", we count jobs that exist and are open/published
+            previousJobs = previousJobsData.filter((job: any) => {
+              if (!job.createdAt) return false;
+              const jobDate = new Date(job.createdAt);
+              // Only count if created before 30 days ago AND is currently open/published
+              return jobDate <= thirtyDaysAgo && 
+                     (job.status === "open" || job.status === "published" || job.visibility === "public");
+            }).length;
+          }
+        }
+
+        if (previousAppsResp.ok) {
+          const previousAppsData = await previousAppsResp.json();
+          if (Array.isArray(previousAppsData)) {
+            // Count applications that were created before 30 days ago
+            previousApplications = previousAppsData.filter((app: any) => {
+              if (!app.createdAt) return false;
+              const appDate = new Date(app.createdAt);
+              return appDate <= thirtyDaysAgo;
+            }).length;
+          }
+        }
+
+        setPreviousPeriodStats({
+          jobs: previousJobs,
+          applications: previousApplications,
+        });
 
         await fetchActivity(primary.id, token, timeFilter);
       }
@@ -354,29 +421,6 @@ export default function DashboardPage() {
     </button>
   );
 
-  const StatTile = ({
-    icon: Icon,
-    label,
-    value,
-  }: {
-    icon: any;
-    label: string;
-    value: number | string;
-  }) => (
-    <div className="group relative overflow-hidden rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow transition-shadow">
-      <div className="absolute inset-0 bg-gradient-to-tr from-[#6a994e]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="flex items-center gap-2.5">
-        <div className="h-8 w-8 rounded-lg bg-[#6a994e]/10 flex items-center justify-center">
-          <Icon className="h-4 w-4 text-[#6a994e]" />
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-gray-500">{label}</div>
-          <div className="text-xl font-semibold text-gray-900">{value}</div>
-        </div>
-      </div>
-    </div>
-  );
-
   const SkeletonRow = () => (
     <div className="p-5">
       <div className="flex items-center gap-3">
@@ -435,9 +479,50 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <StatTile icon={Briefcase} label="Open Jobs" value={stats.jobs} />
-              <StatTile icon={User} label="Applications" value={stats.applications} />
+            <div className="grid grid-cols-2 gap-px rounded-xl bg-border">
+              {[
+                {
+                  label: "Open Jobs",
+                  value: stats.jobs,
+                },
+                {
+                  label: "Applications",
+                  value: stats.applications,
+                  change: previousPeriodStats ? calculateChange(stats.applications, previousPeriodStats.applications) : undefined,
+                },
+              ].map((stat, index) => (
+                <Card
+                  key={stat.label}
+                  className={cn(
+                    "rounded-none border-0 shadow-none py-0",
+                    index === 0 && "rounded-l-xl",
+                    index === 1 && "rounded-r-xl"
+                  )}
+                >
+                  <CardContent className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 p-3 sm:p-4">
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {stat.label}
+                    </div>
+                    {stat.change && (
+                      <div
+                        className={cn(
+                          "text-xs font-medium",
+                          stat.change.type === "positive"
+                            ? "text-green-800 dark:text-green-400"
+                            : stat.change.type === "negative"
+                            ? "text-red-800 dark:text-red-400"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {stat.change.value}
+                      </div>
+                    )}
+                    <div className="w-full flex-none text-2xl font-medium tracking-tight text-foreground">
+                      {stat.value}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 px-4 sm:px-6 py-2.5">

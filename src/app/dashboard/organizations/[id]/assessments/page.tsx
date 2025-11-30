@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -37,12 +39,8 @@ import {
   Filter,
   ChevronDown,
   ArrowUpDown,
-  Clock,
-  BookOpen,
-  ClipboardList,
-  CheckCircle2,
   Loader2,
-  Sparkles,
+  ClipboardList,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -340,26 +338,6 @@ export default function AssessmentsPage() {
       ? "bg-green-100 text-green-700"
       : "bg-yellow-100 text-yellow-700";
 
-  const StatTile = ({
-    icon: Icon,
-    label,
-    value,
-    sub,
-  }: { icon: any; label: string; value: number | string; sub?: string }) => (
-    <div className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow transition-shadow">
-      <div className="absolute inset-0 bg-gradient-to-tr from-[#6a994e]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-[#6a994e]/10 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-[#6a994e]" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
-          <div className="text-2xl font-semibold text-gray-900 truncate">{value}</div>
-          {sub ? <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div> : null}
-        </div>
-      </div>
-    </div>
-  );
 
   if (isPending || loadingOrg || loadingAssessments) {
     return (
@@ -396,12 +374,43 @@ export default function AssessmentsPage() {
             </div>
 
             {/* KPI Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-              <StatTile icon={ClipboardList} label="Total" value={kpis.total} />
-              <StatTile icon={CheckCircle2} label="Published" value={kpis.published} />
-              <StatTile icon={BookOpen} label="Drafts" value={kpis.drafts} />
-              <StatTile icon={Clock} label="Avg Duration" value={formatMinutes(kpis.avgSec)} />
-              <StatTile icon={Sparkles} label="% Published" value={`${kpis.pctPublished}%`} />
+            <div className="grid grid-cols-4 gap-px rounded-xl bg-border mb-4">
+              {[
+                {
+                  label: "Total",
+                  value: kpis.total,
+                },
+                {
+                  label: "Published",
+                  value: kpis.published,
+                },
+                {
+                  label: "Drafts",
+                  value: kpis.drafts,
+                },
+                {
+                  label: "Avg Duration",
+                  value: formatMinutes(kpis.avgSec),
+                },
+              ].map((stat, index) => (
+                <Card
+                  key={stat.label}
+                  className={cn(
+                    "rounded-none border-0 shadow-none py-0",
+                    index === 0 && "rounded-l-xl",
+                    index === 3 && "rounded-r-xl"
+                  )}
+                >
+                  <CardContent className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 p-3 sm:p-4">
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {stat.label}
+                    </div>
+                    <div className="w-full flex-none text-2xl font-medium tracking-tight text-foreground">
+                      {stat.value}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
             {/* Toolbar */}

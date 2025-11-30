@@ -31,6 +31,13 @@ export interface OverviewSnapshot {
   };
   sourceBreakdown: Array<{ source: string; count: number }>;
   teamActivity: Array<{ userId: number; userName: string; count: number }>;
+  // Previous period data for comparison
+  previousPeriod: {
+    totalOpenJobs: number;
+    totalApplicantsThisMonth: number;
+    activeCandidates: number;
+    offerAcceptanceRate: number;
+  };
 }
 
 export interface PipelineFunnel {
@@ -67,6 +74,8 @@ export async function fetchOverviewSnapshot(
 ): Promise<OverviewSnapshot> {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
   // Total open jobs (status can be 'open', 'published', or not 'draft'/'closed')
   const openJobsResult = await db
@@ -262,6 +271,83 @@ export async function fetchOverviewSnapshot(
     count: r.count,
   }));
 
+  // ========== PREVIOUS PERIOD DATA ==========
+  // Previous month's open jobs (jobs created before end of last month)
+  const previousOpenJobsResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.orgId, orgId),
+        or(
+          eq(jobs.status, "open"),
+          eq(jobs.status, "published"),
+          eq(jobs.visibility, "public")
+        ),
+        lte(jobs.createdAt, endOfLastMonth)
+      )
+    );
+  const previousOpenJobs = previousOpenJobsResult[0]?.count || 0;
+
+  // Previous month's applicants
+  const previousApplicantsThisMonthResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(applications)
+    .innerJoin(jobs, eq(applications.jobId, jobs.id))
+    .where(
+      and(
+        eq(jobs.orgId, orgId),
+        gte(applications.createdAt, startOfLastMonth),
+        lte(applications.createdAt, endOfLastMonth)
+      )
+    );
+  const previousApplicantsThisMonth = previousApplicantsThisMonthResult[0]?.count || 0;
+
+  // Previous month's active candidates (created before end of last month, not rejected/hired)
+  const previousActiveCandidatesResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(applications)
+    .innerJoin(jobs, eq(applications.jobId, jobs.id))
+    .where(
+      and(
+        eq(jobs.orgId, orgId),
+        ne(applications.stage, "rejected"),
+        ne(applications.stage, "hired"),
+        lte(applications.createdAt, endOfLastMonth)
+      )
+    );
+  const previousActiveCandidates = previousActiveCandidatesResult[0]?.count || 0;
+
+  // Previous month's offer acceptance rate
+  const previousOffersSentResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(actions)
+    .innerJoin(applications, eq(actions.applicationId, applications.id))
+    .innerJoin(jobs, eq(applications.jobId, jobs.id))
+    .where(
+      and(
+        eq(jobs.orgId, orgId),
+        eq(actions.type, "offer_sent"),
+        lte(actions.createdAt, endOfLastMonth)
+      )
+    );
+  const previousOffersSent = previousOffersSentResult[0]?.count || 0;
+
+  const previousOfferAcceptedResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(actions)
+    .innerJoin(applications, eq(actions.applicationId, applications.id))
+    .innerJoin(jobs, eq(applications.jobId, jobs.id))
+    .where(
+      and(
+        eq(jobs.orgId, orgId),
+        eq(actions.type, "offer_accepted"),
+        lte(actions.createdAt, endOfLastMonth)
+      )
+    );
+  const previousOffersAccepted = previousOfferAcceptedResult[0]?.count || 0;
+  const previousOfferAcceptanceRate = previousOffersSent > 0 ? (previousOffersAccepted / previousOffersSent) * 100 : 0;
+
   return {
     totalOpenJobs: openJobs,
     totalApplicantsThisMonth: applicantsThisMonth,
@@ -280,6 +366,12 @@ export async function fetchOverviewSnapshot(
       count: r.count,
     })),
     teamActivity,
+    previousPeriod: {
+      totalOpenJobs: previousOpenJobs,
+      totalApplicantsThisMonth: previousApplicantsThisMonth,
+      activeCandidates: previousActiveCandidates,
+      offerAcceptanceRate: previousOfferAcceptanceRate,
+    },
   };
 }
 
