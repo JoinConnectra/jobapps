@@ -26,12 +26,26 @@ import SettingsModal from "@/components/SettingsModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import {
   Users,
   Search as SearchIcon,
-  LayoutGrid,
-  Rows,
   ChevronDown,
   ArrowUpDown,
   Filter,
@@ -39,13 +53,9 @@ import {
   BadgeCheck,
   MapPin,
   Briefcase,
+  MoreVertical,
+  Eye,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 /** API item */
 type TalentItem = {
@@ -65,7 +75,6 @@ type TalentItem = {
 
 type SortKey = "recent" | "experience" | "name";
 type SortDir = "desc" | "asc";
-type ViewMode = "grid" | "list";
 
 /** Stable HSL from string for avatar color */
 function hslFromString(s: string) {
@@ -95,6 +104,10 @@ function TalentPageInner() {
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [previousPeriodData, setPreviousPeriodData] = useState<{
+    total: number;
+    avgExperience: number;
+  } | null>(null);
 
   // ----- Filters / search (URL-synced) -----
   const [q, setQ] = useState(searchParams.get("q") || "");
@@ -110,12 +123,12 @@ function TalentPageInner() {
   // ----- Sort & view -----
   const [sortKey, setSortKey] = useState<SortKey>("recent");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
 
   // ----- UI -------
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // ---------------- Auth & lifecycle ----------------
   useEffect(() => {
@@ -141,7 +154,7 @@ function TalentPageInner() {
     if (session?.user && !org) fetchOrg();
   }, [session, org]);
 
-  // Keyboard shortcuts (⌘/Ctrl K; / focus; R refresh; G toggle view)
+  // Keyboard shortcuts (⌘/Ctrl K; / focus; R refresh)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().includes("MAC");
@@ -161,15 +174,25 @@ function TalentPageInner() {
         fetchTalent();
         return;
       }
-      if (key === "g" && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        setViewMode((v) => (v === "grid" ? "list" : "grid"));
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openCommandPalette]);
+
+  // Close actions menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (dropdownOpen && !target.closest(".dropdown-container")) {
+        setDropdownOpen(false);
+      }
+    };
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownOpen]);
 
   // Helper to push filters into URL
   const pushQuery = (p = page) => {
@@ -205,6 +228,9 @@ function TalentPageInner() {
       if (!j.ok) throw new Error(j.error || "Failed to load");
       setItems(j.items || []);
       setTotal(j.total || 0);
+      if (j.previousPeriod) {
+        setPreviousPeriodData(j.previousPeriod);
+      }
       setLastRefreshedAt(new Date());
     } catch (e: any) {
       toast.error(e.message || "Failed to load talent");
@@ -219,16 +245,28 @@ function TalentPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, session?.user]);
 
+  // Helper to calculate percentage change
+  const calculateChange = (current: number, previous: number): { value: string; type: "positive" | "negative" | "neutral" } => {
+    if (previous === 0) {
+      return current > 0 ? { value: "+100%", type: "positive" } : { value: "0%", type: "neutral" };
+    }
+    const change = ((current - previous) / previous) * 100;
+    const rounded = Math.abs(change) < 0.01 ? 0 : change;
+    return {
+      value: `${rounded >= 0 ? "+" : ""}${rounded.toFixed(2)}%`,
+      type: rounded > 0 ? "positive" : rounded < 0 ? "negative" : "neutral",
+    };
+  };
+
   // ---------------- Derived KPIs ----------------
   const kpis = useMemo(() => {
     const totalTalent = total;
     const verifiedCount = items.filter((i) => i.verified).length;
     const avgExp =
       items.length > 0
-        ? (items.reduce((s, i) => s + (Number(i.experienceYears) || 0), 0) / items.length).toFixed(
-            1,
-          )
-        : "0.0";
+        ? (items.reduce((s, i) => s + (Number(i.experienceYears) || 0), 0) / items.length)
+        : 0;
+    const avgExpFormatted = avgExp > 0 ? avgExp.toFixed(1) : "0.0";
     const distinctCities = new Set(
       items
         .map((i) =>
@@ -237,8 +275,19 @@ function TalentPageInner() {
         .filter(Boolean),
     ).size;
 
-    return { totalTalent, verifiedCount, avgExp, distinctCities };
-  }, [items, total]);
+    // Calculate changes using real previous period data from API
+    const previousTotal = previousPeriodData?.total ?? 0;
+    const previousAvgExp = previousPeriodData?.avgExperience ?? 0;
+
+    return {
+      totalTalent,
+      verifiedCount,
+      avgExp: avgExpFormatted,
+      distinctCities,
+      totalTalentChange: calculateChange(totalTalent, previousTotal),
+      avgExpChange: calculateChange(avgExp, previousAvgExp),
+    };
+  }, [items, total, previousPeriodData]);
 
   // Sorting (client-side cosmetic)
   const sorted = useMemo(() => {
@@ -273,48 +322,6 @@ function TalentPageInner() {
   }
   if (!session?.user) return null;
 
-  // Tile avatar component
-  const InitialAvatar = ({ name }: { name: string }) => {
-    const initial = (name?.trim()?.[0] || "U").toUpperCase();
-    const bg = hslFromString(name || "User");
-    return (
-      <div
-        className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold shrink-0"
-        style={{ background: bg }}
-        aria-hidden
-      >
-        {initial}
-      </div>
-    );
-  };
-
-  // Small stat card (neutral)
-  const StatTile = ({
-    icon: Icon,
-    label,
-    value,
-    sub,
-  }: {
-    icon: any;
-    label: string;
-    value: number | string;
-    sub?: string;
-  }) => (
-    <div className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow transition-shadow">
-      <div className="absolute inset-0 bg-gradient-to-tr from-[#6a994e]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-[#6a994e]/10 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-[#6a994e]" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
-          <div className="text-2xl font-semibold text-gray-900 truncate">{value}</div>
-          {sub ? <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div> : null}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-[#FEFEFA] flex">
       {/* Sidebar */}
@@ -336,7 +343,7 @@ function TalentPageInner() {
       {/* Main */}
       <main className="flex-1 bg-[#FEFEFA] overflow-y-auto overflow-x-hidden">
         {/* Breadcrumb */}
-        <div className="p-8">
+        <div className="p-8 pb-4">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center gap-4 mb-8">
               <nav className="flex items-center gap-2 text-sm">
@@ -352,11 +359,59 @@ function TalentPageInner() {
             </div>
 
             {/* KPI Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <StatTile icon={Users} label="Visible Profiles" value={kpis.totalTalent} />
-              <StatTile icon={BadgeCheck} label="Verified" value={kpis.verifiedCount} />
-              <StatTile icon={Briefcase} label="Avg Experience" value={`${kpis.avgExp} yrs`} />
-              <StatTile icon={MapPin} label="Cities" value={kpis.distinctCities} />
+            <div className="grid grid-cols-4 gap-px rounded-xl bg-border mb-4">
+              {[
+                {
+                  label: "Visible Profiles",
+                  value: kpis.totalTalent,
+                  change: kpis.totalTalentChange,
+                },
+                {
+                  label: "Verified",
+                  value: kpis.verifiedCount,
+                },
+                {
+                  label: "Avg Experience",
+                  value: `${kpis.avgExp} yrs`,
+                  change: kpis.avgExpChange,
+                },
+                {
+                  label: "Cities",
+                  value: kpis.distinctCities,
+                },
+              ].map((stat, index) => (
+                <Card
+                  key={stat.label}
+                  className={cn(
+                    "rounded-none border-0 shadow-none py-0",
+                    index === 0 && "rounded-l-xl",
+                    index === 3 && "rounded-r-xl"
+                  )}
+                >
+                  <CardContent className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 p-3 sm:p-4">
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {stat.label}
+                    </div>
+                    {stat.change && (
+                      <div
+                        className={cn(
+                          "text-xs font-medium",
+                          stat.change.type === "positive"
+                            ? "text-green-800 dark:text-green-400"
+                            : stat.change.type === "negative"
+                            ? "text-red-800 dark:text-red-400"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {stat.change.value}
+                      </div>
+                    )}
+                    <div className="w-full flex-none text-2xl font-medium tracking-tight text-foreground">
+                      {stat.value}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
             {/* Toolbar (compact, neutral) */}
@@ -376,61 +431,84 @@ function TalentPageInner() {
                     />
                   </div>
 
-                  {/* Sort (cosmetic) */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <ArrowUpDown className="h-4 w-4" />
-                        Sort
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
-                      <DropdownMenuItem onClick={() => setSortKey("recent")}>
-                        Recent {sortKey === "recent" ? "•" : ""}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setSortKey("experience")}>
-                        Experience {sortKey === "experience" ? "•" : ""}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setSortKey("name")}>
-                        Name {sortKey === "name" ? "•" : ""}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
-                      >
-                        Direction: {sortDir.toUpperCase()}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {/* Actions dropdown with sort */}
+                  <div className="relative dropdown-container">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDropdownOpen(!dropdownOpen);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-all"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                      Actions
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
 
-                  {/* View toggle */}
-                  <div className="flex bg-gray-100 rounded-lg p-1">
-                    <button
-                      onClick={() => setViewMode("list")}
-                      className={[
-                        "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                        viewMode === "list"
-                          ? "bg-[#6a994e] text-white shadow-sm"
-                          : "text-gray-700 hover:bg-gray-200/60",
-                      ].join(" ")}
-                      title="G to toggle"
-                    >
-                      <Rows className="h-4 w-4" />
-                      List
-                    </button>
-                    <button
-                      onClick={() => setViewMode("grid")}
-                      className={[
-                        "px-3 py-2 rounded-md text-sm font-medium transition-all inline-flex items-center gap-2",
-                        viewMode === "grid"
-                          ? "bg-[#6a994e] text-white shadow-sm"
-                          : "text-gray-700 hover:bg-gray-200/60",
-                      ].join(" ")}
-                      title="G to toggle"
-                    >
-                      <LayoutGrid className="h-4 w-4" />
-                      Grid
-                    </button>
+                    {dropdownOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 dropdown-container">
+                        <div className="p-2">
+                          {/* Sort options */}
+                          <div className="px-3 py-2 text-xs text-gray-500 font-medium mb-1">
+                            Sort by:
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSortKey("recent");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors mb-1 ${
+                              sortKey === "recent"
+                                ? "bg-gray-100 text-gray-900 font-medium"
+                                : "text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <ArrowUpDown className="w-3 h-3 inline mr-2" />
+                            Recent
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSortKey("experience");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors mb-1 ${
+                              sortKey === "experience"
+                                ? "bg-gray-100 text-gray-900 font-medium"
+                                : "text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <ArrowUpDown className="w-3 h-3 inline mr-2" />
+                            Experience
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSortKey("name");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors mb-2 ${
+                              sortKey === "name"
+                                ? "bg-gray-100 text-gray-900 font-medium"
+                                : "text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <ArrowUpDown className="w-3 h-3 inline mr-2" />
+                            Name
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+                              setDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors mb-2"
+                          >
+                            Direction: {sortDir.toUpperCase()}
+                          </button>
+
+                          <div className="border-t border-gray-200 my-2"></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Filters toggle */}
@@ -540,7 +618,7 @@ function TalentPageInner() {
         </div>
 
         {/* CONTENT */}
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 py-0">
+        <div className="max-w-6xl mx-auto py-0">
           {loading ? (
             <div className="text-sm text-muted-foreground flex items-center gap-2 py-6">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading talent…
@@ -574,167 +652,169 @@ function TalentPageInner() {
                 Reset filters
               </Button>
             </div>
-          ) : viewMode === "list" ? (
-            // ======= LIST VIEW =======
-            <ul className="space-y-2 sm:space-y-3">
-              {sorted.map((it) => {
-                const displayName = it.name || "Unnamed Candidate";
-                const loc =
-                  [it.locationCity, it.locationCountry].filter(Boolean).join(", ") || "—";
-                return (
-                  <li
-                    key={it.id}
-                    className="rounded-xl border border-gray-200 bg-white px-5 py-4 md:py-5 shadow-sm hover:shadow transition-shadow"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <Link
-                        href={`/dashboard/talent/${it.id}`}
-                        className="flex-1 min-w-0 flex items-start gap-3"
-                      >
-                        <InitialAvatar name={displayName} />
-
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
-                              {displayName}
-                            </h3>
-                            {it.verified && (
-                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <BadgeCheck className="w-3 h-3" />
-                                Verified
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="text-[11px] text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                            {it.program ? (
-                              <span className="inline-flex items-center gap-1">
-                                <Briefcase className="w-3.5 h-3.5" />
-                                {it.program}
-                              </span>
-                            ) : null}
-                            {it.experienceYears != null ? (
-                              <span>{it.experienceYears} yrs</span>
-                            ) : null}
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5" />
-                              {loc}
-                            </span>
-                          </div>
-
-                          {it.headline && (
-                            <div className="text-sm text-gray-700 mt-2 line-clamp-2">
-                              {it.headline}
-                            </div>
-                          )}
-
-                          {(it.skills || []).length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {it.skills.slice(0, 8).map((s) => (
-                                <span
-                                  key={s}
-                                  className="text-[10px] px-2 py-1 rounded-full border"
-                                >
-                                  {s}
-                                </span>
-                              ))}
-                              {it.skills.length > 8 && (
-                                <span className="text-[10px] px-2 py-1 rounded-full border bg-gray-50">
-                                  +{it.skills.length - 8}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </Link>
-
-                      <div className="shrink-0 pt-1">
-                        <Link href={`/dashboard/talent/${it.id}`}>
-                          <Button
-                            size="sm"
-                            className="bg-[#6a994e] hover:bg-[#5a8743] text-white"
-                          >
-                            View Profile
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
           ) : (
-            // ======= GRID VIEW (fixed bottom-aligned button) =======
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {sorted.map((it) => {
-                const displayName = it.name || "Unnamed Candidate";
-                const loc =
-                  [it.locationCity, it.locationCountry].filter(Boolean).join(", ") || "—";
+            // ======= TABLE VIEW =======
+            <div className="rounded-lg border bg-card overflow-x-auto w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-b">
+                    <TableHead className="h-10 px-2 font-medium w-[180px]">Name</TableHead>
+                    <TableHead className="h-10 px-2 font-medium w-[140px]">Program</TableHead>
+                    <TableHead className="h-10 px-2 font-medium w-[80px]">Exp</TableHead>
+                    <TableHead className="h-10 px-2 font-medium w-[120px]">Location</TableHead>
+                    <TableHead className="h-10 px-2 font-medium w-[140px]">Skills</TableHead>
+                    <TableHead className="h-10 px-2 font-medium w-[70px]">Status</TableHead>
+                    <TableHead className="h-10 px-2 font-medium w-[60px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sorted.map((it) => {
+                    const displayName = it.name || "Unnamed Candidate";
+                    const loc = it.locationCity || it.locationCountry || "—";
+                    const programText = it.program || "—";
 
-                return (
-                  <div
-                    key={it.id}
-                    className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow transition-shadow flex flex-col h-full"
-                  >
-                    {/* Content + skills block grows to fill card */}
-                    <div className="flex-1 flex flex-col min-h-0">
-                      <Link
-                        href={`/dashboard/talent/${it.id}`}
-                        className="min-w-0 flex items-start gap-3"
+                    return (
+                      <TableRow
+                        key={it.id}
+                        className="hover:bg-muted/50"
                       >
-                        <InitialAvatar name={displayName} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="text-sm font-medium text-gray-900 hover:text-[#6a994e] transition-colors truncate">
-                              {displayName}
-                            </h3>
-                            {it.verified && (
-                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                                <BadgeCheck className="w-3 h-3" />
-                                Verified
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-gray-500 mt-1">
-                            {it.program || "—"}
-                            {it.experienceYears != null ? ` • ${it.experienceYears} yrs` : ""}
-                          </div>
-                          <div className="text-[11px] text-gray-500 mt-0.5 truncate">
-                            {loc}
-                          </div>
-                          {it.headline && (
-                            <div className="text-xs text-gray-700 mt-2 line-clamp-2">
-                              {it.headline}
+                        <TableCell className="h-12 px-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-semibold shrink-0" style={{ background: hslFromString(displayName) }}>
+                              {(displayName?.trim()?.[0] || "U").toUpperCase()}
                             </div>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Link
+                                    href={`/dashboard/talent/${it.id}`}
+                                    className="text-sm font-medium truncate block min-w-0 text-gray-900 hover:text-gray-700 transition-colors"
+                                  >
+                                    {displayName}
+                                  </Link>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                  <p className="font-medium text-white">{displayName}</p>
+                                  <p className="text-xs text-gray-200 mt-0.5">{it.email}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </TableCell>
+                        <TableCell className="h-12 px-2">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {programText}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                <span className="text-white">{programText}</span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell className="h-12 px-2 text-xs text-muted-foreground">
+                          {it.experienceYears != null ? `${it.experienceYears}y` : "—"}
+                        </TableCell>
+                        <TableCell className="h-12 px-2">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {loc}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                <span className="text-white">{[it.locationCity, it.locationCountry].filter(Boolean).join(", ") || "—"}</span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell className="h-12 px-2">
+                          {(it.skills || []).length > 0 ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex gap-0.5 flex-wrap">
+                                    {it.skills.slice(0, 2).map((s) => (
+                                      <span
+                                        key={s}
+                                        className="text-[9px] px-1.5 py-0.5 rounded border bg-gray-50 truncate max-w-[60px]"
+                                        title={s}
+                                      >
+                                        {s}
+                                      </span>
+                                    ))}
+                                    {it.skills.length > 2 && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded border bg-gray-50">
+                                        +{it.skills.length - 2}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                  <div className="flex flex-wrap gap-1 max-w-xs">
+                                    {it.skills.map((s) => (
+                                      <span
+                                        key={s}
+                                        className="text-[10px] px-2 py-1 rounded-full border border-gray-600 bg-gray-800 text-gray-100"
+                                      >
+                                        {s}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
-                        </div>
-                      </Link>
-
-                      {(it.skills || []).length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-3">
-                          {it.skills.slice(0, 6).map((s) => (
-                            <span key={s} className="text-[10px] px-2 py-1 rounded-full border">
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Button pinned to bottom via mt-auto on a separate block */}
-                    <div className="mt-4">
-                      <Link href={`/dashboard/talent/${it.id}`}>
-                        <Button
-                          size="sm"
-                          className="w-full bg-[#6a994e] hover:bg-[#5a8743] text-white"
-                        >
-                          View Profile
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
+                        </TableCell>
+                        <TableCell className="h-12 px-2">
+                          {it.verified ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <BadgeCheck className="w-2.5 h-2.5" />
+                                    ✓
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>Verified</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="h-12 px-2">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 hover:bg-gray-100"
+                                  asChild
+                                >
+                                  <Link href={`/dashboard/talent/${it.id}`}>
+                                    <Eye className="size-3.5" />
+                                  </Link>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                <span className="text-white">View Profile</span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
 

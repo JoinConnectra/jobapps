@@ -4,6 +4,21 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession, authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   User,
   Filter,
@@ -14,6 +29,10 @@ import {
   Trash2,
   AlertTriangle,
   Check,
+  Loader2,
+  FileText,
+  Eye,
+  ArrowUpDown,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -83,6 +102,90 @@ function formatStageLabel(stage: string): string {
     .join(" ");
 }
 
+/** Get status badge based on stage */
+function getStatusBadge(stage: string) {
+  switch (stage) {
+    case "applied":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-blue-500/15 text-blue-700 hover:bg-blue-500/25 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 border-0"
+        >
+          Applied
+        </Badge>
+      );
+    case "reviewing":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 border-0"
+        >
+          Reviewing
+        </Badge>
+      );
+    case "assessment":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-purple-500/15 text-purple-700 hover:bg-purple-500/25 dark:bg-purple-500/10 dark:text-purple-400 dark:hover:bg-purple-500/20 border-0"
+        >
+          Assessment
+        </Badge>
+      );
+    case "phone_screen":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-indigo-500/15 text-indigo-700 hover:bg-indigo-500/25 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 border-0"
+        >
+          Phone Screen
+        </Badge>
+      );
+    case "onsite":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-cyan-500/15 text-cyan-700 hover:bg-cyan-500/25 dark:bg-cyan-500/10 dark:text-cyan-400 dark:hover:bg-cyan-500/20 border-0"
+        >
+          Onsite
+        </Badge>
+      );
+    case "offer":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 border-0"
+        >
+          Offer
+        </Badge>
+      );
+    case "hired":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-green-500/15 text-green-700 hover:bg-green-500/25 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20 border-0"
+        >
+          Hired
+        </Badge>
+      );
+    case "rejected":
+      return (
+        <Badge
+          variant="outline"
+          className="bg-rose-500/15 text-rose-700 hover:bg-rose-500/25 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20 border-0"
+        >
+          Rejected
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="outline">
+          {formatStageLabel(stage)}
+        </Badge>
+      );
+  }
+}
+
 export default function JobApplicationsPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -119,6 +222,7 @@ export default function JobApplicationsPage() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<string>("none"); // "none" | "ats" | "recent" | "oldest"
 
   // ATS scores mapped by application id
   const [atsByApp, setAtsByApp] = useState<
@@ -322,9 +426,36 @@ export default function JobApplicationsPage() {
   ] as const;
 
   const viewApps = useMemo(() => {
-    if (filter === "all") return allApplications;
-    return allApplications.filter((a) => a.stage === filter);
-  }, [allApplications, filter]);
+    let filtered = filter === "all" 
+      ? allApplications 
+      : allApplications.filter((a) => a.stage === filter);
+    
+    // Apply sorting based on selected method
+    if (sortBy !== "none") {
+      filtered = [...filtered].sort((a, b) => {
+        switch (sortBy) {
+          case "ats":
+            // Sort by ATS score (highest to lowest)
+            const scoreA = atsByApp[a.id]?.score ?? -1;
+            const scoreB = atsByApp[b.id]?.score ?? -1;
+            return scoreB - scoreA; // Descending order (highest first)
+          
+          case "recent":
+            // Sort by most recent (newest first)
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          
+          case "oldest":
+            // Sort by oldest first (applied first)
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          
+          default:
+            return 0;
+        }
+      });
+    }
+    
+    return filtered;
+  }, [allApplications, filter, sortBy, atsByApp]);
 
   const stageCounts = useMemo(() => {
     const base: Record<string, number> = { all: allApplications.length };
@@ -519,105 +650,170 @@ export default function JobApplicationsPage() {
                   ))}
                 </div>
 
-                {/* Bulk actions */}
-                <div className="relative dropdown-container">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setDropdownOpen(!dropdownOpen);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-all"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                    Actions
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
+                <div className="flex items-center gap-2">
+                  {/* Bulk actions */}
+                  <div className="relative dropdown-container">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDropdownOpen(!dropdownOpen);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-all"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                      Actions
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
 
-                  {dropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 dropdown-container">
-                      <div className="p-2">
-                        <button
-                          onClick={() => {
-                            setBulkActionMode(!bulkActionMode);
-                            if (!bulkActionMode) clearSelection();
-                            setDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          {bulkActionMode
-                            ? "Exit Selection"
-                            : "Select Applications"}
-                        </button>
+                    {dropdownOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 dropdown-container">
+                        <div className="p-2">
+                          {/* Sort options */}
+                          <div className="px-3 py-2 text-xs text-gray-500 font-medium mb-1">
+                            Sort by:
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSortBy("none");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors mb-1 ${
+                              sortBy === "none"
+                                ? "bg-gray-100 text-gray-900 font-medium"
+                                : "text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <ArrowUpDown className="w-3 h-3 inline mr-2" />
+                            No sorting
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSortBy("ats");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors mb-1 ${
+                              sortBy === "ats"
+                                ? "bg-gray-100 text-gray-900 font-medium"
+                                : "text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <ArrowUpDown className="w-3 h-3 inline mr-2" />
+                            ATS (Highest to Lowest)
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSortBy("recent");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors mb-1 ${
+                              sortBy === "recent"
+                                ? "bg-gray-100 text-gray-900 font-medium"
+                                : "text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <ArrowUpDown className="w-3 h-3 inline mr-2" />
+                            Most Recent
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSortBy("oldest");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors mb-2 ${
+                              sortBy === "oldest"
+                                ? "bg-gray-100 text-gray-900 font-medium"
+                                : "text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <ArrowUpDown className="w-3 h-3 inline mr-2" />
+                            Applied First
+                          </button>
 
-                        {bulkActionMode && (
-                          <>
-                            <button
-                              onClick={() => {
-                                selectAllApplications();
-                                setDropdownOpen(false);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              Select All (this view)
-                            </button>
-                            <button
-                              onClick={() => {
-                                clearSelection();
-                                setDropdownOpen(false);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              Clear Selection
-                            </button>
+                          <div className="border-t border-gray-200 my-2"></div>
 
-                            <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
-                              {selectedApplications.length} selected
-                            </div>
+                          <button
+                            onClick={() => {
+                              setBulkActionMode(!bulkActionMode);
+                              if (!bulkActionMode) clearSelection();
+                              setDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            {bulkActionMode
+                              ? "Exit Selection"
+                              : "Select Applications"}
+                          </button>
 
-                            <div className="px-3 py-2 text-xs text-gray-500 font-medium">
-                              Quick Actions:
-                            </div>
-
-                            {stages.slice(1).map((stage) => (
+                          {bulkActionMode && (
+                            <>
                               <button
-                                key={stage.value}
                                 onClick={() => {
+                                  selectAllApplications();
                                   setDropdownOpen(false);
-                                  handleBulkStageUpdate(stage.value);
                                 }}
-                                disabled={bulkActionLoading}
-                                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                               >
-                                Move to {stage.label}
+                                Select All (this view)
                               </button>
-                            ))}
-                          </>
-                        )}
+                              <button
+                                onClick={() => {
+                                  clearSelection();
+                                  setDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              >
+                                Clear Selection
+                              </button>
+
+                              <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+                                {selectedApplications.length} selected
+                              </div>
+
+                              <div className="px-3 py-2 text-xs text-gray-500 font-medium">
+                                Quick Actions:
+                              </div>
+
+                              {stages.slice(1).map((stage) => (
+                                <button
+                                  key={stage.value}
+                                  onClick={() => {
+                                    setDropdownOpen(false);
+                                    handleBulkStageUpdate(stage.value);
+                                  }}
+                                  disabled={bulkActionLoading}
+                                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Move to {stage.label}
+                                </button>
+                              ))}
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Applications List */}
-            <div className="bg-white rounded-lg shadow-sm">
+            {/* Applications Table */}
+            <div className="rounded-lg border bg-card">
               {bulkActionMode && (
-                <div className="p-4 bg-blue-50 border-b border-blue-200">
+                <div className="p-4 bg-gray-100 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                      <span className="text-sm font-medium text-blue-900">
+                      <div className="w-2 h-2 bg-gray-600 rounded-full" />
+                      <span className="text-sm font-medium text-gray-900">
                         Selection Mode Active
                       </span>
-                      <span className="text-xs text-blue-700">
+                      <span className="text-xs text-gray-600">
                         ({selectedApplications.length} selected)
                       </span>
                     </div>
                     <button
                       onClick={() => setBulkActionMode(false)}
-                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      className="text-xs text-gray-700 hover:text-gray-900 underline"
                     >
                       Exit Selection
                     </button>
@@ -633,194 +829,201 @@ export default function JobApplicationsPage() {
                   </p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100">
-                  {viewApps.map((app) => {
-                    const entry = atsByApp[app.id];
-                    const pct = formatScore(entry?.score);
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-b">
+                      {bulkActionMode && (
+                        <TableHead className="h-12 px-4 w-[50px]">
+                          <button
+                            onClick={() => {
+                              if (selectedApplications.length === viewApps.length) {
+                                clearSelection();
+                              } else {
+                                selectAllApplications();
+                              }
+                            }}
+                            className="w-5 h-5 rounded border-2 flex items-center justify-center transition-all border-gray-300 hover:border-gray-400"
+                          >
+                            {selectedApplications.length === viewApps.length && (
+                              <Check className="w-3 h-3" />
+                            )}
+                          </button>
+                        </TableHead>
+                      )}
+                      <TableHead className="h-12 px-4 font-medium">Applicant</TableHead>
+                      <TableHead className="h-12 px-4 font-medium">Email</TableHead>
+                      <TableHead className="h-12 px-4 font-medium w-[100px]">ATS</TableHead>
+                      <TableHead className="h-12 px-4 font-medium w-[120px]">Status</TableHead>
+                      <TableHead className="h-12 px-4 font-medium">Applied Date</TableHead>
+                      <TableHead className="h-12 px-4 font-medium">Source</TableHead>
+                      <TableHead className="h-12 px-4 font-medium w-[180px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {viewApps.map((app) => {
+                      const entry = atsByApp[app.id];
+                      const pct = formatScore(entry?.score);
+                      const displayName =
+                        app.applicantName?.trim() || app.applicantEmail;
+                      const appliedDate = new Date(app.createdAt).toLocaleDateString();
+                      const isSelected = selectedApplications.includes(app.id);
 
-                    let ringColor = "stroke-gray-300";
-                    let textColor = "text-gray-700";
-                    if (pct != null && pct >= 80) {
-                      ringColor = "stroke-green-500";
-                      textColor = "text-green-700";
-                    } else if (pct != null && pct >= 60) {
-                      ringColor = "stroke-yellow-500";
-                      textColor = "text-yellow-700";
-                    } else if (pct != null && pct >= 30) {
-                      ringColor = "stroke-red-500";
-                      textColor = "text-red-700";
-                    }
-
-                    const displayName =
-                      app.applicantName?.trim() || app.applicantEmail;
-
-                    return (
-                      <div
-                        key={app.id}
-                        className={`p-5 hover:bg-gray-50 transition-colors ${
-                          selectedApplications.includes(app.id)
-                            ? "bg-blue-50 border-l-4 border-blue-500"
-                            : ""
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            {bulkActionMode && (
+                      return (
+                        <TableRow
+                          key={app.id}
+                          className={`hover:bg-muted/50 ${
+                            isSelected ? "bg-gray-100" : ""
+                          }`}
+                        >
+                          {bulkActionMode && (
+                            <TableCell className="h-16 px-4">
                               <button
                                 onClick={() =>
                                   toggleApplicationSelection(app.id)
                                 }
                                 className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                                  selectedApplications.includes(app.id)
+                                  isSelected
                                     ? "bg-[#6a994e] border-[#6a994e] text-white"
                                     : "border-gray-300 hover:border-gray-400"
                                 }`}
                               >
-                                {selectedApplications.includes(app.id) && (
-                                  <Check className="w-3 h-3" />
-                                )}
+                                {isSelected && <Check className="w-3 h-3" />}
                               </button>
-                            )}
-
+                            </TableCell>
+                          )}
+                          <TableCell className="h-16 px-4 font-medium">
                             <Link
                               href={`/dashboard/applications/${app.id}`}
-                              className="flex items-center gap-3 flex-1"
+                              className="text-gray-900 hover:text-gray-700 transition-colors"
                             >
-                              <div className="w-8 h-8 bg-orange-100 rounded flex items-center justify-center">
-                                <User className="w-4 h-4 text-orange-600" />
-                              </div>
-
-                              <div>
-                                {/* Name (primary) + ATS badge */}
-                                <div className="flex items-center gap-3">
-                                  <h3 className="text-sm font-medium text-gray-900">
-                                    {displayName}
-                                  </h3>
-
-                                  {/* ATS SCORE CIRCLE */}
-                                  <div className="flex items-center">
-                                    {pct != null ? (
-                                      <div
-                                        className="relative w-10 h-10"
-                                        title={`ATS ${pct}%`}
-                                      >
-                                        <svg className="w-full h-full -rotate-90">
-                                          <circle
-                                            cx="20"
-                                            cy="20"
-                                            r="18"
-                                            strokeWidth="4"
-                                            className="stroke-gray-200 fill-none"
-                                          />
-                                          <circle
-                                            cx="20"
-                                            cy="20"
-                                            r="18"
-                                            strokeWidth="4"
-                                            className={`${ringColor} fill-none transition-all duration-700`}
-                                            strokeDasharray={
-                                              Math.PI * 2 * 18
-                                            }
-                                            strokeDashoffset={
-                                              Math.PI *
-                                              2 *
-                                              18 *
-                                              (1 - pct / 100)
-                                            }
-                                          />
-                                        </svg>
-                                        <span
-                                          className={`absolute inset-0 flex items-center justify-center text-[11px] font-bold ${textColor}`}
-                                        >
-                                          {pct}
-                                        </span>
-                                      </div>
-                                    ) : (
-                                      <div
-                                        className="relative w-10 h-10"
-                                        title="No ATS score"
-                                      >
-                                        <svg className="w-full h-full -rotate-90">
-                                          <circle
-                                            cx="20"
-                                            cy="20"
-                                            r="18"
-                                            strokeWidth="4"
-                                            className="stroke-gray-200 fill-none"
-                                          />
-                                        </svg>
-                                        <span className="absolute inset-0 flex items-center justify-center text-[11px] text-gray-400 font-semibold">
-                                          —
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Email under the name */}
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                  {app.applicantEmail}
-                                </div>
-
-                                {/* Meta row */}
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Clock className="w-3 h-3 text-gray-500" />
-                                  <span className="text-xs text-gray-500">
-                                    Applied{" "}
-                                    {new Date(
-                                      app.createdAt
-                                    ).toLocaleDateString()}
-                                  </span>
-                                  {app.source && (
-                                    <>
-                                      <span className="text-xs text-gray-500">
-                                        •
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        via {app.source}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
+                              {displayName}
                             </Link>
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                app.stage === "hired"
-                                  ? "bg-green-100 text-green-700"
-                                  : app.stage === "rejected"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-blue-100 text-blue-700"
-                              }`}
-                            >
-                              {formatStageLabel(app.stage)}
-                            </span>
-
-                            {!bulkActionMode && (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  openDeleteDialog(
-                                    app.id,
-                                    app.applicantEmail
-                                  );
-                                }}
-                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete application"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                          </TableCell>
+                          <TableCell className="h-16 px-4 text-sm text-muted-foreground">
+                            {app.applicantEmail}
+                          </TableCell>
+                          <TableCell className="h-16 px-4">
+                            {pct != null ? (
+                              <div className="flex items-center gap-2">
+                                <div className="relative w-10 h-10" title={`ATS ${pct}%`}>
+                                  <svg className="w-full h-full -rotate-90">
+                                    <circle
+                                      cx="20"
+                                      cy="20"
+                                      r="18"
+                                      strokeWidth="4"
+                                      className="stroke-gray-200 fill-none"
+                                    />
+                                    <circle
+                                      cx="20"
+                                      cy="20"
+                                      r="18"
+                                      strokeWidth="4"
+                                      className={`${
+                                        pct >= 80
+                                          ? "stroke-green-500"
+                                          : pct >= 60
+                                          ? "stroke-yellow-500"
+                                          : pct >= 30
+                                          ? "stroke-red-500"
+                                          : "stroke-gray-300"
+                                      } fill-none transition-all duration-700`}
+                                      strokeDasharray={Math.PI * 2 * 18}
+                                      strokeDashoffset={
+                                        Math.PI * 2 * 18 * (1 - pct / 100)
+                                      }
+                                    />
+                                  </svg>
+                                  <span
+                                    className={`absolute inset-0 flex items-center justify-center text-[11px] font-bold ${
+                                      pct >= 80
+                                        ? "text-green-700"
+                                        : pct >= 60
+                                        ? "text-yellow-700"
+                                        : pct >= 30
+                                        ? "text-red-700"
+                                        : "text-gray-700"
+                                    }`}
+                                  >
+                                    {pct}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
                             )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                          </TableCell>
+                          <TableCell className="h-16 px-4">
+                            {getStatusBadge(app.stage)}
+                          </TableCell>
+                          <TableCell className="h-16 px-4 text-sm text-muted-foreground">
+                            {appliedDate}
+                          </TableCell>
+                          <TableCell className="h-16 px-4 max-w-[200px] text-sm text-muted-foreground">
+                            {app.source ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="block cursor-help truncate">
+                                      via {app.source}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                    <p className="text-white">via {app.source}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="h-16 px-4">
+                            <TooltipProvider>
+                              <div className="flex items-center gap-1">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      asChild
+                                    >
+                                      <Link href={`/dashboard/applications/${app.id}`}>
+                                        <Eye className="size-4" />
+                                      </Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                    <span className="text-white">View Details</span>
+                                  </TooltipContent>
+                                </Tooltip>
+                                {!bulkActionMode && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-8 w-8 text-destructive hover:bg-destructive hover:text-white"
+                                        onClick={() =>
+                                          openDeleteDialog(app.id, app.applicantEmail)
+                                        }
+                                      >
+                                        <Trash2 className="size-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-gray-900 text-white border-gray-800">
+                                      <span className="text-white">Delete</span>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            </TooltipProvider>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               )}
             </div>
           </div>

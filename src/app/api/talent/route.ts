@@ -134,12 +134,36 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Calculate previous period data (30 days ago)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    // Previous period total profiles
+    const { count: previousTotalCount } = await supabaseService
+      .from("student_profiles")
+      .select("*", { count: "exact", head: true })
+      .lte("created_at", thirtyDaysAgo.toISOString());
+    
+    // Previous period average experience
+    const { data: previousProfiles } = await supabaseService
+      .from("student_profiles")
+      .select("experience_years")
+      .lte("created_at", thirtyDaysAgo.toISOString());
+    
+    const previousAvgExp = previousProfiles && previousProfiles.length > 0
+      ? previousProfiles.reduce((sum: number, p: any) => sum + (Number(p.experience_years) || 0), 0) / previousProfiles.length
+      : 0;
+
     return NextResponse.json({
       ok: true,
       page,
       pageSize,
       total: count ?? items.length,
       items,
+      previousPeriod: {
+        total: previousTotalCount || 0,
+        avgExperience: previousAvgExp,
+      },
     });
   } catch (e: any) {
     console.error("[/api/talent] error:", e?.message || e);

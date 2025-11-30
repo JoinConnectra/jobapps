@@ -32,6 +32,7 @@ import CompanySidebar from "@/components/company/CompanySidebar";
 import { useCommandPalette } from "@/hooks/use-command-palette";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   ChartContainer,
   ChartTooltip,
@@ -246,6 +247,39 @@ export default function KPIInsightsPage() {
   const jobPerformance = data?.jobPerformance || [];
   const applicationsOverTime = data?.applicationsOverTime || [];
 
+  // Helper to calculate percentage change
+  const calculateChange = (current: number, previous: number): { value: string; type: "positive" | "negative" | "neutral" } => {
+    if (previous === 0) {
+      return current > 0 ? { value: "+100%", type: "positive" } : { value: "0%", type: "neutral" };
+    }
+    const change = ((current - previous) / previous) * 100;
+    const rounded = Math.abs(change) < 0.01 ? 0 : change;
+    return {
+      value: `${rounded >= 0 ? "+" : ""}${rounded.toFixed(2)}%`,
+      type: rounded > 0 ? "positive" : rounded < 0 ? "negative" : "neutral",
+    };
+  };
+
+  // Calculate changes for overview stats using real previous period data from API
+  const overviewChanges = useMemo(() => {
+    if (!overview || !overview.previousPeriod) return {};
+    
+    return {
+      thisMonth: calculateChange(
+        overview.totalApplicantsThisMonth,
+        overview.previousPeriod.totalApplicantsThisMonth
+      ),
+      active: calculateChange(
+        overview.activeCandidates,
+        overview.previousPeriod.activeCandidates
+      ),
+      acceptance: calculateChange(
+        overview.offerAcceptanceRate,
+        overview.previousPeriod.offerAcceptanceRate
+      ),
+    };
+  }, [overview]);
+
   // State hooks must be declared before useMemo hooks that use them
   const [activeChart, setActiveChart] = useState<string>("total");
   const [timeView, setTimeView] = useState<"daily" | "monthly" | "yearly">("daily");
@@ -413,70 +447,74 @@ export default function KPIInsightsPage() {
                 {/* SECTION 1: Overview Snapshot */}
                 <section className="mb-6">
                   <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Overview</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-                    <Card className="p-3">
-                      <CardHeader className="p-0 pb-2">
-                        <CardTitle className="text-xs font-normal text-gray-500">Open Jobs</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="text-xl sm:text-2xl font-bold">{overview?.totalOpenJobs || 0}</div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="p-3">
-                      <CardHeader className="p-0 pb-2">
-                        <CardTitle className="text-xs font-normal text-gray-500">This Month</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="text-xl sm:text-2xl font-bold">{overview?.totalApplicantsThisMonth || 0}</div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="p-3">
-                      <CardHeader className="p-0 pb-2">
-                        <CardTitle className="text-xs font-normal text-gray-500">Time to Hire</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="text-xl sm:text-2xl font-bold">
-                          {overview?.medianTimeToHire
-                            ? `${Math.round(overview.medianTimeToHire)}d`
-                            : "—"}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="p-3">
-                      <CardHeader className="p-0 pb-2">
-                        <CardTitle className="text-xs font-normal text-gray-500">Acceptance</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="text-xl sm:text-2xl font-bold">
-                          {overview?.offerAcceptanceRate
-                            ? `${overview.offerAcceptanceRate.toFixed(1)}%`
-                            : "0%"}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="p-3">
-                      <CardHeader className="p-0 pb-2">
-                        <CardTitle className="text-xs font-normal text-gray-500">Active</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="text-xl sm:text-2xl font-bold">{overview?.activeCandidates || 0}</div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="p-3">
-                      <CardHeader className="p-0 pb-2">
-                        <CardTitle className="text-xs font-normal text-gray-500">Conversion</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="text-xl sm:text-2xl font-bold">
-                          {overview?.funnelConversion.conversionPercent.toFixed(1) || "0"}%
-                        </div>
-                      </CardContent>
-                    </Card>
+                  <div className="grid grid-cols-2 gap-px rounded-xl bg-border sm:grid-cols-3 lg:grid-cols-6">
+                    {[
+                      {
+                        label: "Open Jobs",
+                        value: overview?.totalOpenJobs || 0,
+                      },
+                      {
+                        label: "This Month",
+                        value: overview?.totalApplicantsThisMonth || 0,
+                        change: overviewChanges.thisMonth,
+                      },
+                      {
+                        label: "Time to Hire",
+                        value: overview?.medianTimeToHire
+                          ? `${Math.round(overview.medianTimeToHire)}d`
+                          : "—",
+                      },
+                      {
+                        label: "Acceptance",
+                        value: overview?.offerAcceptanceRate
+                          ? `${overview.offerAcceptanceRate.toFixed(1)}%`
+                          : "0%",
+                        change: overviewChanges.acceptance,
+                      },
+                      {
+                        label: "Active",
+                        value: overview?.activeCandidates || 0,
+                        change: overviewChanges.active,
+                      },
+                      {
+                        label: "Conversion",
+                        value: overview?.funnelConversion.conversionPercent.toFixed(1) || "0",
+                        suffix: "%",
+                      },
+                    ].map((stat, index) => (
+                      <Card
+                        key={stat.label}
+                        className={cn(
+                          "rounded-none border-0 shadow-none py-0",
+                          index === 0 && "rounded-l-xl",
+                          index === 5 && "rounded-r-xl"
+                        )}
+                      >
+                        <CardContent className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 p-3 sm:p-4">
+                          <div className="text-xs font-medium text-muted-foreground">
+                            {stat.label}
+                          </div>
+                          {stat.change && (
+                            <div
+                              className={cn(
+                                "text-xs font-medium",
+                                stat.change.type === "positive"
+                                  ? "text-green-800 dark:text-green-400"
+                                  : stat.change.type === "negative"
+                                  ? "text-red-800 dark:text-red-400"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              {stat.change.value}
+                            </div>
+                          )}
+                          <div className="w-full flex-none text-2xl font-medium tracking-tight text-foreground">
+                            {stat.value}
+                            {stat.suffix}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 </section>
 

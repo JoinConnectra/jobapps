@@ -8,7 +8,7 @@ const FinalCtaSection = () => {
         <div className="max-w-5xl mx-auto">
           <div 
             className="relative rounded-xl overflow-hidden shadow-lg min-h-[220px] md:min-h-[260px]"
-            style={{
+      style={{
               background: 'linear-gradient(135deg, #1a3d2a 0%, #2d5239 50%, #1a3d2a 100%)',
             }}
           >
@@ -32,7 +32,7 @@ const FinalCtaSection = () => {
 
             {/* Screenshot - positioned in bottom right corner */}
             <div className="absolute bottom-0 right-0 w-[50%] md:w-[45%] lg:w-[40%] h-[60%] md:h-[70%] overflow-hidden">
-              <Image
+        <Image
                 src="/images/activities-section.png"
                 alt="Connectra dashboard showcase"
                 fill
@@ -43,8 +43,8 @@ const FinalCtaSection = () => {
                   transformOrigin: 'left top',
                 }}
                 priority
-              />
-            </div>
+        />
+      </div>
           </div>
         </div>
       </div>
