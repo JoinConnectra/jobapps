@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import React from 'react';
+import { PointerHighlight } from '@/components/ui/pointer-highlight';
 
 export default function HeroSection() {
   return (
@@ -8,7 +9,14 @@ export default function HeroSection() {
         <h1 className="font-display font-semibold text-[#1A1A1A] text-4xl md:text-5xl lg:text-6xl leading-[1.15] tracking-tight mb-6">
           Helping growing teams
           <br />
-          to hire smarter.
+          to hire{' '}
+          <PointerHighlight
+            rectangleClassName="bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 leading-loose"
+            pointerClassName="text-green-500 h-3 w-3"
+            containerClassName="inline-block"
+          >
+            <span className="relative z-10">smarter.</span>
+          </PointerHighlight>
         </h1>
 
         <p className="text-base md:text-lg text-gray-500 max-w-2xl leading-relaxed mb-6 md:mb-8">

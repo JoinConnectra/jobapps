@@ -5,9 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSession } from '@/lib/auth-client';
 import { useEffect, useState } from 'react';
+import { useDashboardUrl } from '@/hooks/use-dashboard-url';
 
 const HeaderNavigation = () => {
   const { data: session, isPending } = useSession();
+  const dashboardUrl = useDashboardUrl();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Preload logo image on mount to eliminate lag
@@ -110,7 +112,7 @@ const HeaderNavigation = () => {
               </>
             ) : (
               <Link
-                href="/dashboard"
+                href={dashboardUrl || "/student"}
                 className="inline-flex items-center justify-center rounded bg-[#3d6a4a] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2f5239]"
               >
                 Dashboard
@@ -202,7 +204,7 @@ const HeaderNavigation = () => {
                   </>
                 ) : (
                   <Link
-                    href="/dashboard"
+                    href={dashboardUrl || "/student"}
                     onClick={handleLinkClick}
                     className="w-full inline-flex items-center justify-center rounded bg-[#3d6a4a] px-5 py-3 text-base font-medium text-white transition-colors hover:bg-[#2f5239] active:bg-[#25432f]"
                   >
