@@ -54,11 +54,11 @@ const FeaturesOverviewSection = () => {
               </div>
               <div className="mt-5">
                 <h3 className="text-lg font-semibold text-[#6a994e] leading-tight">
-                  Let your applicants sell themselves
-                </h3>
+                Let your applicants sell themselves
+              </h3>
                 <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                  Applicants are now able to finally sell themselves and answer any of your behavioral, technical, sales, design, product related questions async
-                </p>
+                Applicants are now able to finally sell themselves and answer any of your behavioral, technical, sales, design, product related questions async
+              </p>
               </div>
             </div>
 
@@ -85,11 +85,11 @@ const FeaturesOverviewSection = () => {
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 rounded-full bg-gray-100 p-0.5 text-gray-500 flex-shrink-0" />
                     <Badge className="border-green-200 bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5">Recruiter</Badge>
-                  </div>
+                    </div>
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 rounded-full bg-gray-100 p-0.5 text-gray-500 flex-shrink-0" />
                     <Badge className="border-green-200 bg-green-50 text-green-700 text-[10px] px-1.5 py-0.5">Co-Founder & CTO</Badge>
-                  </div>
+                    </div>
                 </div>
 
                 <div className="mt-3 flex items-start gap-2 rounded-md bg-violet-50 p-2">
@@ -101,11 +101,11 @@ const FeaturesOverviewSection = () => {
               </div>
               <div className="mt-5">
                 <h3 className="text-lg font-semibold text-[#6a994e] leading-tight">
-                  Redefine or skip the first call
-                </h3>
+                Redefine or skip the first call
+              </h3>
                 <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                  Build consensus with your hiring team around the applicant's narrative to redefine what the first call means or skip the first call completely
-                </p>
+                Build consensus with your hiring team around the applicant's narrative to redefine what the first call means or skip the first call completely
+              </p>
               </div>
             </div>
           </div>

@@ -42,7 +42,6 @@ import {
   Calendar,
   ChevronRight,
   Filter,
-  BarChartIcon,
 } from "lucide-react";
 
 type FeedItem = { at: string; title: string; href?: string; kind: "company" | "applicants" | "members" };
@@ -436,10 +435,9 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <StatTile icon={Briefcase} label="Open Jobs" value={stats.jobs} />
               <StatTile icon={User} label="Applications" value={stats.applications} />
-              <StatTile icon={BarChartIcon} label="Engagement (30d)" value={`${Math.min(stats.applications * 2, 99)}%`} />
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 px-4 sm:px-6 py-2.5">

@@ -8,6 +8,7 @@ import AiAssistantFeature from '@/components/sections/ai-assistant-feature';
 import ActivityCrmFeature from '@/components/sections/activity-crm-feature';
 import GlobalTeamSection from '@/components/sections/global-team-section';
 import TestimonialsSection from '@/components/sections/testimonials-section';
+import FeaturesBentoGrid from '@/components/sections/features-bento-grid';
 import FinalCtaSection from '@/components/sections/final-cta-section';
 import Footer from '@/components/sections/footer';
 
@@ -18,12 +19,13 @@ export default function Page() {
       <HeroSection />
       <ApplicantShowcaseSection />
       <AnimatedSearchSection />
-      <ActivityFeatureSection />
       {/* <FeaturesOverviewSection /> */}
       {/* <AiAssistantFeature /> */}
       {/* <ActivityCrmFeature /> */}
       {/* <GlobalTeamSection /> */}
       {/* <TestimonialsSection /> */}
+      <FeaturesBentoGrid />
+      <ActivityFeatureSection />
       <FinalCtaSection />
       <Footer />
     </main>
